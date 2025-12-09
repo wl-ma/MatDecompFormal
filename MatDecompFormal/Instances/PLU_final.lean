@@ -4,6 +4,7 @@ import MatDecompFormal.Abstractions.Strategy
 import MatDecompFormal.Abstractions.ReductionCombinators -- For try_else
 import MatDecompFormal.Components.Properties.Permutation
 import MatDecompFormal.Components.Properties.Triangular
+import MatDecompFormal.Components.Properties.Reindex
 import MatDecompFormal.Components.Reductions.Schur
 import MatDecompFormal.Components.Reductions.ZeroColumn
 import MatDecompFormal.Components.Transformations.Elementary.Pivot
@@ -200,7 +201,16 @@ noncomputable def slice_univ {x : Σ n, SquareMatFamily n R} (hx : IsSliceable_u
     -- 这个证明依赖于 Schur/ZeroColumn 规约方法的具体实现
     have h_card_ι_eq_n : card sq_mat.ι = n := sq_mat.h_card.out
     dsimp [S_reduc, S_strat, PLU_Strategy, ReductionMethod.try_else, SchurMethod]
-    sorry
+    -- 无论走哪个分支，Sliceι 的定义都是 `{ i // ¬ p i }`，其中 p 是 `i = i₀`
+    -- 所以目标是 `card { i // i ≠ i₀ } = n - 1`
+    let i₀ := (@equiv sq_mat.ι).symm ⟨0, h_pos_ι⟩
+    have h_card_compl :
+        card { i : sq_mat.ι // i ≠ i₀ } = card sq_mat.ι - 1 := by
+      classical
+      -- 使用 `card_subtype_neq` 计算补集的基数
+      simp [FinEnum.card_eq_fintypeCard]
+    -- 用维度等式替换
+    simpa [h_card_ι_eq_n] using h_card_compl
 
   -- 步骤 5: 构造返回的 `Σ n, SquareMatFamily n R` 实例
   ⟨n - 1, {
@@ -216,84 +226,262 @@ noncomputable def slice_univ {x : Σ n, SquareMatFamily n R} (hx : IsSliceable_u
     }⟩
 
 
-/-- `r_univ` 是变换关系 `r` 在宇宙中的包装器。 -/
+/-- `r_univ` 是变换关系 `r` 在宇宙中的包装器 (v2 - 修正版)。 -/
 def r_univ (y x : Σ n, SquareMatFamily n R) : Prop :=
-  if h_n : y.1 = x.1 then
-    -- 只有在维度相同时，变换才有意义
-    let e : y.2.ι ≃ x.2.ι := FinEnum.equivOfCardEq (y.2.h_card.out.trans h_n.symm).trans x.2.h_card.out.symm
-    (PLU_Strategy x.2.ι R (by rw [←h_n]; exact y.2.h_card.out.trans_le (Nat.zero_le _))).r
-      (y.2.matrix.reindex e e) x.2.matrix
+  -- 变换关系只在维度相同时才有意义。
+  if h_n_eq : y.1 = x.1 then
+    -- 如果维度相同，我们将其记为 n
+    let n := x.1
+    -- 接下来，根据维度 n 是否为 0 进行分情况讨论。
+    if h_pos : n > 0 then
+      -- Case 1: 维度 n > 0。这是非平凡的变换发生的地方。
+      -- 在这个分支中，我们拥有一个 `n > 0` 的证明 `h_pos`。
+      -- 我们可以安全地实例化 `PLU_Strategy`。
+      let sq_mat_x := x.2
+      -- 为了比较 y 和 x 的矩阵，我们需要将它们 reindex 到同一个索引类型上。
+      -- 这里的 `e` 将 y 的索引类型 `y.2.ι` 映射到 x 的索引类型 `x.2.ι`。
+      let e : y.2.ι ≃ sq_mat_x.ι :=
+        FinEnum.equivOfCardEq ((y.2.h_card.out.trans h_n_eq).trans sq_mat_x.h_card.out.symm)
+      let sq_mat_y_reindexed := y.2.matrix.reindex e e
+      -- 关系 `r` 被定义为底层策略的 `r`。
+      (PLU_Strategy R (sq_mat_x.h_card.out.symm ▸ h_pos)).r sq_mat_y_reindexed sq_mat_x.matrix
+    else
+      -- Case 2: 维度 n = 0。
+      -- 对于 0x0 矩阵，唯一有意义的“变换”是恒等变换。
+      -- 这对应于我们修正后的 `ReductionStrategy.r` 定义中的 `y = x` 分支。
+      y = x
   else
+    -- 如果维度不同，则它们之间不存在变换关系。
     False
 
-/-- `transport_plu` 证明了 `P_univ` 在 `r_univ` 下是可传递的。 -/
-private lemma transport_plu : Transport r_univ P_univ := by
+
+/--
+`hasPLU_reindex_iff` 证明了 `HasPLU` 属性在通过保序同构 (`OrderIso`)
+进行基变换时是逻辑等价的。
+-/
+lemma hasPLU_reindex_iff {ι ι' R} [FinEnum ι] [FinEnum ι'] [Field R] [DecidableEq R]
+    -- 关键修改：e 现在是 OrderIso
+    (e : ι ≃o ι') (A : Matrix ι ι R) :
+    HasPLU ι R A ↔ HasPLU ι' R (A.reindex e.toEquiv e.toEquiv) := by
+  dsimp [HasPLU, HasDecomposition, PLU_Schema]
+  constructor
+  · -- (→) HasPLU A → HasPLU (reindex A)
+    intro ⟨⟨P, L, U⟩, ⟨hP, hL, hU⟩, h_eq⟩
+    -- 构造 reindex 后的因子
+    let P' := P.reindex e.toEquiv e.toEquiv
+    let L' := L.reindex e.toEquiv e.toEquiv
+    let U' := U.reindex e.toEquiv e.toEquiv
+    use (P', L', U')
+    constructor
+    · -- 证明新因子的性质，现在调用修正后的 _reindex 引理
+      refine ⟨?_, ?_, ?_⟩
+      · exact (isPermutation_reindex e.toEquiv _).mp hP
+      · exact (isUnitLowerTriangular_reindex e _).mp hL
+      · exact (isUpperTriangular_reindex e _).mp hU
+    · -- 证明分解方程
+      simp [P', L', U']
+      rw [← submatrix_mul _ _ _ _ _ e.symm.bijective,
+        ← submatrix_mul _ _ _ _ _ e.symm.bijective]
+      simp at h_eq
+      simp [h_eq]
+  · -- (←) HasPLU (reindex A) → HasPLU A
+    -- 与前一个方向对称，使用 e.symm (它也是 OrderIso)
+    intro ⟨⟨P', L', U'⟩, ⟨hP', hL', hU'⟩, h_eq'⟩
+    let P := P'.reindex e.symm.toEquiv e.symm.toEquiv
+    let L := L'.reindex e.symm.toEquiv e.symm.toEquiv
+    let U := U'.reindex e.symm.toEquiv e.symm.toEquiv
+    use (P, L, U)
+    constructor
+    · refine ⟨?_, ?_, ?_⟩
+      · exact (isPermutation_reindex e.symm.toEquiv _).mp hP'
+      · exact (isUnitLowerTriangular_reindex e.symm _).mp hL'
+      · exact (isUpperTriangular_reindex e.symm _).mp hU'
+    · -- 证明方程
+      simp [P, L, U]
+      have : e.symm ∘ e = id := Equiv.symm_comp_self e.toEquiv
+      have hA : (A.reindex e.toEquiv e.toEquiv).reindex e.symm.toEquiv e.symm.toEquiv = A := by
+        simp [this]
+      have hA_sub :
+          (A.reindex e.toEquiv e.toEquiv).submatrix (e : ι → ι') (e : ι → ι') = A := by
+        simpa using hA
+      -- 对 `h_eq'` 取 submatrix，使两边的索引都落在 `ι` 上
+      have h_eq_sub := congrArg (fun M => M.submatrix (e : ι → ι') (e : ι → ι')) h_eq'
+      -- 将 submatrix 应用到乘积上
+      have h_eq_sub' :
+          P'.submatrix e e * (A.reindex e.toEquiv e.toEquiv).submatrix e e =
+            L'.submatrix e e * U'.submatrix e e := by
+        simp at h_eq_sub
+        rw [submatrix_mul _ _ _ e _ e.bijective] at h_eq_sub
+        simpa [submatrix_mul (M := P') (N := A.reindex e.toEquiv e.toEquiv)
+            (e₁ := (e : ι → ι')) (e₂ := (e : ι → ι')) (e₃ := (e : ι → ι')) e.bijective,
+          submatrix_mul (M := L') (N := U') (e₁ := (e : ι → ι')) (e₂ := (e : ι → ι'))
+            (e₃ := (e : ι → ι')) e.bijective] using h_eq_sub
+      -- 把 submatrix 还原成 reindex 后的矩阵
+      simpa [P, L, U, hA_sub, this] using h_eq_sub'
+
+/--
+`transport_plu_concrete` 是在具体矩阵类型上操作的底层 transport 引理。
+-/
+private lemma transport_plu_concrete {ι : Type*} [FinEnum ι] (h_card : card ι > 0) :
+    Transport (PLU_Strategy R h_card).r (HasPLU ι (R := R)) := by
+  intro x y h_r h_plu_x
+  -- 展开新的 r 定义
+  dsimp [ReductionStrategy.r] at h_r
+  cases h_r with
+  | inl hyx =>
+      -- Case 1: y = x (自反情况)
+      subst hyx; exact h_plu_x
+  | inr h =>
+      -- Case 2: 存在变换 t (行交换)
+      rcases h with ⟨t, hy⟩
+      subst hy
+      rcases h_plu_x with ⟨⟨P, L, U⟩, ⟨hP, hL, hU⟩, h_eq_x⟩
+      let i₀ := (@equiv ι).symm ⟨0, h_card⟩
+      let P_swap := swap R i₀ t
+      -- 这里选择 P' = P * P_swap（因为 swap 是自逆的）
+      let P' := P * P_swap
+      have hP' : IsPermutation P' := isPermutation_mul hP (isPermutation_swap _ _)
+      use (P', L, U)
+      constructor
+      · exact ⟨hP', hL, hU⟩
+      · dsimp [PLU_Schema, HasDecomposition] at h_eq_x ⊢
+        -- 此时 h_eq_x : P * (P_swap * y) = L * U
+        -- 直接重写为 P' * y = L * U
+        simpa [P', mul_assoc] using h_eq_x
+
+/-- `transport_plu` (最终版) 证明了 `P_univ` 在 `r_univ` 下是可传递的。 -/
+private lemma transport_plu : Transport (r_univ R) (P_univ R) := by
+  -- 1. 展开定义
   intro x y h_r h_p_x
   dsimp [P_univ, r_univ] at *
-  split_ifs at h_r with h_n
-  -- 证明 `HasPLU` 在 reindex 下不变
-  sorry
+
+  -- 2. 处理 `r_univ` 定义中的 `if` 分支
+  split_ifs at h_r with h_n_eq h_pos
+  · -- Case 1 (核心): n > 0 且维度相同
+    -- 此时 h_r 是 `(PLU_Strategy ...).r (reindex ... x.matrix) y.matrix`
+    -- h_p_x 是 `HasPLU x.matrix`
+    -- 目标是 `HasPLU y.matrix`
+
+    -- 步骤 a: 为索引构造保序同构 (OrderIso)
+    let sq_mat_src := x.2
+    let sq_mat_tgt := y.2
+    -- 关键：`h_n_eq : x.1 = y.1` 给出了两个索引类型基数的等式。
+    let e : sq_mat_src.ι ≃o sq_mat_tgt.ι :=
+      FinEnum.orderIsoOfCardEq
+        ((sq_mat_src.h_card.out.trans h_n_eq).trans sq_mat_tgt.h_card.out.symm)
+    let sq_mat_src_reindexed := sq_mat_src.matrix.reindex e.toEquiv e.toEquiv
+
+    -- 步骤 b: 将 `h_r` 和 `HasPLU` 假设转换到具体矩阵上
+    have h_r_concrete :
+        (PLU_Strategy R (sq_mat_tgt.h_card.out.symm ▸ h_pos)).r
+          sq_mat_src_reindexed sq_mat_tgt.matrix := by
+      simpa [sq_mat_src_reindexed, sq_mat_src, sq_mat_tgt, e] using h_r
+    have h_card_pos : card sq_mat_tgt.ι > 0 := sq_mat_tgt.h_card.out.symm ▸ h_pos
+    have h_plu_reindexed : HasPLU sq_mat_tgt.ι R sq_mat_src_reindexed := by
+      have h := (hasPLU_reindex_iff (ι:=sq_mat_src.ι) (ι':=sq_mat_tgt.ι)
+          (R:=R) e sq_mat_src.matrix).1 h_p_x
+      simpa [sq_mat_src_reindexed] using h
+
+    -- 步骤 c: 调用底层的 transport 引理
+    exact (transport_plu_concrete (R := R) (ι := sq_mat_tgt.ι) h_card_pos)
+      sq_mat_src_reindexed sq_mat_tgt.matrix h_r_concrete h_plu_reindexed
+
+  · -- Case 2: n = 0
+    -- 此时 h_r 蕴含 y = x
+    subst h_r
+    exact h_p_x
+
 
 /-- `lift_from_slice_plu` 证明了 `P_univ` 可以从子问题解中提升。 -/
-private lemma lift_from_slice_plu {x : Σ n, SquareMatFamily n R} (hx : IsSliceable_univ x)
-    (h_p_slice : P_univ (slice_univ hx)) : P_univ x := by
+private lemma lift_from_slice_plu {x : Σ n, SquareMatFamily n R} (hx : IsSliceable_univ R x)
+    (h_p_slice : P_univ R (slice_univ R hx)) : P_univ R x := by
   -- 展开定义，调用纯代数引理
   sorry
 
+end PLU_Proof
+
+
+section FinalProof
+
+variable {ι : Type*} (R : Type*) [FinEnum ι] [Field R]
+
 /-- `base_plu` 证明 `n=0` 的基例。 -/
-private lemma base_plu {x : Σ n, SquareMatFamily n R} (h_n_zero : x.1 = 0) : P_univ x := by
+private lemma base_plu {x : Σ n, SquareMatFamily n R}
+    (h_n_zero : x.1 = 0) : P_univ R x := by
+  classical
   let ⟨n, sq_mat⟩ := x; subst h_n_zero
   dsimp [P_univ]
-  have h_empty : IsEmpty sq_mat.ι := FinEnum.isEmpty_of_card_eq_zero sq_mat.h_card.out
+  -- 从 `card sq_mat.ι = 0` 得到空类型实例
+  have h_card_zero : Fintype.card sq_mat.ι = 0 := by
+    simpa [FinEnum.card_eq_fintypeCard] using sq_mat.h_card.out
+  have h_empty : IsEmpty sq_mat.ι := Fintype.card_eq_zero_iff.1 h_card_zero
+  haveI : IsEmpty sq_mat.ι := h_empty
   dsimp [HasPLU, HasDecomposition, PLU_Schema]
-  use (1, 1, 1)
-  exact ⟨⟨by dsimp [IsPermutation]; use Equiv.refl _; simp [Matrix.isEmpty],
-           by dsimp [IsUnitLowerTriangular, IsLowerTriangular, IsUpperTriangular]; simp [BlockTriangular, diag, Matrix.isEmpty],
-           by dsimp [IsUpperTriangular]; simp [BlockTriangular, Matrix.isEmpty]⟩,
-         by simp [Matrix.isEmpty]⟩
+  refine ⟨(1, 1, 1), ?_, ?_⟩
+  · refine ⟨?_, ?_, ?_⟩
+    · dsimp [IsPermutation]; refine ⟨Equiv.refl _, ?_⟩; simp
+    · simp [IsUnitLowerTriangular, IsLowerTriangular, IsUpperTriangular]
+    · simp [IsUpperTriangular]
+  · -- 在空索引上矩阵是惟一的，故 `sq_mat.matrix = 1`
+    have h_matrix : sq_mat.matrix = (1 : Matrix sq_mat.ι sq_mat.ι R) := by
+      ext i j; cases h_empty.false i
+    simp [h_matrix]
+
+variable [DecidableEq R]
 
 /-- `reach_plu` 证明 `n>0` 的归纳步骤。 -/
 private lemma reach_plu {x : Σ n, SquareMatFamily n R} (h_n_pos : x.1 > 0) :
-    ∃ y, ∃ (hy : IsSliceable_univ y), r_univ y x ∧ (fun z ↦ z.1) (slice_univ hy) < x.1 := by
+    ∃ y, ∃ (hy : IsSliceable_univ R y), r_univ R y x ∧ (fun z ↦ z.1) (slice_univ R hy) < x.1 := by
   let ⟨n, sq_mat⟩ := x
   let A := sq_mat.matrix
-  let S_strat := PLU_Strategy sq_mat.ι R h_n_pos
-  rcases S_strat.mk_reach_metric (A := A) h_n_pos with ⟨y_mat, hy_sliceable_concrete, h_r_concrete, h_prog⟩
+  -- 将 `n > 0` 转换为 `card sq_mat.ι > 0`
+  have h_card_pos : card sq_mat.ι > 0 := sq_mat.h_card.out.symm ▸ h_n_pos
+  let S_strat : ReductionStrategy sq_mat.ι sq_mat.ι R :=
+    PLU_Strategy (ι := sq_mat.ι) R h_card_pos
+  rcases S_strat.mk_reach_metric (A := A) h_card_pos with
+    ⟨y_mat, hy_sliceable_concrete, h_r_concrete, h_prog⟩
   let y_witness : Σ n, SquareMatFamily n R :=
-    ⟨n, { ι := sq_mat.ι, matrix := y_mat }⟩
+    ⟨n, { sq_mat with matrix := y_mat }⟩
   use y_witness
-  have hy : IsSliceable_univ y_witness := by
-    dsimp [IsSliceable_univ]; rw [dif_pos h_n_pos]
-    exact hy_sliceable_concrete
+  have hy : IsSliceable_univ (R := R) y_witness := by
+    dsimp [IsSliceable_univ, y_witness, S_strat]
+    have h_pos : n > 0 := h_n_pos
+    have h_proof_eq : sq_mat.h_card.out.symm ▸ h_pos = h_card_pos := by
+      apply Subsingleton.elim
+    -- 通过 `simp` 将策略证明统一
+    simpa [dif_pos h_pos, h_proof_eq] using hy_sliceable_concrete
   use hy
   constructor
-  · dsimp [r_univ]; rw [dif_pos rfl]
+  · dsimp [r_univ, y_witness]; rw [dif_pos rfl, dif_pos h_n_pos]
     -- 目标是 (PLU_Strategy ...).r (reindex ... y_mat) A
     -- reindex 是恒等映射，所以目标就是 .r y_mat A
-    convert h_r_concrete
-    ext i j; simp
+    simpa [S_strat, h_card_pos, sq_mat.h_card.out]
+      using h_r_concrete
   · dsimp [slice_univ]
     -- 目标是 n-1 < n
-    exact h_prog
+    have h_ne_zero : n ≠ 0 := Nat.ne_of_gt h_n_pos
+    have h_lt : n - 1 < n := by
+      simpa [Nat.pred_eq_sub_one] using Nat.pred_lt h_ne_zero
+    simpa [slice_univ, y_witness] using h_lt
 
 -- ==================================================================
 -- L3.4: 组装最终证明
 -- ==================================================================
 
 /-- 对 `SquareMatFamily` 宇宙中的所有矩阵证明 PLU 分解存在性。 -/
-private theorem exists_plu_for_family : ∀ (x : Σ n, SquareMatFamily n R), P_univ x := by
+private theorem exists_plu_for_family : ∀ (x : Σ n, SquareMatFamily n R), P_univ R x := by
   apply transformSliceInduction (X := Σ n, SquareMatFamily n R)
     (μ := fun x ↦ x.1)
-    (P := P_univ)
-    (h_trans := transport_plu)
-    (IsSliceable := IsSliceable_univ)
-    (slice := slice_univ)
-    (lift_from_slice := lift_from_slice_plu)
-    (reach_metric := reach_plu)
-    (base_metric := base_plu)
+    (P := P_univ R)
+    (h_trans := transport_plu R)
+    (IsSliceable := IsSliceable_univ R)
+    (slice := slice_univ R)
+    (lift_from_slice := lift_from_slice_plu R)
+    (reach_metric := reach_plu R)
+    (base_metric := base_plu R)
 
 /-- **PLU 分解存在性定理 (最终对用户暴露的定理)** -/
-theorem exists_plu_decomposition (A : Matrix ι ι R) : HasPLU A := by
+theorem exists_plu_decomposition (A : Matrix ι ι R) : HasPLU ι R A := by
   -- 1. 构造一个 `SquareMatFamily` 实例
   let n := card ι
   let sq_mat_family : SquareMatFamily n R := {
@@ -303,9 +491,11 @@ theorem exists_plu_decomposition (A : Matrix ι ι R) : HasPLU A := by
   }
   let x : Σ n, SquareMatFamily n R := ⟨n, sq_mat_family⟩
   -- 2. 调用在宇宙中证明的定理
-  have h_univ := exists_plu_for_family x
+  have h_univ := exists_plu_for_family R x
   -- 3. 将宇宙中的结论转换回来
   dsimp [P_univ] at h_univ
   exact h_univ
+
+end FinalProof
 
 end MatDecompFormal.Instances

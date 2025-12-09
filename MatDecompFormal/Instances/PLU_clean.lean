@@ -223,41 +223,58 @@ def equivOfCardEq {ι κ : Type*} [FinEnum ι] [FinEnum κ] (h : card ι = card 
   -- 流程: ι ≃ Fin (card ι) ≃o Fin (card κ) ≃ κ
   (@equiv ι).trans ((Fin.castOrderIso h).toEquiv.trans (@equiv κ).symm)
 
+@[simp] lemma equivOfCardEq_rfl (ι : Type*) [FinEnum ι] :
+    equivOfCardEq (ι := ι) (κ := ι) rfl = Equiv.refl ι := by
+  dsimp [equivOfCardEq]
+  simp
+
 end FinEnum
 
-/-- `transport_plu` 证明了 PLU 分解性质在行变换下是可传递的。 -/
+/-- `transport_plu` (v2 - 适配新的 r 定义)
+证明了 PLU 分解性质在新的变换关系 `r` 下是可传递的。
+-/
 lemma transport_plu (h_card : card ι > 0) :
     Transport (PLU_Strategy R h_card).r (HasPLU ι R) := by
-  intro A' B h_r h_plu_A'
-  rcases h_r with ⟨i₁, h_eq_B⟩
-  -- 从 h_plu_A' (即 A' 存在 PLU 分解) 中获取 P, L, U
-  rcases h_plu_A' with ⟨factors, ⟨⟨hP, hL, hU⟩, h_eq_A⟩⟩
-  -- 将 factors 分解为 (P, L, U)
-  let (P, L, U) := factors
-  -- 构造 B 的分解因子。新的置换矩阵是 P 乘以我们用于变换的行交换矩阵。
-  let i₀ := (@equiv ι).symm ⟨0, h_card⟩
-  let P' := swap R i₀ i₁
-  -- use ((P * P'), L, U) 提供了一个类型为 Factors 的值
-  use ((P * P'), L, U)
-  -- 证明新的因子满足性质，并且满足分解方程
-  constructor
-  · dsimp [PLU_Schema]
-    refine ⟨?_, hL, hU⟩
-    apply isPermutation_mul
-    · exact hP
-    · apply isPermutation_swap
-  · dsimp [PLU_Strategy, ReductionStrategy.transform, PivotTransform] at h_eq_B
-    dsimp [PLU_Schema] at h_eq_A
-    dsimp [PLU_Schema, P']
-    rw [mul_assoc, ← h_eq_B, h_eq_A]
+  -- 目标: ∀ A' B, (PLU_Strategy R h_card).r B A' → HasPLU ι R B → HasPLU ι R A'
+  -- 注意：Transport 的参数顺序是 r y x → P y → P x，这里为了证明方便，我用了 x, y
+  intro x y h_r h_plu_x
+  -- 展开新的 r 定义
+  dsimp [ReductionStrategy.r] at h_r
+  rcases h_r with (h_eq | h_trans)
+  · -- Case 1: y = x (自反情况)
+    -- 目标是 HasPLU x → HasPLU x，这是平凡的
+    rw [h_eq] at h_plu_x
+    exact h_plu_x
+  · -- Case 2: 存在变换 t (行交换)
+    -- 这部分与之前的证明完全相同
+    rcases h_trans with ⟨i₁, h_eq_y⟩
+    rcases h_plu_x with ⟨⟨P, L, U⟩, ⟨hP, hL, hU⟩, h_eq_x⟩
+    let i₀ := (@equiv ι).symm ⟨0, h_card⟩
+    let P_swap := swap R i₀ i₁
+    -- 构造 y 的分解因子
+    -- P_swap * x = y
+    -- P_swap * (P⁻¹ * L * U) = y
+    -- (P_swap * P⁻¹) * L * U = y
+    -- 我们需要证明 P_swap * P⁻¹ 是一个置换矩阵
+    -- 这需要一个引理：置换矩阵的乘积和逆仍然是置换矩阵
+    -- 假设我们有 `isPermutation_mul` 和 `isPermutation_inv`
+    let P' := P_swap * P⁻¹
+    have hP' : IsPermutation P' := by
+      apply isPermutation_mul
+      · exact isPermutation_swap _ _
+      · sorry -- 需要一个 isPermutation_inv 的引理
+    use (P', L, U)
+    constructor
+    · exact ⟨hP', hL, hU⟩
+    · dsimp [PLU_Schema]
+      simp [PLU_Strategy] at h_eq_y
+      sorry
+      -- rw [h_eq_y, h_eq_x]
+      -- simp [P', mul_assoc]
 
--- 我们的归纳命题 P 现在是定义在 SquareMat 上的
-def P_univ (x : Matrix ι ι R) : Prop :=
-  if h_card : card ι > 0 then
-    HasPLU ι R x
-  else
-    -- 对于 0x0 矩阵，PLU 分解是平凡的
-    True
+
+
+
 
 /--
 `lift_from_slice_plu_algebra` 是 PLU 分解的核心代数构造引理。
@@ -353,6 +370,8 @@ end PLU_Proof
 
 section FinalProof
 
+universe uι uκ
+
 variable {ι : Type*} (R : Type*) [FinEnum ι] [Field R] [DecidableEq R]
 
 
@@ -364,46 +383,60 @@ variable {ι : Type*} (R : Type*) [FinEnum ι] [Field R] [DecidableEq R]
 
 /-- `P_pos_sq` 是 HasPLU 在 PositiveSquareMat 宇宙中的直接映射。 -/
 private def P_pos_sq (x : PositiveSquareMat R) : Prop :=
-  let e : x.val.mat.ι ≃ x.val.mat.κ := FinEnum.equivOfCardEq x.val.is_square
-  HasPLU x.val.mat.ι R (x.val.mat.matrix.reindex (Equiv.refl _) e.symm)
+  -- let e : x.val.ι ≃ x.val.κ := FinEnum.equivOfCardEq x.val.is_square
+  HasPLU x.val.ι R x.val.matrix
 
 /-- `r_pos_sq` 是 PLU 变换关系在 PositiveSquareMat 宇宙中的映射 (最终健壮版)。 -/
 private def r_pos_sq (y x : PositiveSquareMat R) : Prop :=
   -- 条件：比较两个可判定的自然数 `card`
-  if h_size_eq : card x.val.mat.ι = card y.val.mat.ι then
-    have h_card_pos : card x.val.mat.ι > 0 := x.property
+  if h_size_eq : card x.val.ι = card y.val.ι then
+    have h_card_pos : card x.val.ι > 0 := x.property
 
     -- 构造 x 的 reindex
-    let e_xκ : x.val.mat.κ ≃ x.val.mat.ι := FinEnum.equivOfCardEq x.val.is_square.symm
-    let x_reindexed := x.val.mat.matrix.reindex (Equiv.refl _) e_xκ
+    -- let e_xκ : x.val.mat.κ ≃ x.val.mat.ι := FinEnum.equivOfCardEq x.val.is_square.symm
+    -- let x_reindexed := x.val.mat.matrix.reindex (Equiv.refl _) e_xκ
 
     -- 构造 y 的 reindex，通过组合已有的 Equiv
-    let e_yx : y.val.mat.ι ≃ x.val.mat.ι := FinEnum.equivOfCardEq h_size_eq.symm
-    let e_yκ_to_yι : y.val.mat.κ ≃ y.val.mat.ι := (FinEnum.equivOfCardEq y.val.is_square).symm
-    let e_yκ_to_xι : y.val.mat.κ ≃ x.val.mat.ι := e_yκ_to_yι.trans e_yx
-    let y_reindexed := y.val.mat.matrix.reindex e_yx e_yκ_to_xι
+    let e_yx : y.val.ι ≃ x.val.ι := FinEnum.equivOfCardEq h_size_eq.symm
+    -- let e_yκ_to_yι : y.val.mat.κ ≃ y.val.mat.ι := (FinEnum.equivOfCardEq y.val.is_square).symm
+    -- let e_yκ_to_xι : y.val.mat.κ ≃ x.val.mat.ι := e_yκ_to_yι.trans e_yx
+    let y_reindexed := y.val.matrix.reindex e_yx e_yx
 
-    (PLU_Strategy R h_card_pos).r y_reindexed x_reindexed
+    (PLU_Strategy R h_card_pos).r y_reindexed x.val.matrix
   else
     False
 
 
 /-- `IsSliceable_sq` 是 IsSliceable 在 SquareMat 宇宙中的映射。 -/
 private def IsSliceable_pos_sq (x : PositiveSquareMat R) : Prop :=
-  let e_κ : x.val.mat.κ ≃ x.val.mat.ι := FinEnum.equivOfCardEq x.val.is_square.symm
-  let A := x.val.mat.matrix.reindex (Equiv.refl _) e_κ
-  (PLU_Strategy R x.2).reduction.IsSliceable A
+  -- let e_κ : x.val.mat.κ ≃ x.val.mat.ι := FinEnum.equivOfCardEq x.val.is_square.symm
+  -- let A := x.val.mat.matrix.reindex (Equiv.refl _) e_κ
+  (PLU_Strategy R x.2).reduction.IsSliceable x.val.matrix
 
 /-- `slice_pos_sq` 返回一个通用的 `SquareMat`，因为维度可能变为 0。 -/
 private noncomputable def slice_pos_sq {x : PositiveSquareMat R} (hx : IsSliceable_pos_sq R x) :
-      SquareMat R :=
+    SquareMat R :=
   let S := (PLU_Strategy R x.property).reduction
-  let e_κ : x.val.mat.κ ≃ x.val.mat.ι := FinEnum.equivOfCardEq x.val.is_square.symm
-  let A := x.val.mat.matrix.reindex (Equiv.refl _) e_κ
+  let A := x.val.matrix -- 直接访问
   let slice_matrix := S.slice A hx
   have h_slice_sq : card S.Sliceι = card S.Sliceκ := by --sorry -- (依赖于 Schur/ZeroColumn 将方阵映为方阵)
     simp [S, PLU_Strategy, ReductionMethod.try_else, SchurMethod]
-  ⟨⟨S.Sliceι, S.Sliceκ, slice_matrix⟩, h_slice_sq⟩
+  -- 构造返回的 SquareMat
+  {
+    ι := S.Sliceι, -- 直接赋值
+    matrix := slice_matrix.reindex (Equiv.refl _) (FinEnum.equivOfCardEq h_slice_sq) -- 变方
+  }
+
+
+-- private noncomputable def slice_pos_sq {x : PositiveSquareMat R} (hx : IsSliceable_pos_sq R x) :
+--       SquareMat R :=
+--   let S := (PLU_Strategy R x.property).reduction
+--   -- let e_κ : x.val.mat.κ ≃ x.val.mat.ι := FinEnum.equivOfCardEq x.val.is_square.symm
+--   -- let A := x.val.mat.matrix.reindex (Equiv.refl _) e_κ
+--   let slice_matrix := S.slice x.val.matrix hx
+--   have h_slice_sq : card S.Sliceι = card S.Sliceκ := by --sorry -- (依赖于 Schur/ZeroColumn 将方阵映为方阵)
+--     simp [S, PLU_Strategy, ReductionMethod.try_else, SchurMethod]
+--   ⟨⟨S.Sliceι, S.Sliceκ, slice_matrix⟩, h_slice_sq⟩
 
 
 -- ------------------------------------------------------------------
@@ -421,38 +454,47 @@ private lemma transport_wrapper_sq : Transport (r_pos_sq R) (P_pos_sq R) := by
   dsimp [r_pos_sq] at h_r
   split_ifs at h_r with h_size_eq
   dsimp [P_pos_sq] at *
-  have h_card_pos : card x.val.mat.ι > 0 := x.property
-  let e_xκ := FinEnum.equivOfCardEq x.val.is_square.symm
-  let x_reindexed := x.val.mat.matrix.reindex (Equiv.refl _) e_xκ
+  have h_card_pos : card x.val.ι > 0 := x.property
+  -- let e_xκ := FinEnum.equivOfCardEq x.val.is_square.symm
+  -- let x_reindexed := x.val.mat.matrix.reindex (Equiv.refl _) e_xκ
 
   let e_yx := FinEnum.equivOfCardEq h_size_eq.symm
-  let e_yκ_to_yι := (FinEnum.equivOfCardEq y.val.is_square).symm
-  let e_yκ_to_xι := e_yκ_to_yι.trans e_yx
-  let y_reindexed := y.val.mat.matrix.reindex e_yx e_yκ_to_xι
+  -- let e_yκ_to_yι := (FinEnum.equivOfCardEq y.val.is_square).symm
+  -- let e_yκ_to_xι := e_yκ_to_yι.trans e_yx
+  let y_reindexed := y.val.matrix.reindex e_yx e_yx
 
-  have h_p_y_reindexed : HasPLU x.val.mat.ι R y_reindexed := by
-    let e_y_κ_to_ι : y.val.mat.κ ≃ y.val.mat.ι := FinEnum.equivOfCardEq y.val.is_square.symm
-    let y_p_ver := y.val.mat.matrix.reindex (Equiv.refl _) e_y_κ_to_ι
-    let e_yx_iso : y.val.mat.ι ≃ x.val.mat.ι := FinEnum.equivOfCardEq h_size_eq.symm
+  have h_p_y_reindexed : HasPLU x.val.ι R y_reindexed := by
+    -- let e_y_κ_to_ι : y.val.mat.κ ≃ y.val.mat.ι := FinEnum.equivOfCardEq y.val.is_square.symm
+    -- let y_p_ver := y.val.matrix.reindex (Equiv.refl _) e_y_κ_to_ι
+    let e_yx_iso : y.val.ι ≃ x.val.ι := FinEnum.equivOfCardEq h_size_eq.symm
 
     -- 使用新的 hasPLU_reindex_iff 引理
     exact (hasPLU_reindex_iff _ _ R e_yx_iso _).mp h_p_y
   exact (transport_plu R h_card_pos) _ _ h_r h_p_y_reindexed
 
 
+-- 我们的归纳命题 P 现在是定义在 SquareMat 上的
+private def P_univ (x : SquareMat R) : Prop :=
+  if h_pos : card x.ι > 0 then
+    -- 注意：这里我们用 PositiveSquareMat.mk 来构造子类型实例
+    P_pos_sq R (PositiveSquareMat.mk x h_pos)
+  else
+    -- 0x0 矩阵的 PLU 分解是平凡的
+    HasPLU x.ι R x.matrix
+
 private lemma lift_wrapper_sq :
     ∀ {x : PositiveSquareMat R} (hx : IsSliceable_pos_sq R x),
     -- 假设 P(slice) 成立
-    (P_univ R (slice_pos_sq R hx).mat.matrix) →
+    (P_univ R (slice_pos_sq R hx)) →
     -- 目标 P(x) 成立
     P_pos_sq R x := by
   intro x hx h_p_slice
 
   -- 步骤 1: 解包宇宙级对象和假设
   dsimp [P_pos_sq]
-  let e_κ : x.val.mat.κ ≃ x.val.mat.ι := FinEnum.equivOfCardEq x.val.is_square.symm
-  let A := x.val.mat.matrix.reindex (Equiv.refl _) e_κ
-  let hA : (PLU_Strategy R x.property).reduction.IsSliceable A := hx
+  -- let e_κ : x.val.mat.κ ≃ x.val.mat.ι := FinEnum.equivOfCardEq x.val.is_square.symm
+  -- let A := x.val.mat.matrix.reindex (Equiv.refl _) e_κ
+  let hA : (PLU_Strategy R x.property).reduction.IsSliceable x.val.matrix := hx
 
   -- 步骤 2: 解包归纳假设 `h_p_slice`
   -- h_p_slice 的类型是 `P_univ R (slice_pos_sq R hx)`
@@ -467,94 +509,99 @@ private lemma lift_wrapper_sq :
     -- 我们需要一个纯代数的引理来完成提升。
     -- 这个引理 `lift_from_slice_plu_algebra` 只处理 > 0 的情况。
     exact
-      lift_from_slice_plu_algebra (ι := x.val.mat.ι) (R := R)
-        A x.property hA (by simpa [A, e_κ] using h_p_slice)
+      lift_from_slice_plu_algebra (ι := x.val.ι) (R := R)
+        x.val.matrix x.property hA (by simpa using h_p_slice)
 
   · -- Case 2: card(slice) = 0.
     -- 此时 h_p_slice 的内容是 `True`。
     -- 我们需要一个不同的代数引理，它知道如何从一个 0x0 的子问题（平凡可解）
     -- 来构造原问题的解。
     simp at h_slice_pos
-    apply lift_from_slice_plu_algebra_base_case R A x.property hA h_slice_pos
+    apply lift_from_slice_plu_algebra_base_case R x.val.matrix x.property hA h_slice_pos
 
 
 private lemma reach_metric_wrapper_sq :
-    ∀ {x : PositiveSquareMat R}, (fun y ↦ card y.val.mat.ι) x > 0 →
+    ∀ {x : PositiveSquareMat R},
     ∃ y : PositiveSquareMat R, ∃ (hy : IsSliceable_pos_sq R y),
-    r_pos_sq R y x ∧ (fun z ↦ card z.mat.ι) (slice_pos_sq R hy) < (fun z ↦ card z.val.mat.ι) x := by
-  -- 步骤 1: 解包宇宙级对象 x
-  intro x h_mu_pos
-  let e_κ : x.val.mat.κ ≃ x.val.mat.ι := FinEnum.equivOfCardEq x.val.is_square.symm
-  let A := x.val.mat.matrix.reindex (Equiv.refl _) e_κ
-  let S_strat := PLU_Strategy R h_mu_pos
+    r_pos_sq R y x ∧ card (slice_pos_sq R hy).ι < card x.val.ι := by
+  -- 步骤 1: 解包，与之前相同
+  intro x
+  have h_mu_pos := x.2
+  -- let e_κ : x.val.mat.κ ≃ x.val.mat.ι := FinEnum.equivOfCardEq x.val.is_square.symm
+  -- let A := x.val.mat.matrix.reindex (Equiv.refl _) e_κ
+  -- 注意：这里的策略应当实例化为和 `x` 同型的索引类型
+  let S_strat : ReductionStrategy x.val.ι x.val.ι R :=
+    PLU_Strategy (ι := x.val.ι) (R := R) h_mu_pos
 
-  -- 步骤 2: 调用底层的 reach_metric 实现
-  -- 首先，我们需要为 mk_reach_metric 提供它所需的前提。
-  have h_non_base_implies_not_goal : ∀ A', S_strat.μ A' > 0 → ¬ S_strat.transform.Goal A' := by
-    intro A' hμ_pos' h_goal
-    -- 这个证明是 PLU 特有的：如果矩阵可切片（Goal 成立），那么它的维度必须 > 1，
-    -- 因为 1x1 的可切片矩阵（主元非零）的子问题是 0x0，其 PLU 分解是平凡的，
-    -- 但我们的归纳法可能需要更强的条件。
-    -- 在这里，我们暂时假设这个前提成立，因为它依赖于 PLU 算法的细节。
-    -- 一个简单的论证是：如果 Goal 成立，说明主元非零或整列为零，
-    -- 这两种情况的 slice 维度都是 card ι - 1。如果 card ι = 1，那么 slice 维度为 0，
-    -- 这已经是基例，不应再走 reach 步骤。所以 μ > 0 应该蕴含 ¬ Goal。
-    -- 为了让证明通过，我们暂时使用 sorry。
-    sorry
+  -- 步骤 2: 调用修正后的、类型安全的 mk_reach_metric
+  -- rcases 现在会返回一个类型为 `Matrix x.ι x.ι R` 的 `y_mat`，宇宙层级正确！
+  rcases S_strat.mk_reach_metric (A := x.val.matrix) h_mu_pos
+    with ⟨y_mat, hy_sliceable_concrete, h_r, h_prog⟩
 
-  -- 调用 mk_reach_metric 得到底层的 y_mat 和相关证明
-  rcases S_strat.mk_reach_metric h_non_base_implies_not_goal h_mu_pos with ⟨y_mat, hy_sliceable_concrete, ⟨t, h_y_eq⟩, h_prog⟩
+  -- 步骤 3: 构造见证 `y`
+  -- 这个构造现在是类型安全的，因为 y_mat 的索引类型就是 x.ι
+  let y_witness : PositiveSquareMat R := {
+    val := {
+        ι := x.val.ι,
+        matrix := y_mat
+    },
+    property := h_mu_pos
+  }
 
-  -- 步骤 3: 重新包装 y_mat 为宇宙级对象 y
-  -- y_mat 和 A 具有相同的维度 ι, ι
-  let y_val : SquareMat R := ⟨⟨x.val.mat.ι, x.val.mat.ι, y_mat⟩, rfl⟩
-  let y : PositiveSquareMat R := ⟨y_val, h_mu_pos⟩
+  -- 步骤 4: 现在 `use` 可以正常工作了！
+  refine ⟨y_witness, ?_⟩
 
-  -- 步骤 4: 组装存在性证明
-  use y
-  -- 包装 hy_sliceable
-  let hy : IsSliceable_pos_sq R y := by
+  -- 步骤 5: 后续证明与之前设想的相同，但现在所有步骤都是类型安全的
+  have hy : IsSliceable_pos_sq R y_witness := by
     dsimp [IsSliceable_pos_sq]
-    -- 我们需要证明 y reindex 后等于 y_mat
-    have : (y.val.mat.matrix.reindex (Equiv.refl _) (FinEnum.equivOfCardEq y.val.is_square.symm)) = y_mat := by
-      simp [y, y_val]
-    rw [this]
+    change S_strat.reduction.IsSliceable
+      (y_witness.val.mat.matrix.reindex (Equiv.refl _) e_κ)
+    dsimp [y_witness]
+    simp
     exact hy_sliceable_concrete
-  use hy
+  refine ⟨hy, ?_⟩
 
-  -- 步骤 5: 证明关系和进展
   constructor
-  · -- 证明 r_pos_sq R y x 成立
+  · -- 证明 r_pos_sq R y_witness x 成立
     dsimp [r_pos_sq]
-    -- `card y.ι = card x.ι` 是成立的，因为它们都是 `x.ι`
     split_ifs with h_size_eq
-    · -- 目标是 (PLU_Strategy ...).r y_reindexed x_reindexed
-      -- 我们需要证明 y_reindexed 就是 y_mat
-      have h_y_reindexed_eq : (y.val.mat.matrix.reindex (FinEnum.equivOfCardEq h_size_eq.symm) (FinEnum.equivOfCardEq (y.val.is_square.trans h_size_eq).symm)) = y_mat := by
-        simp [y, y_val]
-      rw [h_y_reindexed_eq]
-      -- 目标现在是 (PLU_Strategy ...).r y_mat A
-      dsimp [ReductionStrategy.r]
-      use t
-      exact h_y_eq
-    · -- 这个分支不可达，因为维度相等
-      exfalso; apply h_size_eq; rfl
+    · -- 在这个分支中，我们知道行数相等（实际上是 definitional equal）
+      cases h_size_eq
+      have h_y_reindexed_eq :
+          y_witness.val.mat.matrix.reindex (Equiv.refl _)
+            (FinEnum.equivOfCardEq y_witness.val.is_square).symm = y_mat := by
+        ext i j
+        dsimp [y_witness]
+        simp [e_κ]
+      -- 将目标中的矩阵记作 `leftMatrix`，并证明它与 `y_mat` 相等
+      let leftMatrix :=
+        y_witness.val.mat.matrix.submatrix
+          (⇑(FinEnum.equivOfCardEq (rfl : card (y_witness.val.mat.ι) =
+            card (y_witness.val.mat.ι))).symm)
+          (⇑(((FinEnum.equivOfCardEq y_witness.val.is_square).symm.trans
+            (FinEnum.equivOfCardEq (rfl : card (y_witness.val.mat.ι) =
+              card (y_witness.val.mat.ι))).symm).symm))
+      have h_left_eq : leftMatrix = y_mat := by
+        ext i j
+        dsimp [leftMatrix, y_witness]
+        simp [e_κ, FinEnum.equivOfCardEq_rfl]
+      -- 根据 r 的定义分别讨论两种情况
+      dsimp [ReductionStrategy.r] at h_r ⊢
+      cases h_r with
+      | inl h_eq =>
+          left
+          -- 直接利用等式传递
+          exact h_left_eq.trans h_eq
+      | inr h_trans =>
+          right
+          rcases h_trans with ⟨t, ht⟩
+          refine ⟨t, ?_⟩
+          exact h_left_eq.trans ht
+    · exfalso; apply h_size_eq; rfl
 
   · -- 证明度量进展
     dsimp [slice_pos_sq]
-    -- 展开 slice_pos_sq 的定义，让其内部的 S.slice A hy 暴露出来
-    -- 我们需要证明 hy (IsSliceable_pos_sq R y) 等于 hy_sliceable_concrete
-    have h_hy_eq : hy = hy_sliceable_concrete := by
-      -- 展开 hy 的定义
-      dsimp [hy, IsSliceable_pos_sq]
-      -- 同样，需要证明 y reindex 后等于 y_mat
-      have : (y.val.mat.matrix.reindex (Equiv.refl _) (FinEnum.equivOfCardEq y.val.is_square.symm)) = y_mat := by
-        simp [y, y_val]
-      rw [this]
-    rw [h_hy_eq]
-    -- 目标现在是 S_strat.μ (S_strat.reduction.slice y_mat hy_sliceable_concrete) < S_strat.μ A
-    -- 这正是底层 `mk_reach_metric` 提供的 `h_prog`
-    exact h_prog
+    convert h_prog
 
 
 private lemma base_metric_wrapper_sq :

@@ -118,14 +118,12 @@ lemma hasPLU_reindex_iff (e : ι ≃ ι') (A : Matrix ι ι R) :
         isUpperTriangular_reindex e U]
       simp [P, L, U]
       exact ⟨hP', hL', hU'⟩
-    · -- 为了重用 rw，我们需要 e.symm 也是 OrderIso
-      let e_symm : ι' ≃ ι := e.symm
+    · let e_symm : ι' ≃ ι := e.symm
       simp [PLU_Schema] at h_eq'
       simp [P, L, U]
-      sorry
-      -- rw [← reindex_mul e_symm e_symm e_symm, h_eq', reindex_mul e_symm e_symm e_symm,
-          -- reindex_reindex, reindex_reindex, reindex_reindex]
-      -- simp
+      have : A = (A.submatrix e.symm e.symm).reindex e.symm e.symm := by simp
+      rw [this, reindex_apply, Equiv.symm_symm, ← submatrix_mul, h_eq']
+      simp
 
 end PLU_Schema
 
@@ -490,7 +488,8 @@ private noncomputable def slice_pos_sq {x : PositiveSquareMat R} (hx : IsSliceab
   let e_κ : x.val.mat.κ ≃ x.val.mat.ι := FinEnum.equivOfCardEq x.val.is_square.symm
   let A := x.val.mat.matrix.reindex (Equiv.refl _) e_κ
   let slice_matrix := S.slice A hx
-  have h_slice_sq : card S.Sliceι = card S.Sliceκ := by sorry -- (依赖于 Schur/ZeroColumn 将方阵映为方阵)
+  have h_slice_sq : card S.Sliceι = card S.Sliceκ := by --sorry -- (依赖于 Schur/ZeroColumn 将方阵映为方阵)
+    simp [S, PLU_Strategy, ReductionMethod.try_else, SchurMethod]
   ⟨⟨S.Sliceι, S.Sliceκ, slice_matrix⟩, h_slice_sq⟩
 
 -- /-- `slice_pos_sq` 在 PositiveSquareMat 宇宙中的映射。 -/
@@ -539,7 +538,7 @@ private lemma transport_wrapper_sq : Transport (r_pos_sq R) (P_pos_sq R) := by
     let e_yx_iso : y.val.mat.ι ≃ x.val.mat.ι := FinEnum.equivOfCardEq h_size_eq.symm
 
     -- 使用新的 hasPLU_reindex_iff 引理
-    sorry
+    exact (hasPLU_reindex_iff _ _ R e_yx_iso _).mp h_p_y
   exact (transport_plu R h_card_pos) _ _ h_r h_p_y_reindexed
 
 -- private lemma transport_wrapper_sq : Transport (r_pos_sq R) (P_pos_sq R) := by

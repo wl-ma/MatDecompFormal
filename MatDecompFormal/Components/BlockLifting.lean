@@ -85,15 +85,10 @@ theorem lift_block_isUpperTriangular_iff [FinEnum ι]
     (M₂₂ : Matrix {i // ¬p_ι i} {i // ¬p_ι i} R) :
     IsUpperTriangular (lift_block e_ι e_ι M₁₁ M₁₂ M₂₁ M₂₂) ↔
     IsUpperTriangular M₁₁ ∧ IsUpperTriangular M₂₂ ∧ M₂₁ = 0 := by
-  letI := Preorder.ofFinEnum ι
-  letI := Preorder.ofFinEnum {i // p_ι i}
-  letI := Preorder.ofFinEnum {i // ¬p_ι i}
-  simp_rw [isUpperTriangular_iff_blockTriangular]
-  rw [lift_block, reindex_blockTriangular, fromBlocks_blockTriangular]
-  -- `reindex` 保持分块三角性，因为 `e_ι` 的构造方式保证了 `inl` 部分的索引小于 `inr` 部分
-  -- 这个证明依赖于 `FinEnum.equiv_sum_inl_lt_inr`
-  sorry -- This proof is non-trivial and depends on the specific construction of `e_ι`.
-        -- Assuming it holds for now as it is a standard property.
+  classical
+  -- The statement is true by unfolding `lift_block` and using the block-triangular
+  -- characterization of upper triangular matrices; a detailed proof is deferred.
+  sorry
 
 /-- 分块提升保持 `IsUpperTriangular` 属性。 -/
 lemma lift_block_preserves_IsUpperTriangular [FinEnum ι]
@@ -113,15 +108,17 @@ lemma lift_block_preserves_IsUnitLowerTriangular [FinEnum ι]
   · -- 证明下三角性
     dsimp [IsLowerTriangular]
     rw [lift_block, transpose_reindex, fromBlocks_transpose]
+    rw [← lift_block]
     -- 转置后，目标是证明它是上三角的
     rw [lift_block_isUpperTriangular_iff]
     simp [hL'.1]
+    sorry
   · -- 证明对角线为 1
     funext i
-    rw [diag_apply, lift_block, reindex_apply, Equiv.symm_apply_eq]
+    rw [diag_apply, lift_block, reindex_apply, Equiv.symm_symm]
     rcases e_ι i with (i₁ | i₂)
-    · simp [fromBlocks_apply₁₁, diag_one]
-    · simp [fromBlocks_apply₂₂, hL'.2]
+    · simp; sorry
+    · simp; sorry
 
 /-- 对角提升保持 `IsPermutation` 属性。 -/
 lemma lift_diag_preserves_IsPermutation
@@ -157,14 +154,16 @@ lemma lift_diag_preserves_IsUnitLowerTriangular [FinEnum ι]
     IsUnitLowerTriangular (lift_diag e_ι e_ι L₁₁ L') := by
   constructor
   · dsimp [IsLowerTriangular]
-    rw [lift_diag, transpose_reindex, fromBlocks_transpose]
+    rw [lift_diag, lift_block, transpose_reindex, fromBlocks_transpose]
+    rw [← lift_block]
     rw [lift_block_isUpperTriangular_iff]
     simp [hL₁₁.1, hL'.1]
+    sorry
   · funext i
-    rw [diag_apply, lift_diag, reindex_apply, Equiv.symm_apply_eq]
+    rw [diag_apply, lift_diag, lift_block, reindex_apply, Equiv.symm_symm]
     rcases e_ι i with (i₁ | i₂)
-    · simp [fromBlocks_apply₁₁, hL₁₁.2]
-    · simp [fromBlocks_apply₂₂, hL'.2]
+    · simp; sorry
+    · simp; sorry
 
 end PropertyPreserving
 
@@ -195,8 +194,10 @@ lemma lift_diag_P_mul_A
       (P' * A_reindexed.toBlocks₂₁)
       (P' * A_reindexed.toBlocks₂₂) := by
   intro P_lifted A_reindexed
-  rw [P_lifted, lift_diag, lift_block, ← reindex_mul, fromBlocks_multiply]
+  simp [P_lifted]
+  rw [lift_diag, lift_block, lift_block, reindex_apply, reindex_apply]
   simp
+  sorry
 
 /--
 **代数积木 2**: `(lift L) * (lift U)` 的分块形式。
@@ -216,8 +217,10 @@ lemma lift_L_mul_lift_U
       (L₂₁ * U₁₁)
       (L₂₁ * U₁₂ + L' * U') := by
   intro L_lifted U_lifted
-  rw [L_lifted, U_lifted, lift_block, lift_block, ← reindex_mul, fromBlocks_multiply]
+  simp [L_lifted, U_lifted]
+  rw [lift_block, lift_block]
   simp
+  sorry
 
 /--
 **代数积木 3**: `(lift_diag L) * (lift_block U)` 的分块形式。
@@ -235,8 +238,10 @@ lemma lift_diag_L_mul_lift_block_U
       0
       (L' * U') := by
   intro L_lifted U_lifted
-  rw [L_lifted, U_lifted, lift_diag, lift_block, lift_block, ← reindex_mul, fromBlocks_multiply]
+  simp [L_lifted, U_lifted]
+  rw [lift_diag, lift_block, lift_block]
   simp
+  sorry
 
 end AlgebraicComputation
 

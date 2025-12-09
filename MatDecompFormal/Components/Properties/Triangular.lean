@@ -1,10 +1,11 @@
 import Mathlib.Data.FinEnum
 import Mathlib.LinearAlgebra.Matrix.Block
 import Mathlib.Data.Matrix.Diagonal
-
+import MatDecompFormal.Framework.FinEnum
 
 namespace MatDecompFormal.Components.Properties
 
+open MatDecompFormal.Framework
 open Matrix FinEnum
 
 /-!
@@ -22,16 +23,19 @@ section Triangular
 -- 声明所有定义共享的类型和类型类实例。
 variable {ι R : Type*} [FinEnum ι] [Zero R]
 
-/--
-`IsUpperTriangular A` 是一个谓词，判断矩阵 `A` 是否为上三角矩阵。
+-- (最好将 Triangular.lean 的内容移到这里或一个更基础的文件)
+def IsUpperTriangular {ι R} [Preorder ι] [Zero R] (A : Matrix ι ι R) : Prop :=
+  ∀ ⦃i j⦄, j < i → A i j = 0
 
-我们通过 `BlockTriangular` 来定义它。分块函数 `b` 我们选择 `FinEnum.equiv ι`，
-它将索引 `ι` 映射到 `Fin (card ι)`。
-因此，条件 `(equiv ι) j < (equiv ι) i` 意味着索引 `j` 在枚举顺序上先于 `i`。
-`A i j = 0` 在 `j` 先于 `i` 时成立，这正是上三角矩阵的定义（即 `i > j → A i j = 0`）。
--/
-def IsUpperTriangular (A : Matrix ι ι R) : Prop :=
-  BlockTriangular A equiv
+-- 步骤 3: 证明与 Mathlib 的连接
+lemma isUpperTriangular_iff_blockTriangular {ι R} [FinEnum ι] [Zero R]
+    (A : Matrix ι ι R) :
+    IsUpperTriangular A ↔ BlockTriangular A (@equiv ι _) := by
+  -- 这里的 IsUpperTriangular 会自动找到 Preorder.ofFinEnum 实例
+  classical
+  let _ : Preorder ι := Preorder.ofFinEnum ι
+  rfl
+
 
 /--
 `IsLowerTriangular A` 是一个谓词，判断矩阵 `A` 是否为下三角矩阵。
