@@ -1,10 +1,12 @@
 import Mathlib.Data.FinEnum
 import Mathlib.LinearAlgebra.Matrix.Basis
 import Mathlib.Order.Basic
+import MatDecompFormal.Framework.FinEnum
+
 
 namespace MatDecompFormal.Components.Properties
 
-open FinEnum Matrix
+open FinEnum Matrix MatDecompFormal.Framework
 
 /-!
 # 行阶梯形属性 (Row Echelon Form Property)
@@ -86,6 +88,9 @@ end NonZeroIndex
 section IsRowEchelon
 
 variable {ι κ R : Type*} [FinEnum ι] [FinEnum κ] [Zero R] [DecidableEq R]
+
+noncomputable local instance : LinearOrder ι := LinearOrder.ofFinEnum ι
+noncomputable local instance : LinearOrder κ := LinearOrder.ofFinEnum κ
 
 /--
 `IsRowEchelon` 是一个谓词，用于判断一个矩阵是否为行阶梯形。

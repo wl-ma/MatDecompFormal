@@ -1,5 +1,5 @@
 import Mathlib
-import MatDecompFormal.Abstractions.Strategy -- 仅用于类型提示，非硬性依赖
+import MatDecompFormal.Framework.Universe -- 明确指出宇宙类型来自这里
 
 
 namespace MatDecompFormal.Framework
@@ -10,6 +10,9 @@ namespace MatDecompFormal.Framework
 本文件定义了整个形式化项目的核心归纳原理。这个最终版本基于一个“宇宙”
 类型 `X`，它包含了所有可能尺寸的矩阵。通过在这个统一的类型上进行
 归纳，我们优雅地解决了跨类型（即降维）规约的问题。
+
+在本项目的应用中，这个宇宙 `X` 将被实例化为 `Σ n, SquareMatFamily n R`，
+即所有维度方阵的带依赖的求和类型。
 
 ### 框架层次
 1.  **`X` (宇宙类型)**:
