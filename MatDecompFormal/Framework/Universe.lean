@@ -35,6 +35,75 @@ attribute [instance] SquareMatFamily.h_card
 def PositiveSquareMatFamily (n : ℕ) (h_pos : n > 0) (R : Type*) [CommRing R] :=
   SquareMatFamily n R
 
+
+-- /--
+-- `FinRectObj` 是我们宇宙的基本粒子，代表一个 m × n 的矩阵。
+-- -/
+-- structure FinRectObj (R : Type*) where
+--   m : ℕ
+--   n : ℕ
+--   A : Matrix (Fin m) (Fin n) R
+
+-- /-- 宇宙现在是所有 m × n 矩阵的集合。 -/
+-- abbrev FinRectUniverse (R : Type*) := FinRectObj R
+
+-- -- 注意：μ 不再是宇宙的固定属性！
+-- -- 不同的分解可能在不同维度上归纳（行、列、或 min(m,n)）。
+-- -- 因此，μ 将成为 `Strategy` 的一部分，而不是 Universe 的一部分。
+
+-- /--
+-- `PosFinRectUniverse R` 是所有维度 m > 0 且 n > 0 的矩阵的子类型。
+-- 这是我们进行归纳证明的主要舞台。
+-- -/
+-- def PosFinRectUniverse (R : Type*) := { x : FinRectUniverse R // x.m > 0 ∧ x.n > 0 }
+
+-- /-- 纯 `Fin n` 宇宙里的方阵对象。 -/
+-- structure FinSqObj (R : Type*) where
+--   n : ℕ
+--   A : Matrix (Fin n) (Fin n) R
+
+-- /-- 方便的别名：`Σ n, Matrix (Fin n) (Fin n) R` 的包装形式。 -/
+-- abbrev FinSqUniverse (R : Type*) := FinSqObj R
+
+-- /-- 维度度量：就是 `n` 本身。 -/
+-- def μ_fin {R} (x : FinSqUniverse R) : ℕ := x.n
+
+-- /--
+-- `PosFinSqUniverse R` 是一个子类型，代表所有维度 n > 0 的方阵。
+-- 这是我们进行归纳证明的主要舞台。
+-- -/
+-- def PosFinSqUniverse (R : Type*) := { x : FinSqUniverse R // μ_fin x > 0 }
+
+
+/-!
+# 矩阵宇宙 (Matrix Universe) - v5.0 (Σ-Type Final)
+
+本文件定义了框架的“宇宙”类型。最终版本采纳了 Σ 类型的设计，
+将矩阵的维度 `m` 和 `n` 作为宇宙对象的顶层参数暴露出来，
+从而彻底解决了类型依赖问题，简化了整个框架的类型推断。
+-/
+
+/--
+`FinRectFamily m n R` 封装了一个固定维度 `m × n` 的矩阵。
+-/
+structure FinRectFamily (m n : ℕ) (R : Type*) where
+  A : Matrix (Fin m) (Fin n) R
+
+/--
+`FinRectUniverse R` 是所有 `m × n` 矩阵的集合，定义为 Σ 类型。
+宇宙中的一个对象 `x` 是一个依赖对 `⟨⟨m, n⟩, fam⟩`，其中 `fam.A` 是矩阵。
+-/
+abbrev FinRectUniverse (R : Type*) := Σ (dims : ℕ × ℕ), FinRectFamily dims.1 dims.2 R
+
+/--
+`PosFinRectUniverse R` 是所有维度 `m > 0 ∧ n > 0` 的矩阵的子类型。
+-/
+abbrev PosFinRectUniverse (R : Type*) := { x : FinRectUniverse R // x.1.1 > 0 ∧ x.1.2 > 0 }
+
+-- 辅助函数，用于从宇宙对象中提取矩阵
+@[simp] def FinRectUniverse.matrix {R} (x : FinRectUniverse R) : Matrix (Fin x.1.1) (Fin x.1.2) R :=
+  x.2.A
+
 end MatDecompFormal.Framework
 
 

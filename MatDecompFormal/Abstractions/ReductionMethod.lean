@@ -1,70 +1,120 @@
-import Mathlib.Data.FinEnum
-import MatDecompFormal.Framework.Universe -- 假设 Universe.lean 提供了必要的类型
+import Mathlib.Algebra.Ring.Defs
+import Mathlib.LinearAlgebra.Matrix.Defs
 
 namespace MatDecompFormal.Abstractions
 
 /-!
-# 规约方法 (Reduction Method) - v2.1 (Corrected)
+# 规约方法 (Reduction Method) - v3.0 (Fin m n Version)
 
-本文件定义了 `ReductionMethod` 结构体，它封装了归纳证明中与“问题规约”
-相关的纯代数部分。一个规约方法描述了：
-
-1.  **何时可以规约 (`IsSliceable`)**: 一个矩阵需要满足什么条件才能被“切片”。
-2.  **如何规约 (`slice`)**: 如何从一个可切片的矩阵中提取出一个“更小”的子问题。
-3.  **如何重构 (`reconstruct`)**: 一个纯粹的代数函数，它知道如何从一个子矩阵
-    （以及原始矩阵的其余部分）重新组装出完整的矩阵。
-4.  **重构的正确性 (`reconstruct_slice_eq`)**: 一个关键的代数恒等式，证明
-    `reconstruct` 和 `slice` 在某种意义上是互逆的。
-
-这个结构体是完全“代数的”，它不关心要证明的最终性质 `P` 是什么。它只提供
-可复用的、用于分解和重组矩阵的机械装置。
+本文件定义了 `ReductionMethod`，它封装了在 `Fin m × Fin n` 矩阵上进行
+问题规约的纯代数部分。
 -/
 
 /--
-`ReductionMethod` 封装了一种将矩阵问题分解为更小问题并从子问题解重构的代数策略。
+`ReductionMethod` (Fin m n 版)
 
-*   `ι`, `κ`, `R`: 原始矩阵的索引类型和环类型。
-*   `Sliceι`, `Sliceκ`: 子问题（切片）矩阵的索引类型。
-*   `IsSliceable`: 描述一个 `Matrix ι κ R` 何时可以被切片。
-*   `slice`: 从可切片矩阵中提取 `Matrix Sliceι Sliceκ R` 类型的子问题。
-*   `reconstruct`: 一个代数重构函数。它接收原始的可切片矩阵 `A`（用于获取
-    除子矩阵外的其他部分，如左上角元素）和一个“已解决的”子矩阵 `slice_sol`，
-    然后返回一个重构后的完整矩阵。
-*   `reconstruct_slice_eq`: 一个关键的正确性证明，确保如果我们用原始的切片
-    去重构，我们能得到原始的矩阵。
+*   `m`, `n`, `R`: 原始矩阵的维度和环类型。
+*   `slice_m`, `slice_n`: 子问题（切片）矩阵的维度。
+*   `IsSliceable`: 描述一个 `Matrix (Fin m) (Fin n) R` 何时可以被切片。
+*   `slice`: 从可切片矩阵中提取 `Matrix (Fin slice_m) (Fin slice_n) R` 类型的子问题。
+*   `reconstruct`: 从原始矩阵上下文和子矩阵的解重构出完整矩阵。
+*   `reconstruct_slice_eq`: 证明 `reconstruct` 和 `slice` 的代数一致性。
 -/
-structure ReductionMethod (ι κ R : Type*) [FinEnum ι] [FinEnum κ] [CommRing R] where
-  /-- 子问题矩阵的行索引类型。 -/
-  Sliceι : Type*
-  /-- 子问题矩阵的列索引类型。 -/
-  Sliceκ : Type*
-  [finEnum_slice_ι : FinEnum Sliceι]
-  [finEnum_slice_κ : FinEnum Sliceκ]
+structure ReductionMethod (m n : ℕ) (R : Type*) [CommRing R] where
+  /-- 子问题矩阵的行数。 -/
+  slice_m : ℕ
+  /-- 子问题矩阵的列数。 -/
+  slice_n : ℕ
 
   /-- 一个谓词，用于判断一个矩阵是否处于可以被“切片”的“标准型”。 -/
-  IsSliceable : Matrix ι κ R → Prop
+  IsSliceable : Matrix (Fin m) (Fin n) R → Prop
 
   /-- “切片”算子，从一个可切片的矩阵中提取出更小的子问题。 -/
-  slice : (A : Matrix ι κ R) → (hA : IsSliceable A) → Matrix Sliceι Sliceκ R
+  slice : (A : Matrix (Fin m) (Fin n) R) → (hA : IsSliceable A) →
+    Matrix (Fin slice_m) (Fin slice_n) R
 
-  /--
-  “重构”函数：从原始矩阵的上下文和子矩阵的解来组装一个完整的矩阵。
-  -/
-  reconstruct : (A : Matrix ι κ R) → (hA : IsSliceable A) →
-                (slice_sol : Matrix Sliceι Sliceκ R) → Matrix ι κ R
+  /-- “重构”函数：从原始矩阵的上下文和子矩阵的解来组装一个完整的矩阵。 -/
+  reconstruct : (A : Matrix (Fin m) (Fin n) R) → (hA : IsSliceable A) →
+                (slice_sol : Matrix (Fin slice_m) (Fin slice_n) R) → Matrix (Fin m) (Fin n) R
 
-  /--
-  重构的正确性证明：用原始切片进行重构会得到原始矩阵。
-  这是 `lift_from_slice` 引理的代数基础。
-  -/
-  reconstruct_slice_eq : ∀ (A : Matrix ι κ R) (hA : IsSliceable A),
+  /-- 重构的正确性证明：用原始切片进行重构会得到原始矩阵。 -/
+  reconstruct_slice_eq : ∀ (A : Matrix (Fin m) (Fin n) R) (hA : IsSliceable A),
                            reconstruct A hA (slice A hA) = A
 
--- 自动为 Sliceι 和 Sliceκ 注册 FinEnum 实例
-attribute [instance] ReductionMethod.finEnum_slice_ι
-attribute [instance] ReductionMethod.finEnum_slice_κ
-
 end MatDecompFormal.Abstractions
+
+
+
+
+
+
+-- import Mathlib.Data.FinEnum
+-- import MatDecompFormal.Framework.Universe -- 假设 Universe.lean 提供了必要的类型
+
+-- namespace MatDecompFormal.Abstractions
+
+-- /-!
+-- # 规约方法 (Reduction Method) - v2.1 (Corrected)
+
+-- 本文件定义了 `ReductionMethod` 结构体，它封装了归纳证明中与“问题规约”
+-- 相关的纯代数部分。一个规约方法描述了：
+
+-- 1.  **何时可以规约 (`IsSliceable`)**: 一个矩阵需要满足什么条件才能被“切片”。
+-- 2.  **如何规约 (`slice`)**: 如何从一个可切片的矩阵中提取出一个“更小”的子问题。
+-- 3.  **如何重构 (`reconstruct`)**: 一个纯粹的代数函数，它知道如何从一个子矩阵
+--     （以及原始矩阵的其余部分）重新组装出完整的矩阵。
+-- 4.  **重构的正确性 (`reconstruct_slice_eq`)**: 一个关键的代数恒等式，证明
+--     `reconstruct` 和 `slice` 在某种意义上是互逆的。
+
+-- 这个结构体是完全“代数的”，它不关心要证明的最终性质 `P` 是什么。它只提供
+-- 可复用的、用于分解和重组矩阵的机械装置。
+-- -/
+
+-- /--
+-- `ReductionMethod` 封装了一种将矩阵问题分解为更小问题并从子问题解重构的代数策略。
+
+-- *   `ι`, `κ`, `R`: 原始矩阵的索引类型和环类型。
+-- *   `Sliceι`, `Sliceκ`: 子问题（切片）矩阵的索引类型。
+-- *   `IsSliceable`: 描述一个 `Matrix ι κ R` 何时可以被切片。
+-- *   `slice`: 从可切片矩阵中提取 `Matrix Sliceι Sliceκ R` 类型的子问题。
+-- *   `reconstruct`: 一个代数重构函数。它接收原始的可切片矩阵 `A`（用于获取
+--     除子矩阵外的其他部分，如左上角元素）和一个“已解决的”子矩阵 `slice_sol`，
+--     然后返回一个重构后的完整矩阵。
+-- *   `reconstruct_slice_eq`: 一个关键的正确性证明，确保如果我们用原始的切片
+--     去重构，我们能得到原始的矩阵。
+-- -/
+-- structure ReductionMethod (ι κ R : Type*) [FinEnum ι] [FinEnum κ] [CommRing R] where
+--   /-- 子问题矩阵的行索引类型。 -/
+--   Sliceι : Type*
+--   /-- 子问题矩阵的列索引类型。 -/
+--   Sliceκ : Type*
+--   [finEnum_slice_ι : FinEnum Sliceι]
+--   [finEnum_slice_κ : FinEnum Sliceκ]
+
+--   /-- 一个谓词，用于判断一个矩阵是否处于可以被“切片”的“标准型”。 -/
+--   IsSliceable : Matrix ι κ R → Prop
+
+--   /-- “切片”算子，从一个可切片的矩阵中提取出更小的子问题。 -/
+--   slice : (A : Matrix ι κ R) → (hA : IsSliceable A) → Matrix Sliceι Sliceκ R
+
+--   /--
+--   “重构”函数：从原始矩阵的上下文和子矩阵的解来组装一个完整的矩阵。
+--   -/
+--   reconstruct : (A : Matrix ι κ R) → (hA : IsSliceable A) →
+--                 (slice_sol : Matrix Sliceι Sliceκ R) → Matrix ι κ R
+
+--   /--
+--   重构的正确性证明：用原始切片进行重构会得到原始矩阵。
+--   这是 `lift_from_slice` 引理的代数基础。
+--   -/
+--   reconstruct_slice_eq : ∀ (A : Matrix ι κ R) (hA : IsSliceable A),
+--                            reconstruct A hA (slice A hA) = A
+
+-- -- 自动为 Sliceι 和 Sliceκ 注册 FinEnum 实例
+-- attribute [instance] ReductionMethod.finEnum_slice_ι
+-- attribute [instance] ReductionMethod.finEnum_slice_κ
+
+-- end MatDecompFormal.Abstractions
 
 
 
