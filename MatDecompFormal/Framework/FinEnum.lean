@@ -1,8 +1,12 @@
 import Mathlib.Data.FinEnum
 import Mathlib.Order.Basic
+import Mathlib.Algebra.Ring.Defs
+import Mathlib.LinearAlgebra.Matrix.Defs
+import Mathlib.Data.Matrix.Block
+
 
 namespace MatDecompFormal.Framework
-open FinEnum
+open FinEnum Matrix
 
 /--
 为任何 `FinEnum` 类型 `α` 提供一个规范的 `LinearOrder` 实例。
@@ -29,6 +33,68 @@ noncomputable def orderIsoOfFinEnum (α : Type*) [FinEnum α] : α ≃o Fin (car
 noncomputable def FinEnum.orderIsoOfCardEq {α β} [FinEnum α] [FinEnum β]
     (h : card α = card β) : α ≃o β :=
   (orderIsoOfFinEnum α).trans ((Fin.castOrderIso h).trans (orderIsoOfFinEnum β).symm)
+
+
+/-!
+### Fin n Utilities
+
+本节定义了我们项目中特有的、基于 `Mathlib` 基础工具的高级 `Fin n` 等价关系。
+这些是我们框架特有的“胶水代码”，用于简化 `Components` 中的证明。
+-/
+
+/--
+一个专门用于将 `Fin (n + 1)` 拆分为 `Fin 1 ⊕ Fin n` 的等价关系。
+这是我们归纳算法中最常见的模式。它通过组合 `Mathlib` 的 `finAddFlip` 和
+`finSumFinEquiv` 来实现。
+-/
+def finSuccEquivSum (n : ℕ) : Fin (n + 1) ≃ Fin 1 ⊕ Fin n :=
+  finAddFlip.trans finSumFinEquiv.symm
+
+/--
+一个用于将 `Fin n` 视为 `Fin n ⊕ Fin 0` 的等价关系。
+这在 `ZeroColumnMethod` 中非常有用。
+-/
+def finSumFinZeroEquiv (n : ℕ) : Fin n ≃ Fin n ⊕ Fin 0 :=
+  (@finSumFinEquiv n 0).symm.trans (Equiv.sumCongr (Equiv.refl _) (Equiv.equivOfIsEmpty _ _))
+
+/--
+一个关键的“胶水”引理，它证明了通过 `Fin.succ` 切片与通过 `finSuccEquivSum`
+进行 `reindex` 后取 `toBlocks₂₂` 是等价的。
+-/
+lemma submatrix_succ_eq_toBlocks₂₂ {n m : ℕ} {R : Type*}
+    (A : Matrix (Fin (n + 1)) (Fin (m + 1)) R) :
+    A.submatrix Fin.succ Fin.succ = (reindex (finSuccEquivSum n) (finSuccEquivSum m) A).toBlocks₂₂ := by
+  -- 目标是证明两个矩阵相等，我们通过证明它们的每个元素都相等来做到这一点。
+  ext i j
+  -- 展开两边定义，看看我们需要证明什么
+  -- LHS: A (Fin.succ i) (Fin.succ j)
+  -- RHS: (reindex ... A) (Sum.inr i) (Sum.inr j)
+  --      = A ((finSuccEquivSum n).symm (Sum.inr i)) ((finSuccEquivSum m).symm (Sum.inr j))
+  dsimp [submatrix, toBlocks₂₂, reindex]
+  -- 我们的目标简化为证明索引是相等的。
+  -- congr_arg A (...) 可以将目标 A x = A y 简化为 x = y
+  congr 2
+  -- 现在我们需要证明两个等式：
+  -- 1. Fin.succ i = (finSuccEquivSum n).symm (Sum.inr i)
+  -- 2. Fin.succ j = (finSuccEquivSum m).symm (Sum.inr j)
+  -- 我们只证明第一个，第二个是完全对称的。
+  -- 展开 finSuccEquivSum 的逆的定义
+  dsimp [finSuccEquivSum]
+  -- 目标变为: Fin.succ i = ((finAddFlip n 1).trans (finSumFinEquiv 1 n).symm).symm (Sum.inr i)
+  -- 应用 Equiv.symm 的运算法则
+  -- rw [Equiv.symm_trans_apply]
+  -- 展开 finSumFinEquiv 的定义
+  -- simp [finSumFinEquiv]
+  -- 目标变为: Fin.succ i = (finAddFlip n 1).symm (Fin.natAdd 1 i)
+  -- (finAddFlip n 1).symm 就是 finAddFlip 1 n
+  -- rw [Equiv.symm_symm]
+  -- 目标变为: Fin.succ i = finAddFlip 1 n (Fin.natAdd 1 i)
+  -- 这两个 Fin 类型的值是相等的，我们可以通过 ext 证明
+  ext
+  -- 展开所有定义，直到我们得到 Nat 层面上的值
+  dsimp [Fin.succ, finAddFlip, Fin.natAdd, finCongr, Fin.cast]
+  -- 目标是 Nat 上的一个简单加法交换律
+  exact Nat.add_comm (i.val) 1
 
 end MatDecompFormal.Framework
 
