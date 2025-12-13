@@ -135,6 +135,111 @@ theorem transformSliceInduction
       -- 直接应用 `reach_metric`
       exact reach_metric h_mu_pos)
 
+variable {X : Type*}
+
+/--
+`transformSliceInductionGeneral`：`transformSliceInduction` 的扩展版本，
+允许基例是任意给定的度量下界 `μ_base`（而非仅为 0）。
+
+当 `μ x > μ_base` 时，需要找到一个可规约的状态，其切片后的度量严格变小；
+当 `μ x ≤ μ_base` 时，直接使用 `base_metric`。
+-/
+theorem transformSliceInductionGeneral
+    (μ : X → Nat) (μ_base : Nat)
+    (P : X → Prop)
+    {r : X → X → Prop}
+    (h_trans : Transport r P)
+    (IsSliceable : X → Prop)
+    (slice : ∀ {x : X}, IsSliceable x → X)
+    (lift_from_slice : ∀ {x : X} (hx : IsSliceable x), P (slice hx) → P x)
+    (reach_metric : ∀ {x : X}, μ x > μ_base →
+      ∃ y, ∃ (hy : IsSliceable y), r y x ∧ μ (slice hy) < μ x)
+    (base_metric : ∀ {x : X}, μ x ≤ μ_base → P x)
+    : ∀ (x : X), P x := by
+  -- 直接调用核心引擎，基例集合是 `μ x ≤ μ_base`。
+  apply induction_by_reduction (WellFounded.onFun wellFounded_lt)
+    (BaseSet := fun x ↦ μ x ≤ μ_base)
+    (h_trans := h_trans)
+    (IsReducible := IsSliceable)
+    (decompose := slice)
+    (reconstruct := lift_from_slice)
+    (prove_on_base := base_metric)
+    (reach_from_non_base := by
+      intro x h_non_base
+      -- `¬ (μ x ≤ μ_base)` 等价于 `μ x > μ_base`。
+      have h_mu_pos : μ x > μ_base := Nat.lt_of_not_ge h_non_base
+      -- 直接使用提供的 `reach_metric`
+      exact reach_metric h_mu_pos)
+
+
+/--
+`induction_on_subtype` (最终版核心归纳定理)
+
+这是一个为“子集驱动”的归纳证明量身定制的强大原理。它在一个
+通用宇宙 `X` 上进行良基归纳，但其核心的变换和规约逻辑只作用于
+一个指定的子类型 `SubX`。
+
+这个定理完美地捕捉了我们在矩阵分解中遇到的模式：我们在所有矩阵
+的宇宙中进行归纳，但只对“正维度矩阵”这个子集应用复杂的分解算法。
+
+参数:
+*   `X`: 归纳所在的通用宇宙类型。
+*   `SubX`: `X` 的一个子类型，代表我们真正关心、需要进行复杂处理的对象集合。
+*   `μ`: 定义在整个宇宙 `X` 上的度量函数。
+*   `μ_base`: 归纳基例的度量边界。
+*   `P`: 要在整个宇宙 `X` 上证明的性质。
+*   `P_sub`: `P` 在子类型 `SubX` 上的“版本”。
+*   `P_compat`: 保证 `P` 和 `P_sub` 在子类型上是等价的。
+*   `r_sub`: 只在 `SubX` 的成员之间定义的变换关系。
+*   `IsSliceable_sub`: 只为 `SubX` 的成员定义的可切片谓词。
+*   `slice_sub`: 从 `SubX` 的可切片成员中提取一个（可能在 `X` 中的）子问题。
+*   `transport_sub`, `lift_from_slice_sub`, `reach_sub`:
+    所有核心的归纳步骤引理，都只在 `SubX` 上下文中定义和证明。
+*   `base_univ`: 为宇宙 `X` 中**不属于** `SubX` 的所有对象，或度量 `≤ μ_base` 的对象
+    提供一个统一的基例证明。
+-/
+theorem induction_on_subtype
+    (SubX : Type*) (toX : SubX → X) -- 新增：显式的转换函数
+    (μ : X → Nat) (μ_base : Nat)
+    (P : X → Prop)
+    (P_sub : SubX → Prop)
+    (P_compat : ∀ (x_sub : SubX), P_sub x_sub ↔ P (toX x_sub)) -- 修改：使用 toX
+    (r_sub : SubX → SubX → Prop)
+    (IsSliceable_sub : SubX → Prop)
+    (slice_sub : ∀ (x_sub : SubX), IsSliceable_sub x_sub → X)
+    (transport_sub : ∀ {x_sub y_sub}, r_sub y_sub x_sub → P_sub y_sub → P_sub x_sub)
+    (lift_from_slice_sub : ∀ (x_sub : SubX) (hx : IsSliceable_sub x_sub),
+                           P (slice_sub x_sub hx) → P_sub x_sub)
+    (reach_sub : ∀ (x_sub : SubX), μ (toX x_sub) > μ_base → -- 修改：使用 toX
+                 Σ' (y_sub : SubX), Σ' (hy : IsSliceable_sub y_sub),
+                   r_sub y_sub x_sub ∧ μ (slice_sub y_sub hy) < μ (toX x_sub)) -- 修改：使用 toX
+    (base_univ : ∀ (x : X), (∀ (x_sub : SubX), toX x_sub ≠ x) ∨ μ x ≤ μ_base → P x) -- 修改：使用 toX
+    : ∀ (x : X), P x := by
+  refine (WellFounded.fix (InvImage.wf μ wellFounded_lt) (C := fun _ => P _) ?_)
+  intro x ih
+  by_cases h_in_sub : ∃ (x_sub : SubX), toX x_sub = x -- 修改：使用 toX
+  · rcases h_in_sub with ⟨x_sub, rfl⟩
+    -- 目标现在是 P (toX x_sub)，通过在子类型上证明 P_sub x_sub 来实现
+    have hP_sub : P_sub x_sub := by
+      by_cases h_mu : μ (toX x_sub) > μ_base -- 修改：使用 toX
+      · rcases reach_sub x_sub h_mu with ⟨y_sub, hy, h_r, h_prog⟩
+        let slice_obj := slice_sub y_sub hy
+        have h_slice_p : P slice_obj := ih slice_obj h_prog
+        have h_y_p : P_sub y_sub := lift_from_slice_sub y_sub hy h_slice_p
+        exact transport_sub h_r h_y_p
+      · -- 子类型中的基例，直接由 base_univ 提供，再用兼容性转换
+        have hP : P (toX x_sub) :=
+          base_univ (toX x_sub) (Or.inr (le_of_not_gt h_mu))
+        exact (P_compat x_sub).2 hP
+    exact (P_compat x_sub).1 hP_sub
+  · -- 宇宙中的基例
+    -- 将 `¬ ∃ x_sub, toX x_sub = x` 转换为需要的全称形式
+    have h_forall : ∀ (x_sub : SubX), toX x_sub ≠ x := by
+      intro x_sub hx
+      exact h_in_sub ⟨x_sub, hx⟩
+    exact base_univ x (Or.inl h_forall)
+
+
 end MatDecompFormal.Framework
 
 

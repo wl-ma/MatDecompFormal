@@ -5,50 +5,36 @@ namespace MatDecompFormal.Framework
 
 open Matrix
 
+
 /-!
-# 宇宙分解实例 (Universe Decomposition Instance) - v4.2 (Final Corrected & Simplified)
+# 宇宙分解实例 (Universe Decomposition Instance) - v6.0 (Final Version)
 
-本文件是连接抽象框架与具体实例的最终、最简洁的版本。
-它通过在 `prove` 定理的内部证明中巧妙地处理类型边界，为用户提供了
-一个极其干净和直观的接口。
+本文件是连接抽象框架与具体实例的最终版本。它定义了 `RectDecompositionInstance`
+结构体，并提供了一个主定理 `prove_for_fin`，该定理通过调用 `induction_on_subtype`
+来完成所有证明工作。
 -/
 
-/--
-`PositiveDecompositionInstance` 描述了如何在 `m > 0 ∧ n > 0` 的宇宙中进行归纳证明。
--/
+-- PositiveDecompositionInstance 结构体定义 (签名微调版)
+-- 现在它的字段直接使用 PosFinRectUniverse 类型，而不是零散的 (m n h_pos)
 structure PositiveDecompositionInstance (R : Type*) where
-  /-- 在整个（包括零维度）宇宙上要证明的性质。 -/
   P_univ : FinRectUniverse R → Prop
-  /-- 在 `m > 0 ∧ n > 0` 宇宙上要证明的性质。 -/
   P_pos : PosFinRectUniverse R → Prop
-  /-- 关键兼容性证明：确保两个性质在正维度宇宙中是等价的。 -/
   P_compat : ∀ (x : PosFinRectUniverse R), P_pos x ↔ P_univ x.val
-  /-- 归纳所使用的度量函数。 -/
   μ : FinRectUniverse R → ℕ
-  /-- 归纳基例的度量边界。 -/
   μ_base : ℕ
-  /-- 正维度宇宙中的基例证明 (`μ ≤ μ_base`)。 -/
   base_pos : ∀ {x : PosFinRectUniverse R}, μ x.val ≤ μ_base → P_pos x
-  r_pos : ∀ {m n} (_h_pos : m > 0 ∧ n > 0),
-        Matrix (Fin m) (Fin n) R → Matrix (Fin m) (Fin n) R → Prop
-  IsSliceable_pos : ∀ {m n} (_h_pos : m > 0 ∧ n > 0),
-                    Matrix (Fin m) (Fin n) R → Prop
-  slice_pos : ∀ {m n h_pos} {A : Matrix (Fin m) (Fin n) R},
-              IsSliceable_pos h_pos A → FinRectUniverse R
-  transport : ∀ {m n h_pos} {A B}, r_pos h_pos B A → P_pos ⟨⟨⟨m,n⟩,⟨B⟩⟩, h_pos⟩ →
-              P_pos ⟨⟨⟨m,n⟩,⟨A⟩⟩, h_pos⟩
-  lift_from_slice : ∀ {m n h_pos} {A} (hA : IsSliceable_pos h_pos A),
-                    P_univ (slice_pos hA) → P_pos ⟨⟨⟨m,n⟩,⟨A⟩⟩, h_pos⟩
-  reach : ∀ {m n h_pos} (A : Matrix (Fin m) (Fin n) R),
-          μ ⟨⟨m,n⟩,⟨A⟩⟩ > μ_base →
-          -- The return type is now a Σ type, carrying the new matrix and proofs
-          Σ' (B : Matrix (Fin m) (Fin n) R),
-            Σ' (hB : IsSliceable_pos h_pos B),
-              r_pos h_pos B A ∧ μ (slice_pos hB) < μ ⟨⟨m,n⟩,⟨A⟩⟩
+  r_pos : PosFinRectUniverse R → PosFinRectUniverse R → Prop
+  IsSliceable_pos : PosFinRectUniverse R → Prop
+  slice_pos : ∀ (x : PosFinRectUniverse R), IsSliceable_pos x → FinRectUniverse R
+  transport : ∀ {x y : PosFinRectUniverse R}, r_pos y x → P_pos y → P_pos x
+  lift_from_slice : ∀ (x : PosFinRectUniverse R) (hx : IsSliceable_pos x),
+                    P_univ (slice_pos x hx) → P_pos x
+  reach : ∀ (x : PosFinRectUniverse R), μ x.val > μ_base →
+          Σ' (y : PosFinRectUniverse R),
+            Σ' (hy : IsSliceable_pos y),
+              r_pos y x ∧ μ (slice_pos y hy) < μ x.val
 
-/--
-`RectDecompositionInstance` (v4.2)
--/
+-- RectDecompositionInstance 结构体定义保持不变
 structure RectDecompositionInstance (R : Type*) where
   P_univ : FinRectUniverse R → Prop
   pos_instance : PositiveDecompositionInstance R
@@ -61,66 +47,94 @@ namespace RectDecompositionInstance
 variable {R : Type*}
 
 /--
-主原理 (v4.2)：从 `RectDecompositionInstance` 证明对所有 `m, n` 的定理。
+主原理 (最终版)：从 `RectDecompositionInstance` 证明对所有 `m, n` 的定理。
+这个证明是对 `induction_on_subtype` 的一个清晰、直接的调用。
 -/
 theorem prove_for_fin (inst : RectDecompositionInstance R) :
     ∀ (m n : ℕ) (A : Matrix (Fin m) (Fin n) R), inst.P_univ ⟨⟨m, n⟩, ⟨A⟩⟩ := by
-  -- 核心思想：我们想对 `P_univ` 在 `FinRectUniverse` 上进行归纳。
-  -- 我们将使用 `WellFounded.induction`，这是最底层的归纳法。
-  intro m n A
-  let x : FinRectUniverse R := ⟨⟨m, n⟩, ⟨A⟩⟩
-  -- 在 `μ` 上进行良基归纳
   suffices ∀ (x : FinRectUniverse R), inst.P_univ x by
-    simpa using this x
+    intro m n A; exact this ⟨⟨m, n⟩, ⟨A⟩⟩
 
-  intro x'
-  apply WellFounded.fix μ_wf
-  intro x ih
-  -- 对 x 的维度进行情况讨论
-  by_cases h_pos : x.1.1 > 0 ∧ x.1.2 > 0
-  · -- Case 1: 维度为正。这里是归纳的核心。
-    let x_pos : PosFinRectUniverse R := ⟨x, h_pos⟩
-    -- 使用 P_compat 将目标转换为 P_pos
-    -- 先证明 `P_pos`，再通过兼容性得到目标。
-    -- 对 μ(x) 与 μ_base 的关系进行讨论
-    by_cases h_mu : inst.pos_instance.μ x > inst.pos_instance.μ_base
-    · -- Subcase 1.1: 归纳步骤
-      -- 调用 reach 找到 y 和切片
-      rcases inst.pos_instance.reach (m := x.1.1) (n := x.1.2) (h_pos := h_pos)
-          (A := x.2.A) h_mu with ⟨B, ⟨hB, h_r, h_prog⟩⟩
-      -- 获取切片对象
-      let slice_obj := inst.pos_instance.slice_pos hB
-      -- 对切片对象应用归纳假设 `ih`
-      have h_slice_p : inst.pos_instance.P_univ slice_obj := by
-        simpa [inst.P_univ_compat] using ih slice_obj h_prog
-      -- 使用 lift 将结论提升到 B
-      have h_b_p : inst.pos_instance.P_pos ⟨⟨⟨x.1.1, x.1.2⟩, ⟨B⟩⟩, h_pos⟩ :=
-        inst.pos_instance.lift_from_slice hB h_slice_p
-      -- 使用 transport 将结论传递到 x
-      have h_x_p : inst.pos_instance.P_pos x_pos :=
-        inst.pos_instance.transport (A := x.2.A) (B := B) h_r h_b_p
-      exact (inst.P_pos_compat_top x_pos).1 h_x_p
-    · -- Subcase 1.2: 正维度宇宙的基例
-      have h_mu_le : inst.pos_instance.μ x ≤ inst.pos_instance.μ_base := by
-        exact le_of_not_gt h_mu
-      have h_pos_p : inst.pos_instance.P_pos x_pos :=
-        inst.pos_instance.base_pos h_mu_le
-      exact (inst.P_pos_compat_top x_pos).1 h_pos_p
-  · -- Case 2: 维度为零。这是整个归纳的最终基例。
-    have h_zero : x.1.1 = 0 ∨ x.1.2 = 0 := by
-      have h_not_pos : ¬ (x.1.1 > 0) ∨ ¬ (x.1.2 > 0) := (not_and_or).mp h_pos
-      cases h_not_pos with
-      | inl hm_not_pos =>
-        exact Or.inl (Nat.le_zero.mp (le_of_not_gt hm_not_pos))
-      | inr hn_not_pos =>
-        exact Or.inr (Nat.le_zero.mp (le_of_not_gt hn_not_pos))
-    exact inst.base_zero h_zero
-where
-  μ_wf : WellFounded (fun x y : FinRectUniverse R ↦
-      inst.pos_instance.μ x < inst.pos_instance.μ y) :=
-    InvImage.wf (fun x ↦ inst.pos_instance.μ x) wellFounded_lt
+  -- 直接调用新定理，显式传入 Subtype.val
+  apply induction_on_subtype
+    -- 1. 提供宇宙、子类型和显式转换函数
+    (X := FinRectUniverse R)
+    (SubX := PosFinRectUniverse R)
+    (toX := Subtype.val) -- 关键改动！
+    -- 2. 提供度量和性质
+    (μ := inst.pos_instance.μ)
+    (μ_base := inst.pos_instance.μ_base)
+    (P := inst.P_univ)
+    (P_sub := inst.pos_instance.P_pos)
+    (P_compat := inst.P_pos_compat_top)
+    -- 3. 将 inst.pos_instance 中的字段直接传递给 _sub 参数
+    (r_sub := inst.pos_instance.r_pos)
+    (IsSliceable_sub := inst.pos_instance.IsSliceable_pos)
+    (slice_sub := inst.pos_instance.slice_pos)
+    (transport_sub := inst.pos_instance.transport)
+    (lift_from_slice_sub := by
+      intro x hx h
+      -- 将 `inst.P_univ` 上的证明转换为 `pos_instance.P_univ`
+      have h' : inst.pos_instance.P_univ (inst.pos_instance.slice_pos x hx) := by
+        simpa [inst.P_univ_compat] using h
+      exact inst.pos_instance.lift_from_slice x hx h')
+    (reach_sub := inst.pos_instance.reach)
+    -- 4. 构造统一的基例证明 `base_univ`
+    (base_univ := by
+      intro x h_base_reason
+      cases h_base_reason with
+      | inl h_not_in_sub =>
+        have h_zero_dim : x.1.1 = 0 ∨ x.1.2 = 0 := by
+          by_contra h_not_zero
+          push_neg at h_not_zero
+          have h_pos : x.1.1 > 0 ∧ x.1.2 > 0 := by
+            exact ⟨Nat.pos_of_ne_zero h_not_zero.left, Nat.pos_of_ne_zero h_not_zero.right⟩
+          -- 构造一个 x_sub，其 .val 就是 x
+          let x_sub : PosFinRectUniverse R := ⟨x, h_pos⟩
+          -- 这与 h_not_in_sub 矛盾
+          exact h_not_in_sub x_sub rfl
+        exact inst.base_zero h_zero_dim
+      | inr h_mu_le =>
+        by_cases h_in_sub : ∃ (x_sub : PosFinRectUniverse R), x_sub.val = x
+        · rcases h_in_sub with ⟨x_sub, rfl⟩
+          rw [← inst.P_pos_compat_top]
+          exact inst.pos_instance.base_pos h_mu_le
+        · have h_zero_dim : x.1.1 = 0 ∨ x.1.2 = 0 := by
+            by_contra h_not_zero
+            push_neg at h_not_zero
+            have h_pos : x.1.1 > 0 ∧ x.1.2 > 0 := by
+              exact ⟨Nat.pos_of_ne_zero h_not_zero.left, Nat.pos_of_ne_zero h_not_zero.right⟩
+            exact h_in_sub ⟨⟨x, h_pos⟩, rfl⟩
+          exact inst.base_zero h_zero_dim)
 
 end RectDecompositionInstance
+
+
+/--
+`SquareDecompositionInstance`：方阵版本的便捷封装，直接复用矩形实例的性质。
+-/
+abbrev SquareDecompositionInstance (R : Type*) (_rect_inst : RectDecompositionInstance R) :=
+  (Σ n, Matrix (Fin n) (Fin n) R) → Prop
+
+namespace SquareDecompositionInstance
+
+variable {R : Type*} {rect_inst : RectDecompositionInstance R}
+
+/-- 方阵宇宙的性质，直接由矩形实例专门化得到。 -/
+def P (rect_inst : RectDecompositionInstance R) : SquareDecompositionInstance R rect_inst :=
+  fun x : Σ n, Matrix (Fin n) (Fin n) R =>
+    rect_inst.pos_instance.P_univ ⟨⟨x.1, x.1⟩, ⟨x.2⟩⟩
+
+/-- 方阵版的证明直接调用矩形实例的主定理。 -/
+theorem prove_for_fin_square :
+    ∀ (n : ℕ) (A : Matrix (Fin n) (Fin n) R),
+      (P (rect_inst := rect_inst)) ⟨n, A⟩ := by
+  intro n A
+  simpa [P, rect_inst.P_univ_compat] using
+    (RectDecompositionInstance.prove_for_fin rect_inst n n A)
+
+end SquareDecompositionInstance
+
 
 end MatDecompFormal.Framework
 
