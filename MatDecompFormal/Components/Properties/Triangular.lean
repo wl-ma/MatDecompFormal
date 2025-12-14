@@ -111,6 +111,63 @@ local instance instPreorderSumLex : Preorder (Fin n₁ ⊕ Fin n₂) :=
 local instance instLinearOrderFinSum : LinearOrder (Fin n₁ ⊕ Fin n₂) :=
   (inferInstance : LinearOrder ((Fin n₁) ⊕ₗ (Fin n₂)))
 
+/--
+若对角块 `A₁₁` 和 `A₂₂` 都是上三角的，则 `fromBlocks A₁₁ A₁₂ 0 A₂₂`
+（一个上块三角矩阵）也是上三角的。
+-/
+lemma isUpperTriangular_fromBlocks
+    (A₁₁ : Matrix (Fin n₁) (Fin n₁) R) (A₁₂ : Matrix (Fin n₁) (Fin n₂) R)
+    (A₂₂ : Matrix (Fin n₂) (Fin n₂) R)
+    (hA₁₁ : IsUpperTriangular A₁₁) (hA₂₂ : IsUpperTriangular A₂₂) :
+    IsUpperTriangular (fromBlocks A₁₁ A₁₂ 0 A₂₂ : Matrix (Fin n₁ ⊕ Fin n₂)
+      (Fin n₁ ⊕ Fin n₂) R) := by
+  classical
+  -- The definition of IsUpperTriangular is `BlockTriangular _ id`.
+  -- We use the definition of `BlockTriangular` for sum types.
+  dsimp [IsUpperTriangular]
+  -- Goal: `BlockTriangular (fromBlocks A₁₁ A₁₂ 0 A₂₂) id`
+  -- This means if `j < i`, then the entry is 0.
+  -- The order on `Fin n₁ ⊕ Fin n₂` is lexicographical.
+  intro i j hij
+  -- We proceed by cases on the indices i and j.
+  rcases i with (i₁ | i₂)
+  · -- Case i is in the left block (Fin n₁)
+    rcases j with (j₁ | j₂)
+    · -- Case j is also in the left block.
+      -- `hij` is carried by the `Lex.inl` constructor, yielding `j₁ < i₁`.
+      cases hij with
+      | inl hlt =>
+          -- Use the hypothesis that A₁₁ is upper triangular.
+          simpa [fromBlocks_apply₁₁] using (hA₁₁ (i := i₁) (j := j₁) hlt)
+    · -- Case j is in the right block.
+      -- `Sum.inr _ < Sum.inl _` is impossible in the lexicographic order.
+      cases hij
+  · -- Case i is in the right block (Fin n₂)
+    rcases j with (j₁ | j₂)
+    · -- Case j is in the left block.
+      -- The entry is from the bottom-left block, which is 0.
+      simp [fromBlocks_apply₂₁]
+    · -- Case j is also in the right block.
+      -- `hij` is carried by the `Lex.inr` constructor, yielding `j₂ < i₂`.
+      cases hij with
+      | inr hlt =>
+          -- Use the hypothesis that A₂₂ is upper triangular.
+          simpa [fromBlocks_apply₂₂] using (hA₂₂ (i := i₂) (j := j₂) hlt)
+
+/--
+`isUpperTriangular_fromBlocks` 的一个特例：当左上角块为零时。
+-/
+lemma isUpperTriangular_fromBlocks_zero_top
+    (A₁₂ : Matrix (Fin n₁) (Fin n₂) R) (A₂₂ : Matrix (Fin n₂) (Fin n₂) R)
+    (hA₂₂ : IsUpperTriangular A₂₂) :
+    IsUpperTriangular (fromBlocks 0 A₁₂ 0 A₂₂ : Matrix (Fin n₁ ⊕ Fin n₂) (Fin n₁ ⊕ Fin n₂) R) := by
+  -- This is a corollary of the main lemma.
+  -- We just need to prove that the zero matrix is upper triangular.
+  have h_zero_ut : IsUpperTriangular (0 : Matrix (Fin n₁) (Fin n₁) R) := by
+    dsimp [IsUpperTriangular, BlockTriangular]
+    intro i j _; simp
+  exact isUpperTriangular_fromBlocks 0 A₁₂ A₂₂ h_zero_ut hA₂₂
+
 /-- 若 `L'` 是单位下三角，则 `fromBlocks 1 0 L₂₁ L'` 也是单位下三角。 -/
 lemma isUnitLowerTriangular_fromBlocks_one_zero
     (L₂₁ : Matrix (Fin n₂) (Fin n₁) R)

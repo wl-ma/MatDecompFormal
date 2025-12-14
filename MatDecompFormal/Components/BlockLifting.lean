@@ -1,8 +1,10 @@
 import Mathlib.LinearAlgebra.Matrix.Block
+import MatDecompFormal.Framework.FinEnum
 
 namespace MatDecompFormal.Components
 
 open Matrix
+open MatDecompFormal.Framework
 
 /-!
 # 分块矩阵代数库 (Block Matrix Algebra Library)
@@ -129,6 +131,58 @@ lemma block_diag_L_mul_block_U
   simp [fromBlocks_multiply]
 
 end BlockAlgebra
+
+
+section ReindexAndBlocks
+
+variable {k m : ℕ} {R : Type*}
+
+/--
+**代数积木 4**: `reindex` 后的 `toBlocks₁₁` 块就是原始矩阵的左上角 `A 0 0` 元素
+封装成的 1x1 矩阵。
+
+这个引理是连接 `SchurMethod` 和具体代数运算的关键。
+-/
+lemma toBlocks₁₁_reindex_finSuccEquivSum
+    (A : Matrix (Fin (k + 1)) (Fin (m + 1)) R) :
+    (reindex (finSuccEquivSum k) (finSuccEquivSum m) A).toBlocks₁₁ = !![A 0 0] := by
+  -- The proof is by extensionality on the 1x1 matrix.
+  ext i j
+  -- `i` and `j` must be `0` for `Fin 1`.
+  rw [Subsingleton.elim i 0, Subsingleton.elim j 0]
+  -- Unfold the definitions.
+  dsimp [toBlocks₁₁, reindex, finSuccEquivSum, singleton]
+
+/--
+**代数积木 5**: 如果一个矩阵的第一列全为零，那么 `reindex` 后的左侧分块
+`A₁₁` 和 `A₂₁` 也都是零矩阵。
+
+这个引理是 `ZeroColumnMethod` 的 `lift_from_slice` 证明的核心。
+-/
+lemma toBlocks_left_zero_of_first_col_zero [CommRing R]
+    (A : Matrix (Fin (k + 1)) (Fin (m + 1)) R)
+    (h_zero_col : ∀ i, A i 0 = 0) :
+    (reindex (finSuccEquivSum k) (finSuccEquivSum m) A).toBlocks₁₁ = 0 ∧
+    (reindex (finSuccEquivSum k) (finSuccEquivSum m) A).toBlocks₂₁ = 0 := by
+  constructor
+  · -- Prove toBlocks₁₁ is zero.
+    ext i j
+    -- `i` and `j` must be `0` for `Fin 1`.
+    rw [Subsingleton.elim i 0, Subsingleton.elim j 0]
+    dsimp [toBlocks₁₁, reindex, finSuccEquivSum]
+    -- The goal is `A (finSuccEquivSum.symm (Sum.inl 0)) (finSuccEquivSum.symm (Sum.inl 0)) = 0`
+    -- which simplifies to `A 0 0 = 0`.
+    exact h_zero_col 0
+  · -- Prove toBlocks₂₁ is zero.
+    ext i j
+    -- `j` must be `0` for `Fin 1`.
+    rw [Subsingleton.elim j 0]
+    dsimp [toBlocks₂₁, reindex, finSuccEquivSum]
+    -- The goal is `A (finSuccEquivSum.symm (Sum.inr i)) (finSuccEquivSum.symm (Sum.inl 0)) = 0`
+    -- which simplifies to `A (i.succ) 0 = 0`.
+    exact h_zero_col (i.succ)
+
+end ReindexAndBlocks
 
 end MatDecompFormal.Components
 
@@ -398,7 +452,8 @@ end MatDecompFormal.Components
 --     (U' : Matrix (Fin n₂) (Fin n₂) R) :
 --     (fromBlocks (1 : Matrix (Fin n₁) (Fin n₁) R) 0 0 L') *
 --         (fromBlocks (0 : Matrix (Fin n₁) (Fin n₁) R) U₁₂ (0 : Matrix (Fin n₂) (Fin n₁) R) U') =
---     fromBlocks (0 : Matrix (Fin n₁) (Fin n₁) R) U₁₂ (0 : Matrix (Fin n₂) (Fin n₁) R) (L' * U') := by
+--     fromBlocks (0 : Matrix (Fin n₁) (Fin n₁) R) U₁₂
+--         (0 : Matrix (Fin n₂) (Fin n₁) R) (L' * U') := by
 --   simp [fromBlocks_multiply]
 
 -- end MatDecompFormal.Components
