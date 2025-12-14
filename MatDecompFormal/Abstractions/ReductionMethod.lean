@@ -20,12 +20,7 @@ namespace MatDecompFormal.Abstractions
 *   `reconstruct`: 从原始矩阵上下文和子矩阵的解重构出完整矩阵。
 *   `reconstruct_slice_eq`: 证明 `reconstruct` 和 `slice` 的代数一致性。
 -/
-structure ReductionMethod (m n : ℕ) (R : Type*) [CommRing R] where
-  /-- 子问题矩阵的行数。 -/
-  slice_m : ℕ
-  /-- 子问题矩阵的列数。 -/
-  slice_n : ℕ
-
+structure ReductionMethod (m n slice_m slice_n : ℕ) (R : Type*) [CommRing R] where
   /-- 一个谓词，用于判断一个矩阵是否处于可以被“切片”的“标准型”。 -/
   IsSliceable : Matrix (Fin m) (Fin n) R → Prop
 

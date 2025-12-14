@@ -37,9 +37,7 @@ open Matrix MatDecompFormal.Framework
 -/
 noncomputable def SubmatrixMethod (n m : ℕ) (R : Type*) [CommRing R]
     (IsSliceable_def : Matrix (Fin (n + 1)) (Fin (m + 1)) R → Prop) :
-    Abstractions.ReductionMethod (n + 1) (m + 1) R where
-  slice_m := n
-  slice_n := m
+    Abstractions.ReductionMethod (n + 1) (m + 1) n m R where
   IsSliceable := IsSliceable_def
 
   slice := fun A _hA ↦ A.submatrix Fin.succ Fin.succ

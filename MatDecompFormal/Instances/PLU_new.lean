@@ -67,8 +67,8 @@ noncomputable section FinImpl
 variable {R : Type*} [Field R] --[DecidableEq R]
 
 /-- Combined reduction method used by the strategy: Schur with a zero-column fallback. -/
-noncomputable def PLU_Reduction_fin (k : ℕ) : ReductionMethod (k + 1) (k + 1) R :=
-  ReductionMethod.try_else (SchurMethod k R) (ZeroColumnMethod k k R) (by rfl) (by rfl)
+noncomputable def PLU_Reduction_fin (k : ℕ) : ReductionMethod (k + 1) (k + 1) k k R :=
+  ReductionMethod.try_else (SchurMethod k R) (ZeroColumnMethod k k R)
 
 /-- A transformation tailored to the above reduction method. -/
 noncomputable def PLU_Transform_fin (k : ℕ) :
@@ -116,7 +116,7 @@ noncomputable def PLU_Transform_fin (k : ℕ) :
 
 /-- Complete reduction strategy on `(k+1)×(k+1)` matrices. -/
 noncomputable def PLU_Strategy_fin (k : ℕ) :
-    ReductionStrategy (k + 1) (k + 1) R where
+    ReductionStrategy (k + 1) (k + 1) k k R where
   transform := PLU_Transform_fin (R := R) k
   reduction := PLU_Reduction_fin (R := R) k
   goal_is_sliceable := rfl
@@ -127,8 +127,7 @@ noncomputable def PLU_Strategy_fin (k : ℕ) :
   slice_progress := by
     intro A hA
     -- Slicing drops the dimension from `k+1` to `k`.
-    simp [PLU_Reduction_fin, ReductionMethod.try_else] -- slice_m = k
-    exact Nat.lt_succ_self k
+    simp
 
 /-- Transport lemma: the PLU property is invariant under the strategy relation. -/
 -- CORRECTED SIGNATURE: Use {k : ℕ} and Fin (k+1) to match the strategy's definition.
@@ -153,139 +152,121 @@ private lemma transport_plu_fin {k : ℕ}
         simp [swap_mul_self]
       _ = L * U := hEq
 
+/--
+**Lifting Helper 1: Schur Case**
+
+This lemma handles the lifting step for the case where the pivot `A 0 0` is non-zero,
+and the `SchurMethod` is used for reduction.
+-/
+private lemma lift_from_slice_schur_case {k : ℕ}
+    (A : Matrix (Fin (k + 1)) (Fin (k + 1)) R)
+    (h_pivot_unit : IsUnit (A 0 0))
+    (h_slice : HasPLU_fin ((SchurMethod k R).slice A h_pivot_unit)) :
+    HasPLU_fin A := by
+  -- The proof here is exactly the content of the `if h_schur : ... then ...` block.
+  rcases h_slice with ⟨⟨P', L', U'⟩, ⟨hP', hL', hU'⟩, h_slice_eq⟩
+  let e := finSuccEquivSum k
+  let A' := reindex e e A
+  let A₁₁ := A'.toBlocks₁₁; let A₁₂ := A'.toBlocks₁₂
+  let A₂₁ := A'.toBlocks₂₁; let A₂₂ := A'.toBlocks₂₂
+
+  have h_core_alg : P' * ((SchurMethod k R).slice A h_pivot_unit) = L' * U' := h_slice_eq
+
+  let P := fromBlocks (1 : Matrix (Fin 1) (Fin 1) R) 0 0 P'
+  let U := fromBlocks A₁₁ A₁₂ 0 U'
+  let L := fromBlocks (1 : Matrix (Fin 1) (Fin 1) R) 0 (A₂₁ * !![(IsUnit.unit h_pivot_unit).inv]) L'
+
+  refine ⟨⟨P, L, U⟩, ?_, ?_⟩
+  · -- Part 1: Prove properties of P, L, U.
+    sorry
+  · -- Part 2: Prove the equation P * A = L * U.
+    sorry
+
+/--
+**Lifting Helper 2: Zero-Column Case**
+
+This lemma handles the lifting step for the case where the first column of `A` is all zeros,
+and the `ZeroColumnMethod` is used for reduction.
+-/
+private lemma lift_from_slice_zero_col_case {k : ℕ}
+    (A : Matrix (Fin (k + 1)) (Fin (k + 1)) R)
+    (h_zero_col : ∀ i, A i 0 = 0)
+    (h_slice : HasPLU_fin ((ZeroColumnMethod k k R).slice A h_zero_col)) :
+    HasPLU_fin A := by
+  -- The proof here is exactly the content of the `else ...` block.
+  classical
+  rcases h_slice with ⟨⟨P', L', U'⟩, ⟨hP', hL', hU'⟩, h_slice_eq⟩
+  let e := finSuccEquivSum k
+  let A' := reindex e e A
+  let A₁₁ := A'.toBlocks₁₁
+  let A₁₂ := A'.toBlocks₁₂
+  let A₂₁ := A'.toBlocks₂₁
+  let A₂₂ := A'.toBlocks₂₂
+
+  have h_slice_is_submatrix :
+      (ZeroColumnMethod k k R).slice A h_zero_col = A₂₂ := by
+    dsimp [ZeroColumnMethod]
+    simp [A', A₂₂, e, submatrix_succ_eq_toBlocks₂₂]
+
+  have h_core_alg : P' * A₂₂ = L' * U' := by
+    rw [← h_slice_is_submatrix] at h_slice_eq
+    simpa using h_slice_eq
+
+  let P := fromBlocks 1 0 0 P'
+  let L := fromBlocks 1 0 0 L'
+  let U := fromBlocks 0 A₁₂ 0 U'
+
+  refine ⟨⟨P, L, U⟩, ?_, ?_⟩
+  · -- Part 1: Prove properties of P, L, U.
+    refine ⟨?_, ?_, ?_⟩
+    · exact (isPermutation_fromBlocks_blockDiag_iff _ _).mpr ⟨by simp [IsPermutation], hP'⟩
+    · exact isUnitLowerTriangular_fromBlocks_one_zero 0 hL'
+    · exact isUpperTriangular_fromBlocks_zero_top _ _ hU'
+  · -- Part 2: Prove the equation P * A = L * U.
+    apply reindex_inj e.symm e.symm
+    have h_A_zero_blocks : A₁₁ = 0 ∧ A₂₁ = 0 := by
+      have h_blocks :=
+        toBlocks_left_zero_of_first_col_zero (k := k) (m := k) (A := A) h_zero_col
+      simpa [A₁₁, A₂₁, A', e] using h_blocks
+    have h_PA' : P * A' = fromBlocks 0 A₁₂ 0 (P' * A₂₂) := by
+      rw [h_A_zero_blocks.1, h_A_zero_blocks.2]
+      simp [fromBlocks_multiply]
+    have h_LU : L * U = fromBlocks 0 A₁₂ 0 (L' * U') := by
+      simp [fromBlocks_multiply]
+    rw [h_PA', h_LU, h_core_alg]
+
 /-- Lifting lemma: build a PLU decomposition of `A` from a slice. -/
 private lemma lift_from_slice_plu_fin {k : ℕ}
     (A : Matrix (Fin (k + 1)) (Fin (k + 1)) R)
     (hA : (PLU_Reduction_fin (R := R) k).IsSliceable A)
     (h_slice : HasPLU_fin ((PLU_Reduction_fin (R := R) k).slice A hA)) :
     HasPLU_fin A := by
-  -- The proof proceeds by cases on the `IsSliceable` condition, which is an `Or`.
-  -- This exactly matches the structure of the `PLU_Reduction_fin` combinator.
-  rcases h_slice with ⟨⟨P', L', U'⟩, ⟨hP', hL', hU'⟩, h_slice_eq⟩
-
-  -- We will work in the block matrix world using the computational equivalence.
-  let e := finSuccEquivSum k
-  let A' := reindex e e A
-  let A₁₁ := A'.toBlocks₁₁; let A₁₂ := A'.toBlocks₁₂
-  let A₂₁ := A'.toBlocks₂₁; let A₂₂ := A'.toBlocks₂₂
-
+  -- The main proof now simply dispatches to the appropriate helper lemma
+  -- based on the `IsSliceable` condition.
   by_cases h_schur : IsUnit (A 0 0)
-  · --================================================================
-    -- Case 1: `SchurMethod` was used.
-    -- `hA` is `Or.inl h_schur`.
-    --================================================================
-    -- The slice is the Schur complement.
-    have h_slice_is_schur : (PLU_Reduction_fin k).slice A hA = A₂₂ - A₂₁ * !![(IsUnit.unit h_schur).inv] * A₁₂ := by
-      dsimp [PLU_Reduction_fin, ReductionMethod.try_else, SchurMethod]
-      -- `hA` must be the `inl` branch.
-      have hA_inl : (SchurMethod k R).IsSliceable A := hA.resolve_right (by simp [ZeroColumnMethod, h_schur])
-      simp [hA_inl]
-
-    -- Our core algebraic hypothesis, rewritten for the Schur complement.
-    have h_core_alg : P' * (A₂₂ - A₂₁ * !![(IsUnit.unit h_schur).inv] * A₁₂) = L' * U' := by
-      rw [← h_slice_is_schur]; exact h_slice_eq
-
-    -- **Construct the full-size decomposition factors P, L, U.**
-    let P := fromBlocks 1 0 0 P'
-    let U := fromBlocks A₁₁ A₁₂ 0 U'
-    let L := fromBlocks 1 0 (P' * A₂₁ * !![(IsUnit.unit h_schur).inv]) L'
-
-    -- **Prove the decomposition ⟨P, L, U⟩ is valid for A.**
-    refine ⟨⟨P, L, U⟩, ?_, ?_⟩
-
-    · -- **Part 1: Prove properties of P, L, U.**
-      refine ⟨?_, ?_, ?_⟩
-      · -- P is a permutation matrix.
-        -- Framework tool: `Components/Properties/Permutation.lean` -> `isPermutation_fromBlocks_blockDiag_iff`
-        exact (isPermutation_fromBlocks_blockDiag_iff _ _).mpr ⟨by simp [IsPermutation], hP'⟩
-      · -- L is a unit lower triangular matrix.
-        -- Framework tool: `Components/Properties/Triangular.lean` -> `isUnitLowerTriangular_fromBlocks_one_zero`
-        exact isUnitLowerTriangular_fromBlocks_one_zero _ _ hL'
-      · -- U is an upper triangular matrix.
-        -- Framework tool: A lemma in `Components/Properties/Triangular.lean` is needed.
-        -- Lemma `isUpperTriangular_fromBlocks (hA : IsUpperTriangular A₁₁) (hD : IsUpperTriangular U') : IsUpperTriangular (fromBlocks A₁₁ A₁₂ 0 U')`
-        sorry
-
-    · -- **Part 2: Prove the equation P * A = L * U.**
-      -- We prove this by reindexing to the block world and comparing blocks.
-      -- Goal: `(reindex e.symm e.symm P) * A = (reindex e.symm e.symm L) * (reindex e.symm e.symm U)`
-      -- This is equivalent to `P * A' = L * U` in the block world.
-      apply reindex_inj e.symm e.symm
-      -- Calculate P * A'
-      have h_PA' : P * A' = fromBlocks A₁₁ A₁₂ (P' * A₂₁) (P' * A₂₂) := by
-        -- Framework tool: `Components/BlockLifting.lean` -> `block_P_mul_A` (or just `fromBlocks_multiply`)
-        simp [fromBlocks_multiply]
-      -- Calculate L * U
-      have h_LU : L * U = fromBlocks A₁₁ A₁₂ (P' * A₂₁ * !![(IsUnit.unit h_schur).inv] * A₁₁) (P' * A₂₁ * !![(IsUnit.unit h_schur).inv] * A₁₂ + L' * U') := by
-        -- Framework tool: `Components/BlockLifting.lean` -> `block_L_mul_U`
-        simp [fromBlocks_multiply]
-      -- Now, prove the blocks are equal.
-      rw [h_PA', h_LU]
-      constructor
-      · -- Prove 2,1 blocks are equal: `P' * A₂₁ = P' * A₂₁ * !![inv] * A₁₁`
-        have h_A₁₁_inv : !![(IsUnit.unit h_schur).inv] * A₁₁ = (1 : Matrix (Fin 1) (Fin 1) R) := by
-          -- This requires knowing A₁₁ is `!![A 0 0]`.
-          sorry
-        simp [h_A₁₁_inv]
-      · -- Prove 2,2 blocks are equal: `P' * A₂₂ = P' * A₂₁ * !![inv] * A₁₂ + L' * U'`
-        -- This is a direct rearrangement of our `h_core_alg`.
-        rw [← h_core_alg, mul_sub, sub_add_cancel]
-
-  · --================================================================
-    -- Case 2: `ZeroColumnMethod` was used.
-    -- `hA` is `Or.inr h_zero_col`.
-    --================================================================
-    have h_zero_col : ∀ i, A i 0 = 0 := hA.resolve_left (by simpa [isUnit_iff_ne_zero] using h_schur)
-
-    -- The slice is the bottom-right submatrix.
-    have h_slice_is_submatrix : (PLU_Reduction_fin k).slice A hA = A₂₂ := by
-      dsimp [PLU_Reduction_fin, ReductionMethod.try_else, ZeroColumnMethod]
-      -- `hA` must be the `inr` branch.
-      have hA_inr : (ZeroColumnMethod k k R).IsSliceable A := hA.resolve_left (by simpa [isUnit_iff_ne_zero] using h_schur)
-      simp [hA_inr, submatrix_succ_eq_toBlocks₂₂]
-
-    -- Our core algebraic hypothesis, rewritten for the submatrix.
-    have h_core_alg : P' * A₂₂ = L' * U' := by
-      rw [← h_slice_is_submatrix]; exact h_slice_eq
-
-    -- **Construct the full-size decomposition factors P, L, U.**
-    let P := fromBlocks 1 0 0 P'
-    let L := fromBlocks 1 0 0 L'
-    let U := fromBlocks 0 A₁₂ 0 U'
-
-    -- **Prove the decomposition ⟨P, L, U⟩ is valid for A.**
-    refine ⟨⟨P, L, U⟩, ?_, ?_⟩
-
-    · -- **Part 1: Prove properties of P, L, U.**
-      refine ⟨?_, ?_, ?_⟩
-      · -- P is a permutation matrix.
-        -- Framework tool: `Components/Properties/Permutation.lean` -> `isPermutation_fromBlocks_blockDiag_iff`
-        exact (isPermutation_fromBlocks_blockDiag_iff _ _).mpr ⟨by simp [IsPermutation], hP'⟩
-      · -- L is a unit lower triangular matrix.
-        -- Framework tool: `Components/Properties/Triangular.lean` -> `isUnitLowerTriangular_fromBlocks_one_zero`
-        exact isUnitLowerTriangular_fromBlocks_one_zero 0 hL'
-      · -- U is an upper triangular matrix.
-        -- Framework tool: A lemma in `Components/Properties/Triangular.lean` is needed.
-        -- Lemma `isUpperTriangular_fromBlocks_zero_top (hD : IsUpperTriangular U') : IsUpperTriangular (fromBlocks 0 A₁₂ 0 U')`
-        sorry
-
-    · -- **Part 2: Prove the equation P * A = L * U.**
-      apply reindex_inj e.symm e.symm
-      -- First, prove that the top-left and bottom-left blocks of A' are zero.
-      have h_A_zero_blocks : A₁₁ = 0 ∧ A₂₁ = 0 := by
-        -- This follows directly from `h_zero_col`.
-        sorry
-      -- Calculate P * A'
-      have h_PA' : P * A' = fromBlocks 0 A₁₂ 0 (P' * A₂₂) := by
-        -- Framework tool: `Components/BlockLifting.lean` -> `block_P_mul_A`
-        rw [h_A_zero_blocks.1, h_A_zero_blocks.2]
-        simp [fromBlocks_multiply]
-      -- Calculate L * U
-      have h_LU : L * U = fromBlocks 0 A₁₂ 0 (L' * U') := by
-        -- Framework tool: `Components/BlockLifting.lean` -> `block_diag_L_mul_block_U`
-        simp [fromBlocks_multiply]
-      -- Now, prove the blocks are equal.
-      rw [h_PA', h_LU, h_core_alg]
+  · -- Case 1: `SchurMethod` was used.
+    cases hA with
+    | inl hA_schur =>
+        -- Simplify the slice.
+        have h_slice' : HasPLU_fin ((SchurMethod k R).slice A hA_schur) := by
+          simpa [PLU_Reduction_fin, ReductionMethod.try_else] using h_slice
+        -- Align the pivot proofs via proof irrelevance.
+        have h_eq : hA_schur = h_schur := Subsingleton.elim _ _
+        have h_slice'' : HasPLU_fin ((SchurMethod k R).slice A h_schur) := by
+          simpa [h_eq] using h_slice'
+        exact lift_from_slice_schur_case A h_schur h_slice''
+    | inr h_zero_col =>
+        have : False := (isUnit_iff_ne_zero.mp h_schur) (h_zero_col 0)
+        contradiction
+  · -- Case 2: `ZeroColumnMethod` was used.
+    cases hA with
+    | inl h_unit =>
+        have : False := h_schur h_unit
+        contradiction
+    | inr h_zero_col =>
+        have h_slice' : HasPLU_fin ((ZeroColumnMethod k k R).slice A h_zero_col) := by
+          simpa [PLU_Reduction_fin, ReductionMethod.try_else] using h_slice
+        exact lift_from_slice_zero_col_case A h_zero_col h_slice'
 
 
 /-- Base case: zero-dimensional matrices admit a trivial PLU. -/

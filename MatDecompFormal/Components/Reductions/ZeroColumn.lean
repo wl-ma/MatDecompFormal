@@ -33,9 +33,7 @@ open Matrix MatDecompFormal.Framework
 同时移除第一行和第一列的规约策略。
 -/
 noncomputable def ZeroColumnMethod (n m : ℕ) (R : Type*) [CommRing R] :
-    Abstractions.ReductionMethod (n + 1) (m + 1) R where
-  slice_m := n
-  slice_n := m
+    Abstractions.ReductionMethod (n + 1) (m + 1) n m R where
   IsSliceable := fun A ↦ ∀ i, A i 0 = 0
 
   slice := fun A _hA ↦ A.submatrix Fin.succ Fin.succ

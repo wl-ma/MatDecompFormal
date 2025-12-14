@@ -7,20 +7,28 @@ namespace MatDecompFormal.Abstractions
 open MatDecompFormal.Framework
 
 /-!
-# 规约策略 (Reduction Strategy) - v3.0 (Fin m n Version)
+# 规约策略 (Reduction Strategy) - v3.1 (类型参数化维度)
 
 本文件定义了 `ReductionStrategy`，它将“变换”和“规约”组合成一个
 完整的、在 `Fin m × Fin n` 矩阵上可执行的归纳步骤。
+
+v3.1 更新：
+- `slice_m` 和 `slice_n` 现在是 `ReductionStrategy` 的类型参数，
+  以匹配 `ReductionMethod` v3.1 的新设计。
 -/
 
 /--
-`ReductionStrategy` (Fin m n 版)
+`ReductionStrategy` (v3.1 版)
+
+*   `m`, `n`: 原始矩阵的维度。
+*   `slice_m`, `slice_n`: 子问题矩阵的维度。
+*   `R`: 环类型。
 -/
-structure ReductionStrategy (m n : ℕ) (R : Type*) [CommRing R] where
+structure ReductionStrategy (m n slice_m slice_n : ℕ) (R : Type*) [CommRing R] where
   /-- 用于达到可切片状态的变换。 -/
   transform : Transformation (Matrix (Fin m) (Fin n) R)
   /-- 用于分解问题的规约方法。 -/
-  reduction : ReductionMethod m n R
+  reduction : ReductionMethod m n slice_m slice_n R
   /-- 兼容性断言：变换的目标 `Goal` 必须与规约方法的 `IsSliceable` 条件在逻辑上等价。 -/
   goal_is_sliceable : transform.Goal = reduction.IsSliceable
   /-- 归纳所依赖的度量函数。它作用于通用宇宙对象。 -/
@@ -30,31 +38,27 @@ structure ReductionStrategy (m n : ℕ) (R : Type*) [CommRing R] where
              μ ⟨⟨m, n⟩, ⟨transform.apply t A⟩⟩ ≤ μ ⟨⟨m, n⟩, ⟨A⟩⟩
   /-- 切片进展性证明。 -/
   slice_progress : ∀ (A : Matrix (Fin m) (Fin n) R) (hA : reduction.IsSliceable A),
-    μ ⟨⟨reduction.slice_m, reduction.slice_n⟩, ⟨reduction.slice A hA⟩⟩ < μ ⟨⟨m, n⟩, ⟨A⟩⟩
+    μ ⟨⟨slice_m, slice_n⟩, ⟨reduction.slice A hA⟩⟩ < μ ⟨⟨m, n⟩, ⟨A⟩⟩
 
 /--
 `ReductionStrategy.r` 定义了策略所允许的变换关系。
 -/
-def ReductionStrategy.r {m n R} [CommRing R]
-    (S : ReductionStrategy m n R) (y x : Matrix (Fin m) (Fin n) R) : Prop :=
+def ReductionStrategy.r {m n slice_m slice_n R} [CommRing R]
+    (S : ReductionStrategy m n slice_m slice_n R) (y x : Matrix (Fin m) (Fin n) R) : Prop :=
   (y = x) ∨ (∃ (t : S.transform.T), y = S.transform.apply t x)
 
 /--
-`ReductionStrategy.mk_reach` (修正版名称) 从一个策略中自动构造出
+`ReductionStrategy.mk_reach` 从一个策略中自动构造出
 `PositiveDecompositionInstance` 所需的 `reach` 证明。
-
-这是一个高阶函数，它接收策略 `S`，并为任何满足 `μ > μ_base` 的
-正维度矩阵 `x` 构造存在性证明。
 -/
-noncomputable def ReductionStrategy.mk_reach {m n R} [CommRing R]
-    (S : ReductionStrategy m n R) (μ_base : ℕ)
+noncomputable def ReductionStrategy.mk_reach {m n slice_m slice_n R} [CommRing R]
+    (S : ReductionStrategy m n slice_m slice_n R) (μ_base : ℕ)
     (_h_pos : m > 0 ∧ n > 0)
     (A : Matrix (Fin m) (Fin n) R)
     (_h_mu_gt_base : S.μ ⟨⟨m, n⟩, ⟨A⟩⟩ > μ_base)
     : Σ' (B : Matrix (Fin m) (Fin n) R),
         Σ' (hB : S.reduction.IsSliceable B),
-          S.r B A ∧ S.μ ⟨⟨S.reduction.slice_m, S.reduction.slice_n⟩,
-            ⟨S.reduction.slice B hB⟩⟩ < S.μ ⟨⟨m,n⟩,⟨A⟩⟩ := by
+          S.r B A ∧ S.μ ⟨⟨slice_m, slice_n⟩, ⟨S.reduction.slice B hB⟩⟩ < S.μ ⟨⟨m,n⟩,⟨A⟩⟩ := by
   by_cases h_goal : S.transform.Goal A
   · -- Case 1: Goal met. The new matrix is just A.
     refine ⟨A, ?_⟩
@@ -75,6 +79,7 @@ noncomputable def ReductionStrategy.mk_reach {m n R} [CommRing R]
       _ ≤ S.μ ⟨⟨m,n⟩,⟨A⟩⟩ := S.μ_mono A t
 
 end MatDecompFormal.Abstractions
+
 
 
 

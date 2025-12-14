@@ -34,10 +34,7 @@ open Matrix MatDecompFormal.Framework
 它被定义在 `Fin (n+1)` 类型的方阵上。
 -/
 noncomputable def SchurMethod (n : ℕ) (R : Type*) [Field R] :
-    Abstractions.ReductionMethod (n + 1) (n + 1) R where
-  slice_m := n
-  slice_n := n
-
+    Abstractions.ReductionMethod (n + 1) (n + 1) n n R where
   IsSliceable := fun A ↦ IsUnit (A 0 0)
 
   slice := fun A hA ↦

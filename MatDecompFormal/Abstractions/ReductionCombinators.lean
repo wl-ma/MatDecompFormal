@@ -9,14 +9,9 @@ namespace MatDecompFormal.Abstractions
 /--
 `ReductionMethod.try_else` (Fin m n 版)
 -/
-noncomputable def ReductionMethod.try_else {m n : ℕ} {R : Type*} [CommRing R]
-    (M₁ M₂ : ReductionMethod m n R)
-    -- 关键前提：两个方法的切片维度必须完全相同。
-    (h_slice_m_eq : M₁.slice_m = M₂.slice_m)
-    (h_slice_n_eq : M₁.slice_n = M₂.slice_n)
-    : ReductionMethod m n R where
-  slice_m := M₁.slice_m
-  slice_n := M₁.slice_n
+noncomputable def ReductionMethod.try_else {m n slice_m slice_n : ℕ} {R : Type*} [CommRing R]
+    (M₁ M₂ : ReductionMethod m n slice_m slice_n R)
+    : ReductionMethod m n slice_m slice_n R where
 
   IsSliceable := fun A ↦ M₁.IsSliceable A ∨ M₂.IsSliceable A
 
@@ -26,7 +21,6 @@ noncomputable def ReductionMethod.try_else {m n : ℕ} {R : Type*} [CommRing R]
     · exact M₁.slice A h₁
     · let h₂ : M₂.IsSliceable A := hA.resolve_left h₁
       -- 使用前提来统一类型
-      rw [h_slice_m_eq, h_slice_n_eq]
       exact M₂.slice A h₂
 
   reconstruct := by
@@ -34,8 +28,6 @@ noncomputable def ReductionMethod.try_else {m n : ℕ} {R : Type*} [CommRing R]
     by_cases h₁ : M₁.IsSliceable A
     · exact M₁.reconstruct A h₁ slice_sol
     · let h₂ : M₂.IsSliceable A := hA.resolve_left h₁
-      -- 使用前提来统一类型
-      rw [h_slice_m_eq, h_slice_n_eq] at slice_sol
       exact M₂.reconstruct A h₂ slice_sol
 
   reconstruct_slice_eq := by
@@ -43,8 +35,7 @@ noncomputable def ReductionMethod.try_else {m n : ℕ} {R : Type*} [CommRing R]
     dsimp only
     split_ifs with h₁
     · exact M₁.reconstruct_slice_eq A h₁
-    · simp
-      exact M₂.reconstruct_slice_eq A (hA.resolve_left h₁)
+    · exact M₂.reconstruct_slice_eq A (hA.resolve_left h₁)
 
 end MatDecompFormal.Abstractions
 
