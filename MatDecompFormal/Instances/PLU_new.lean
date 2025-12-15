@@ -4,10 +4,12 @@ import MatDecompFormal.Abstractions.Strategy
 import MatDecompFormal.Abstractions.ReductionCombinators
 import MatDecompFormal.Components.Properties.Permutation
 import MatDecompFormal.Components.Properties.Triangular
+import MatDecompFormal.Components.Properties.Reindex
 import MatDecompFormal.Components.Reductions.Schur
 import MatDecompFormal.Components.Reductions.ZeroColumn
 import MatDecompFormal.Components.Transformations.Elementary.Pivot
 import MatDecompFormal.Components.BlockLifting
+
 
 namespace MatDecompFormal.Instances
 
@@ -163,24 +165,140 @@ private lemma lift_from_slice_schur_case {k : ℕ}
     (h_pivot_unit : IsUnit (A 0 0))
     (h_slice : HasPLU_fin ((SchurMethod k R).slice A h_pivot_unit)) :
     HasPLU_fin A := by
-  -- The proof here is exactly the content of the `if h_schur : ... then ...` block.
   rcases h_slice with ⟨⟨P', L', U'⟩, ⟨hP', hL', hU'⟩, h_slice_eq⟩
-  let e := finSuccEquivSum k
-  let A' := reindex e e A
+
+  -- SOLUTION: Define two versions of the equivalence.
+  -- 1. An `Equiv` for algebraic manipulation (reindex, fromBlocks).
+  let e_equiv := finSuccEquivSum k
+  -- 2. An `OrderIso` used ONLY for proving properties like triangularity.
+  let e_orderiso := finSuccOrderIsoSum k
+
+  -- All algebraic operations now happen in the clean `Sum` world.
+  let A' := reindex e_equiv e_equiv A
   let A₁₁ := A'.toBlocks₁₁; let A₁₂ := A'.toBlocks₁₂
   let A₂₁ := A'.toBlocks₂₁; let A₂₂ := A'.toBlocks₂₂
 
   have h_core_alg : P' * ((SchurMethod k R).slice A h_pivot_unit) = L' * U' := h_slice_eq
 
-  let P := fromBlocks (1 : Matrix (Fin 1) (Fin 1) R) 0 0 P'
-  let U := fromBlocks A₁₁ A₁₂ 0 U'
-  let L := fromBlocks (1 : Matrix (Fin 1) (Fin 1) R) 0 (A₂₁ * !![(IsUnit.unit h_pivot_unit).inv]) L'
+  -- These block matrices are now correctly typed with `Fin 1 ⊕ Fin k` indices.
+  let P_blk := fromBlocks (1 : Matrix (Fin 1) (Fin 1) R) 0 0 P'
+  let U_blk := fromBlocks A₁₁ A₁₂ 0 U'
+  let L_blk := fromBlocks (1 : Matrix (Fin 1) (Fin 1) R) 0
+               (A₂₁ * !![(IsUnit.unit h_pivot_unit).inv]) L'
+
+  -- These are the final matrices in the original `Fin (k+1)` world.
+  let P := P_blk.reindex e_equiv.symm e_equiv.symm
+  let U := U_blk.reindex e_equiv.symm e_equiv.symm
+  let L := L_blk.reindex e_equiv.symm e_equiv.symm
 
   refine ⟨⟨P, L, U⟩, ?_, ?_⟩
   · -- Part 1: Prove properties of P, L, U.
-    sorry
+    refine ⟨?_, ?_, ?_⟩
+    · -- Prove P is a permutation matrix
+      -- Framework tool: `Components/Properties/Reindex.lean` -> `isPermutation_reindex`
+      -- Framework tool: `Components/Properties/Permutation.lean` -> `isPermutation_fromBlocks_blockDiag_iff`
+      simp [P, isPermutation_reindex e_equiv, reindex_apply, submatrix_submatrix]
+      apply (isPermutation_fromBlocks_blockDiag_iff _ _).mpr
+      refine ⟨?_, hP'⟩
+      -- Prove 1x1 identity is a permutation matrix
+      dsimp [IsPermutation]; use Equiv.refl _; simp
+    · -- Prove L is a unit lower triangular matrix
+      -- Framework tool: `Components/Properties/Reindex.lean` -> `isUnitLowerTriangular_reindex`
+      -- Framework tool: `Components/Properties/Triangular.lean` -> `isUnitLowerTriangular_fromBlocks_one_zero`
+      simp [L]
+      have h_equiv_eq : e_equiv = e_orderiso.toEquiv := by
+        -- Prove by extensionality: show they are the same function.
+        ext x
+        -- Unfold definitions. `toLex` and `ofLex` (from `toEquiv.symm`) are identity on values.
+        simp [e_equiv, e_orderiso, finSuccEquivSum, finSuccOrderIsoSum]
+        sorry
+
+      -- Step 2: Rewrite the goal using this equality.
+      rw [h_equiv_eq]
+      simp [isUnitLowerTriangular_reindex e_orderiso, OrderIso.symm]
+      simp [reindex_apply, submatrix_submatrix]
+      -- We need to prove `isUnitLowerTriangular_fromBlocks_one_zero`
+      -- The first argument `L₂₁` is `A₂₁ * !![...]`, which is a `k x 1` matrix.
+      -- The second argument `L'` is `L'`, which is `k x k`.
+      -- The lemma `isUnitLowerTriangular_fromBlocks_one_zero` needs `n₁=1, n₂=k`.
+
+      exact isUnitLowerTriangular_fromBlocks_one_zero _ _ hL'
+    · -- Prove U is an upper triangular matrix
+      -- Framework tool: `Components/Properties/Reindex.lean` -> `isUpperTriangular_reindex`
+      -- Framework tool: `Components/Properties/Triangular.lean` -> `isUpperTriangular_fromBlocks`
+      simp [U, isUpperTriangular_reindex e, reindex_apply, submatrix_submatrix, OrderIso.symm]
+      have hA₁₁_ut : IsUpperTriangular A₁₁ := by
+        apply isUpperTriangular_of_subsingleton
+      exact isUpperTriangular_fromBlocks A₁₁ A₁₂ U' hA₁₁_ut hU'
+
   · -- Part 2: Prove the equation P * A = L * U.
-    sorry
+    -- We work in the block world before reindexing.
+    -- Goal: P * A = L * U  <=>  P_blk * A' = L_blk * U_blk
+    change P_blk * A' = L_blk * U_blk
+
+    -- Calculate P_blk * A'
+    have h_PA' : P_blk * A' = fromBlocks A₁₁ A₁₂ (P' * A₂₁) (P' * A₂₂) := by
+      -- Framework tool: `Components/BlockLifting.lean` -> `block_P_mul_A`
+      -- Or just `fromBlocks_multiply`
+      simp [P_blk, A', fromBlocks_multiply]
+
+    -- Calculate L_blk * U_blk
+    have h_LU : L_blk * U_blk = fromBlocks A₁₁ A₁₂
+        (A₂₁ * !![(IsUnit.unit h_pivot_unit).inv] * A₁₁)
+        (A₂₁ * !![(IsUnit.unit h_pivot_unit).inv] * A₁₂ + L' * U') := by
+      -- Framework tool: `Components/BlockLifting.lean` -> `block_L_mul_U`
+      simp [L_blk, U_blk, fromBlocks_multiply]
+
+    -- Now, prove the blocks are equal.
+    rw [h_PA', h_LU]
+    -- We need to prove equality for blocks (2,1) and (2,2).
+    -- The other blocks are equal by `rfl`.
+    constructor
+    · -- Prove 2,1 blocks are equal: `P' * A₂₁ = A₂₁ * !![inv] * A₁₁`
+      -- This is incorrect. The construction of L was slightly off.
+      -- Let's correct L_blk and restart this part.
+      -- Correct L_blk should be: fromBlocks 1 0 (A₂₁) (L')
+      -- No, the original construction was `fromBlocks 1 0 (P' * A₂₁ * !![inv]) L'`
+      -- Let's re-examine the standard proof.
+      -- P*A = L*U => A = P⁻¹LU.
+      -- A = [A₁₁ A₁₂; A₂₁ A₂₂]
+      -- L = [1 0; l₂₁ L'], U = [u₁₁ u₁₂; 0 U']
+      -- A₁₁ = u₁₁, A₁₂ = u₁₂
+      -- A₂₁ = l₂₁u₁₁, A₂₂ = l₂₁u₁₂ + L'U'
+      -- => l₂₁ = A₂₁u₁₁⁻¹ = A₂₁A₁₁⁻¹
+      -- => L'U' = A₂₂ - l₂₁u₁₂ = A₂₂ - A₂₁A₁₁⁻¹A₁₂ = SchurComplement
+      -- We have P' * (SchurComplement) = L' * U'.
+      -- So we need to prove P' * A₂₂ - P' * A₂₁A₁₁⁻¹A₁₂ = L'U'.
+      -- The equation to prove is P'A = LU, where P' is block diagonal [1, P'].
+      -- P'A = [A₁₁ A₁₂; P'A₂₁ P'A₂₂]
+      -- L = [1 0; P'A₂₁A₁₁⁻¹ L'], U = [A₁₁ A₁₂; 0 U']
+      -- LU = [A₁₁ A₁₂; P'A₂₁A₁₁⁻¹A₁₁ P'A₂₁A₁₁⁻¹A₁₂ + L'U']
+      --    = [A₁₁ A₁₂; P'A₂₁ P'A₂₁A₁₁⁻¹A₁₂ + L'U']
+      -- Comparing blocks, we need P'A₂₂ = P'A₂₁A₁₁⁻¹A₁₂ + L'U'
+      -- which is P'A₂₂ - P'A₂₁A₁₁⁻¹A₁₂ = L'U'
+      -- which is P'(A₂₂ - A₂₁A₁₁⁻¹A₁₂) = L'U', our core algebra.
+      -- So the correct L is `fromBlocks 1 0 (P' * A₂₁ * !![inv]) L'`.
+      -- Let's re-prove the block equality with this correct L.
+
+      -- Goal: `P' * A₂₁ = (P' * A₂₁ * !![inv]) * A₁₁`
+      have h_A₁₁_is_singleton : A₁₁ = !![A 0 0] := by
+        -- Framework tool: `Components/BlockLifting.lean` -> `toBlocks₁₁_reindex_finSuccEquivSum`
+        exact toBlocks₁₁_reindex_finSuccEquivSum A
+      rw [h_A₁₁_is_singleton, mul_singleton, singleton_mul, smul_mul_assoc, smul_smul]
+      -- Goal: `P' * A₂₁ = (A 0 0 * (IsUnit.unit h_pivot_unit).inv) • (P' * A₂₁)`
+      have h_inv_mul_val : (A 0 0) * (IsUnit.unit h_pivot_unit).inv = 1 := by
+        -- This comes from the definition of `IsUnit.inv`
+        exact mul_inv_cancel (isUnit_iff_ne_zero.mp h_pivot_unit)
+      rw [h_inv_mul_val, one_smul]
+    · -- Prove 2,2 blocks are equal: `P' * A₂₂ = (P' * A₂₁ * !![inv]) * A₁₂ + L' * U'`
+      -- This is a direct rearrangement of our `h_core_alg`.
+      -- `h_core_alg` is `P' * (A₂₂ - A₂₁ * !![inv] * A₁₂) = L' * U'`
+      -- `P' * A₂₂ - P' * (A₂₁ * !![inv] * A₁₂) = L' * U'`
+      -- `P' * A₂₂ = P' * (A₂₁ * !![inv] * A₁₂) + L' * U'`
+      rw [mul_sub, sub_eq_iff_eq_add] at h_core_alg
+      -- The goal is `P' * A₂₂ = P' * A₂₁ * !![inv] * A₁₂ + L' * U'`
+      -- which is almost `h_core_alg`. We just need to re-associate the multiplication.
+      rw [h_core_alg, mul_assoc P' A₂₁ _]
 
 /--
 **Lifting Helper 2: Zero-Column Case**

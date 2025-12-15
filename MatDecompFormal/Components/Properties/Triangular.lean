@@ -74,6 +74,31 @@ lemma isUnitLowerTriangular_one : IsUnitLowerTriangular (1 : Matrix ι ι R) := 
   · -- 对角线全为 1
     simp [Matrix.diag_one]
 
+/--
+任何由“单例”类型（只有一个元素的类型）索引的方阵都是上三角矩阵。
+这个结论是“空洞为真”的，因为 `j < i` 的条件永远无法满足。
+-/
+lemma isUpperTriangular_of_subsingleton {ι R} [Zero R] [LinearOrder ι] [Subsingleton ι]
+    (A : Matrix ι ι R) : IsUpperTriangular A := by
+  dsimp [IsUpperTriangular, BlockTriangular]
+  intro i j hij
+  -- 因为 ι 是一个单例类型，所以任意两个元素都相等。
+  have : i = j := Subsingleton.elim i j
+  -- 将 i = j 代入 hij
+  rw [this] at hij
+  -- hij 现在是 j < j，这与小于号的非自反性矛盾。
+  exfalso; exact lt_irrefl j hij
+
+/--
+任何由“单例”类型索引的方阵也都是下三角矩阵。
+-/
+lemma isLowerTriangular_of_subsingleton {ι R} [Zero R] [LinearOrder ι] [Subsingleton ι]
+    (A : Matrix ι ι R) : IsLowerTriangular A := by
+  -- 证明：A 是下三角 ↔ Aᵀ 是上三角。
+  -- Aᵀ 也是由 Subsingleton 类型索引的，所以它是上三角的。
+  dsimp [IsLowerTriangular]
+  exact isUpperTriangular_of_subsingleton Aᵀ
+
 end Triangular
 
 

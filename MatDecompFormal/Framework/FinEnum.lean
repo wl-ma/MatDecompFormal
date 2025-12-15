@@ -1,5 +1,6 @@
 import Mathlib.Data.FinEnum
 import Mathlib.Order.Basic
+import Mathlib.Data.Sum.Order
 import Mathlib.Algebra.Ring.Defs
 import Mathlib.LinearAlgebra.Matrix.Defs
 import Mathlib.Data.Matrix.Block
@@ -62,6 +63,31 @@ def finSuccEquivSum (n : ℕ) : Fin (n + 1) ≃ Fin 1 ⊕ Fin n where
     rcases x with (y | i) <;> simp
     rw [Subsingleton.elim y 0]
 
+-- /--
+-- `finSuccEquivSum` 的保序同构版本。
+
+-- 它证明了 `finSuccEquivSum` 定义的映射，在 `Fin (n + 1)` 的标准序和
+-- `Fin 1 ⊕ Fin n` 的字典序之间是保序的。
+-- -/
+-- def finSuccOrderIsoSum (n : ℕ) : Fin (n + 1) ≃o Fin 1 ⊕ₗ Fin n where
+--   toEquiv := (finSuccEquivSum n).trans (toLex (α := Fin 1 ⊕ Fin n))
+--   map_rel_iff' := by
+--     intro x y
+--     cases x using Fin.cases with
+--     | zero =>
+--         cases y using Fin.cases with
+--         | zero =>
+--             simp [finSuccEquivSum]
+--         | succ y =>
+--             -- `0 ≤ y.succ` corresponds to the lexicographic fact that `inl 0` is
+--             -- always before any `inr y`.
+--             simp [finSuccEquivSum]
+--     | succ x =>
+--         cases y using Fin.cases with
+--         | zero =>
+--             simp [finSuccEquivSum]
+--         | succ y =>
+--             simp [finSuccEquivSum, Fin.succ_le_succ_iff]
 
 /--
 一个用于将 `Fin n` 视为 `Fin 0 ⊕ Fin n` 的等价关系。

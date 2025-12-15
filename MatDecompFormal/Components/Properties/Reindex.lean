@@ -94,89 +94,64 @@ end
 ## 上/下三角与 OrderIso 下的 reindex
 -/
 
-section OrderIsoBased
+section OrderPropertyBased
 
--- 对于序相关的性质，我们需要一个线性序，并且在两个索引集之间有 `OrderIso`
+-- 对于序相关的性质，我们分离 Equiv 和序保持的假设
 variable {ι ι' R : Type*} [LinearOrder ι] [LinearOrder ι'] [Zero R]
 
 /--
-在一个 `OrderIso` 诱导的基变换下，上三角性保持。
+在一个保持严格单调的 `Equiv` 诱导的基变换下，上三角性保持。
 -/
-lemma isUpperTriangular_reindex (e : ι ≃o ι') (A : Matrix ι ι R) :
-    IsUpperTriangular A ↔ IsUpperTriangular (A.reindex e.toEquiv e.toEquiv) := by
-  classical
-  -- 直接按定义展开：都是 `BlockTriangular`，只不过索引类型不同。
+lemma isUpperTriangular_reindex (e : ι ≃ ι') (h_mono : StrictMono e) (A : Matrix ι ι R) :
+    IsUpperTriangular A ↔ IsUpperTriangular (A.reindex e e) := by
   dsimp [IsUpperTriangular, BlockTriangular]
   constructor
-  · -- (→)
-    intro h i' j' h_lt
-    -- 通过 e.symm 把 < 关系拉回原索引上
-    have h_preimage_lt : e.symm j' < e.symm i' := (e.symm.lt_iff_lt).mpr h_lt
-    -- 使用原始假设 h
+  · intro h i' j' h_lt
+    -- `StrictMono` implies `Monotone`; use it to reflect the order through `e.symm`.
+    have h_preimage_lt : e.symm j' < e.symm i' := by
+      by_contra h_not
+      have h_le : e.symm i' ≤ e.symm j' := not_lt.mp h_not
+      have h_le' : i' ≤ j' := by simpa using (h_mono.monotone h_le)
+      exact (not_lt_of_ge h_le') h_lt
     simpa [Matrix.reindex_apply] using h h_preimage_lt
-  · -- (←)
-    intro h i j h_lt
-    -- 把 < 关系通过 e 映到新的索引上
-    have h_image_lt : e j < e i := (e.lt_iff_lt).mpr h_lt
-    -- A i j = (A.reindex e e) (e i) (e j)
+  · intro h i j h_lt
+    have h_image_lt : e j < e i := h_mono h_lt
     simpa [Matrix.reindex_apply] using h h_image_lt
 
 /--
-在一个 `OrderIso` 诱导的基变换下，下三角性保持。
+在一个保持严格单调的 `Equiv` 诱导的基变换下，下三角性保持。
 -/
-lemma isLowerTriangular_reindex (e : ι ≃o ι') (A : Matrix ι ι R) :
-    IsLowerTriangular A ↔ IsLowerTriangular (A.reindex e.toEquiv e.toEquiv) := by
-  -- 下三角性通过转置定义
+lemma isLowerTriangular_reindex (e : ι ≃ ι') (h_mono : StrictMono e) (A : Matrix ι ι R) :
+    IsLowerTriangular A ↔ IsLowerTriangular (A.reindex e e) := by
   dsimp [IsLowerTriangular]
-  constructor
-  · intro h
-    -- A 下三角 ↔ Aᵀ 上三角
-    have h' := (isUpperTriangular_reindex (ι := ι) (ι' := ι') (R := R) (e := e) (A := Aᵀ)).1 h
-    -- (A.reindex e e)ᵀ = Aᵀ.reindex e e，所以可以直接改写
-    simpa [Matrix.transpose_reindex] using h'
-  · intro h
-    -- 反向同理
-    have h' :
-        IsUpperTriangular ((Aᵀ).reindex e.toEquiv e.toEquiv) := by
-      simpa [Matrix.transpose_reindex] using h
-    exact (isUpperTriangular_reindex (ι := ι) (ι' := ι') (R := R) (e := e) (A := Aᵀ)).2 h'
+  have h := isUpperTriangular_reindex (e := e) (h_mono := h_mono) (A := Aᵀ)
+  simpa [IsLowerTriangular, Matrix.transpose_reindex] using h
 
 /--
-在一个 `OrderIso` 诱导的基变换下，单位下三角性保持。
+在一个保持严格单调的 `Equiv` 诱导的基变换下，单位下三角性保持。
 -/
-lemma isUnitLowerTriangular_reindex
-    (e : ι ≃o ι') (A : Matrix ι ι R)
-    [One R] [DecidableEq ι] [DecidableEq ι'] :
-    IsUnitLowerTriangular A ↔ IsUnitLowerTriangular (A.reindex e.toEquiv e.toEquiv) := by
-  classical
-  -- 分别处理 IsLowerTriangular 和 diag = 1 两个条件
+lemma isUnitLowerTriangular_reindex (e : ι ≃ ι') (h_mono : StrictMono e)
+    (A : Matrix ι ι R) [One R] [DecidableEq ι] [DecidableEq ι'] :
+    IsUnitLowerTriangular A ↔ IsUnitLowerTriangular (A.reindex e e) := by
   dsimp [IsUnitLowerTriangular]
+  -- We need to prove `IsLowerTriangular` and `diag` properties are preserved.
   constructor
   · rintro ⟨hLT, hdiag⟩
-    refine ⟨(isLowerTriangular_reindex (e := e) (A := A)).1 hLT, ?_⟩
-    -- 主对角线保持为 1
-    -- 由 diag_reindex 可知 `(A.reindex e e).diag = A.diag ∘ e.symm`
-    -- 把 hdiag : A.diag = 1 代入即可。
-    have hdiag' := congrArg (fun f => f ∘ e.symm) hdiag
-    -- 左边是 A.diag ∘ e.symm，右边是常值 1
-    -- 利用 diag_reindex 改写左边
-    simpa [diag_reindex, Function.comp] using hdiag'
-  · rintro ⟨hLT, hdiag⟩
-    refine ⟨(isLowerTriangular_reindex (e := e) (A := A)).2 hLT, ?_⟩
-    -- 反向同理，利用 e.symm
-    -- 这里更方便的方式是把“reindex 再 reindex 回来”等式套在 hdiag 上
-    -- 不过沿用上面的思路：用 e.symm 把对角线条件拉回去。
-    -- 先把 `hdiag` 改写成关于 A 的 diag 的条件。
-    -- `(A.reindex e e).diag = 1` 等价于 `A.diag ∘ e.symm = 1`
-    have hdiag' : A.diag ∘ e.symm = (1 : ι' → R) := by
-      -- 从 hdiag 出发，用 diag_reindex 改写
-      simpa [diag_reindex (e := e.toEquiv), Function.comp] using hdiag
-    -- 逐点验证，拉回到原索引
+    refine ⟨(isLowerTriangular_reindex (e := e) (h_mono := h_mono) (A := A)).1 hLT, ?_⟩
+    -- diagonal entries remain `1` after reindexing
     funext i
-    have hdiag'' := congrArg (fun f => f (e i)) hdiag'
-    simpa [Function.comp] using hdiag''
+    have hdiag_eval : A.diag (e.symm i) = 1 := by
+      have := congrArg (fun f => f (e.symm i)) hdiag
+      simpa using this
+    simpa [diag_reindex, Function.comp] using hdiag_eval
+  · rintro ⟨hLT, hdiag⟩
+    refine ⟨(isLowerTriangular_reindex (e := e) (h_mono := h_mono) (A := A)).2 hLT, ?_⟩
+    funext i
+    have h := congrArg (fun f => f (e i)) hdiag
+    -- unfold the diagonal of the reindexed matrix
+    simpa [diag_reindex, Function.comp] using h
 
-end OrderIsoBased
+end OrderPropertyBased
 
 
 
