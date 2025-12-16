@@ -154,6 +154,60 @@ private lemma transport_plu_fin {k : ℕ}
         simp [swap_mul_self]
       _ = L * U := hEq
 
+/-- helper: `StrictMono (finSuccEquivSumLex k)`，证明体从原 proof 原样剪出 -/
+private lemma finSuccEquivSumLex_strictMono (k : ℕ) :
+    StrictMono (finSuccEquivSumLex k) := by
+  intro x y hxy
+  cases x using Fin.cases with
+  | zero =>
+      cases y using Fin.cases with
+      | zero =>
+          exact (lt_irrefl _ hxy).elim
+      | succ y_val =>
+          -- `e 0 = inl 0`, `e (succ y) = inr y`
+          -- and `inl _ < inr _` for lex order
+          simp [finSuccEquivSumLex]
+          apply Sum.Lex.inl_lt_inr
+  | succ x_val =>
+      cases y using Fin.cases with
+      | zero =>
+          exact (not_lt_of_ge (Fin.zero_le _) hxy).elim
+      | succ y_val =>
+          -- `inr x < inr y` iff `x < y`
+          have : x_val < y_val := (Fin.succ_lt_succ_iff.mp hxy)
+          simp [finSuccEquivSumLex]
+          exact Sum.Lex.inr_lt_inr_iff.mpr this
+
+/-- helper: 将块世界等式 `P_blk * Aℓ = L_blk * U_blk` transport 回 `Fin (k+1)` -/
+private lemma schur_case_transport_back {k : ℕ}
+    (A : Matrix (Fin (k + 1)) (Fin (k + 1)) R)
+    (e : Fin (k + 1) ≃ (Fin 1) ⊕ₗ (Fin k))
+    (P_blk L_blk U_blk :
+      Matrix (Fin 1 ⊕ₗ Fin k) (Fin 1 ⊕ₗ Fin k) R)
+    (h_blk : P_blk * (Matrix.reindex e e A) = L_blk * U_blk) :
+    (Matrix.reindex e.symm e.symm P_blk) * A =
+      (Matrix.reindex e.symm e.symm L_blk) * (Matrix.reindex e.symm e.symm U_blk) := by
+  -- 这些 `let` 与主引理中一致，保证下面 dsimp [P,L,U] 是原样可用的
+  let P : Matrix (Fin (k + 1)) (Fin (k + 1)) R := Matrix.reindex e.symm e.symm P_blk
+  let U : Matrix (Fin (k + 1)) (Fin (k + 1)) R := Matrix.reindex e.symm e.symm U_blk
+  let L : Matrix (Fin (k + 1)) (Fin (k + 1)) R := Matrix.reindex e.symm e.symm L_blk
+
+  -- === 以下 proof 体：从你原来 Step 2 原样复制 ===
+  have h_back := congrArg (Matrix.reindex e.symm e.symm) h_blk
+  dsimp [P, L, U]
+  rw [← submatrix_mul]
+  · simp only [reindex_apply, Equiv.symm_symm] at h_back
+    rw [← h_back]
+    classical
+    -- (1) A = Aℓ.submatrix e e
+    let Aℓ : Matrix (Fin 1 ⊕ₗ Fin k) (Fin 1 ⊕ₗ Fin k) R := Matrix.reindex e e A
+    have hA : A = Aℓ.submatrix (⇑e) (⇑e) := by
+      ext i j
+      simp [Aℓ, Matrix.reindex_apply, Matrix.submatrix]
+    -- (2) use submatrix_mul
+    simp [hA]
+  · apply e.bijective
+
 /--
 **Lifting Helper 1: Schur Case**
 
@@ -165,140 +219,233 @@ private lemma lift_from_slice_schur_case {k : ℕ}
     (h_pivot_unit : IsUnit (A 0 0))
     (h_slice : HasPLU_fin ((SchurMethod k R).slice A h_pivot_unit)) :
     HasPLU_fin A := by
+  classical
   rcases h_slice with ⟨⟨P', L', U'⟩, ⟨hP', hL', hU'⟩, h_slice_eq⟩
 
-  -- SOLUTION: Define two versions of the equivalence.
-  -- 1. An `Equiv` for algebraic manipulation (reindex, fromBlocks).
-  let e_equiv := finSuccEquivSum k
-  -- 2. An `OrderIso` used ONLY for proving properties like triangularity.
-  let e_orderiso := finSuccOrderIsoSum k
+  -- The (equiv) reindex used to expose the 1×1 pivot block.
+  let e : Fin (k + 1) ≃ (Fin 1) ⊕ₗ (Fin k) := finSuccEquivSumLex k
 
-  -- All algebraic operations now happen in the clean `Sum` world.
-  let A' := reindex e_equiv e_equiv A
-  let A₁₁ := A'.toBlocks₁₁; let A₁₂ := A'.toBlocks₁₂
-  let A₂₁ := A'.toBlocks₂₁; let A₂₂ := A'.toBlocks₂₂
+  -- `StrictMono e` is now easy because the codomain order is lex.
+  have h_mono : StrictMono e := by
+    simpa [e] using (finSuccEquivSumLex_strictMono k)
+
+  -- Work in the block world.
+  let A' : Matrix (Fin 1 ⊕ Fin k) (Fin 1 ⊕ Fin k) R := Matrix.reindex e e A
+  let A₁₁ : Matrix (Fin 1) (Fin 1) R := A'.toBlocks₁₁
+  let A₁₂ : Matrix (Fin 1) (Fin k) R := A'.toBlocks₁₂
+  let A₂₁ : Matrix (Fin k) (Fin 1) R := A'.toBlocks₂₁
+  let A₂₂ : Matrix (Fin k) (Fin k) R := A'.toBlocks₂₂
 
   have h_core_alg : P' * ((SchurMethod k R).slice A h_pivot_unit) = L' * U' := h_slice_eq
 
-  -- These block matrices are now correctly typed with `Fin 1 ⊕ Fin k` indices.
-  let P_blk := fromBlocks (1 : Matrix (Fin 1) (Fin 1) R) 0 0 P'
-  let U_blk := fromBlocks A₁₁ A₁₂ 0 U'
-  let L_blk := fromBlocks (1 : Matrix (Fin 1) (Fin 1) R) 0
-               (A₂₁ * !![(IsUnit.unit h_pivot_unit).inv]) L'
+  let inv₁₁ : Matrix (Fin 1) (Fin 1) R := !![(IsUnit.unit h_pivot_unit).inv]
 
-  -- These are the final matrices in the original `Fin (k+1)` world.
-  let P := P_blk.reindex e_equiv.symm e_equiv.symm
-  let U := U_blk.reindex e_equiv.symm e_equiv.symm
-  let L := L_blk.reindex e_equiv.symm e_equiv.symm
+  let P_blk : Matrix (Fin 1 ⊕ₗ Fin k) (Fin 1 ⊕ₗ Fin k) R :=
+    fromBlocks (1 : Matrix (Fin 1) (Fin 1) R) 0 0 P'
+
+  let U_blk : Matrix (Fin 1 ⊕ₗ Fin k) (Fin 1 ⊕ₗ Fin k) R :=
+    fromBlocks A₁₁ A₁₂ 0 U'
+
+  let L_blk : Matrix (Fin 1 ⊕ₗ Fin k) (Fin 1 ⊕ₗ Fin k) R :=
+    fromBlocks (1 : Matrix (Fin 1) (Fin 1) R) 0 (P' * A₂₁ * inv₁₁) L'
+
+  -- Reindex back to `Fin (k+1)`.
+  let P : Matrix (Fin (k + 1)) (Fin (k + 1)) R := Matrix.reindex e.symm e.symm P_blk
+  let U : Matrix (Fin (k + 1)) (Fin (k + 1)) R := Matrix.reindex e.symm e.symm U_blk
+  let L : Matrix (Fin (k + 1)) (Fin (k + 1)) R := Matrix.reindex e.symm e.symm L_blk
 
   refine ⟨⟨P, L, U⟩, ?_, ?_⟩
-  · -- Part 1: Prove properties of P, L, U.
+  · -- Properties
     refine ⟨?_, ?_, ?_⟩
-    · -- Prove P is a permutation matrix
-      -- Framework tool: `Components/Properties/Reindex.lean` -> `isPermutation_reindex`
-      -- Framework tool: `Components/Properties/Permutation.lean` -> `isPermutation_fromBlocks_blockDiag_iff`
-      simp [P, isPermutation_reindex e_equiv, reindex_apply, submatrix_submatrix]
-      apply (isPermutation_fromBlocks_blockDiag_iff _ _).mpr
-      refine ⟨?_, hP'⟩
-      -- Prove 1x1 identity is a permutation matrix
-      dsimp [IsPermutation]; use Equiv.refl _; simp
-    · -- Prove L is a unit lower triangular matrix
-      -- Framework tool: `Components/Properties/Reindex.lean` -> `isUnitLowerTriangular_reindex`
-      -- Framework tool: `Components/Properties/Triangular.lean` -> `isUnitLowerTriangular_fromBlocks_one_zero`
-      simp [L]
-      have h_equiv_eq : e_equiv = e_orderiso.toEquiv := by
-        -- Prove by extensionality: show they are the same function.
-        ext x
-        -- Unfold definitions. `toLex` and `ofLex` (from `toEquiv.symm`) are identity on values.
-        simp [e_equiv, e_orderiso, finSuccEquivSum, finSuccOrderIsoSum]
-        sorry
+    · -- P permutation
+      have hP_id : IsPermutation (1 : Matrix (Fin 1) (Fin 1) R) := by
+        dsimp [IsPermutation]
+        refine ⟨Equiv.refl (Fin 1), ?_⟩
+        simp
+      have hP_blk : IsPermutation P_blk := by
+        exact (isPermutation_fromBlocks_blockDiag_iff (P₁₁ := (1 : Matrix (Fin 1) (Fin 1) R))
+            (P₂₂ := P')).2 ⟨hP_id, hP'⟩
+      have : IsPermutation (Matrix.reindex e.symm e.symm P_blk) :=
+        (isPermutation_reindex (e := e.symm) (A := P_blk)).1 hP_blk
+      simpa [P] using this
 
-      -- Step 2: Rewrite the goal using this equality.
-      rw [h_equiv_eq]
-      simp [isUnitLowerTriangular_reindex e_orderiso, OrderIso.symm]
-      simp [reindex_apply, submatrix_submatrix]
-      -- We need to prove `isUnitLowerTriangular_fromBlocks_one_zero`
-      -- The first argument `L₂₁` is `A₂₁ * !![...]`, which is a `k x 1` matrix.
-      -- The second argument `L'` is `L'`, which is `k x k`.
-      -- The lemma `isUnitLowerTriangular_fromBlocks_one_zero` needs `n₁=1, n₂=k`.
+    · -- L unit-lower-triangular
+      have hL_blk : IsUnitLowerTriangular L_blk := by
+        simpa [L_blk] using
+          (isUnitLowerTriangular_fromBlocks_one_zero_toLex (n₁ := 1) (n₂ := k)
+            (L₂₁ := (P' * A₂₁ * inv₁₁)) (L' := L') hL')
+      have hL_re : IsUnitLowerTriangular (Matrix.reindex e e L) := by
+        simpa [L, L_blk] using hL_blk
+      exact (isUnitLowerTriangular_reindex (e := e) (h_mono := h_mono) (A := L)).2 hL_re
 
-      exact isUnitLowerTriangular_fromBlocks_one_zero _ _ hL'
-    · -- Prove U is an upper triangular matrix
-      -- Framework tool: `Components/Properties/Reindex.lean` -> `isUpperTriangular_reindex`
-      -- Framework tool: `Components/Properties/Triangular.lean` -> `isUpperTriangular_fromBlocks`
-      simp [U, isUpperTriangular_reindex e, reindex_apply, submatrix_submatrix, OrderIso.symm]
+    · -- U upper-triangular
       have hA₁₁_ut : IsUpperTriangular A₁₁ := by
-        apply isUpperTriangular_of_subsingleton
-      exact isUpperTriangular_fromBlocks A₁₁ A₁₂ U' hA₁₁_ut hU'
+        -- 1×1 case: subsingleton
+        simpa using (isUpperTriangular_of_subsingleton (A := A₁₁))
+      have hU_blk : IsUpperTriangular U_blk := by
+        simpa [U_blk] using
+          (isUpperTriangular_fromBlocks_toLex (n₁ := 1) (n₂ := k)
+            (A₁₁ := A₁₁) (A₁₂ := A₁₂) (A₂₂ := U') hA₁₁_ut hU')
+      have hU_re : IsUpperTriangular (Matrix.reindex e e U) := by
+        simpa [U, U_blk] using hU_blk
+      exact (isUpperTriangular_reindex (e := e) (h_mono := h_mono) (A := U)).2 hU_re
+  · -- Equation: (PLU_Schema_fin (k+1)).equation A (P,L,U)
+    -- by definition this is `P * A = L * U`
+    dsimp [PLU_Schema_fin]
 
-  · -- Part 2: Prove the equation P * A = L * U.
-    -- We work in the block world before reindexing.
-    -- Goal: P * A = L * U  <=>  P_blk * A' = L_blk * U_blk
-    change P_blk * A' = L_blk * U_blk
+    -- Work in the lex block world: Aℓ has the SAME index type as P_blk/L_blk/U_blk.
+    let Aℓ : Matrix (Fin 1 ⊕ₗ Fin k) (Fin 1 ⊕ₗ Fin k) R := Matrix.reindex e e A
 
-    -- Calculate P_blk * A'
-    have h_PA' : P_blk * A' = fromBlocks A₁₁ A₁₂ (P' * A₂₁) (P' * A₂₂) := by
-      -- Framework tool: `Components/BlockLifting.lean` -> `block_P_mul_A`
-      -- Or just `fromBlocks_multiply`
-      simp [P_blk, A', fromBlocks_multiply]
+    -- Step 1: prove the block-world equation `P_blk * Aℓ = L_blk * U_blk`.
+    have h_blk : P_blk * Aℓ = L_blk * U_blk := by
+      -- Rewrite Aℓ as `fromBlocks` of its blocks (but we already named blocks from A' (Sum-world)).
+      -- So we bridge by *defining* the blocks of Aℓ using toBlocks on Aℓ itself,
+      -- and then show they coincide with your A₁₁..A₂₂ by simp.
+      -- (This avoids ever multiplying Lex×Sum.)
 
-    -- Calculate L_blk * U_blk
-    have h_LU : L_blk * U_blk = fromBlocks A₁₁ A₁₂
-        (A₂₁ * !![(IsUnit.unit h_pivot_unit).inv] * A₁₁)
-        (A₂₁ * !![(IsUnit.unit h_pivot_unit).inv] * A₁₂ + L' * U') := by
-      -- Framework tool: `Components/BlockLifting.lean` -> `block_L_mul_U`
-      simp [L_blk, U_blk, fromBlocks_multiply]
+      -- Define blocks from Aℓ (lex world). (These are defeq to Sum blocks under ⊕ₗ.)
+      let B₁₁ : Matrix (Fin 1) (Fin 1) R := Aℓ.toBlocks₁₁
+      let B₁₂ : Matrix (Fin 1) (Fin k) R := Aℓ.toBlocks₁₂
+      let B₂₁ : Matrix (Fin k) (Fin 1) R := Aℓ.toBlocks₂₁
+      let B₂₂ : Matrix (Fin k) (Fin k) R := Aℓ.toBlocks₂₂
 
-    -- Now, prove the blocks are equal.
-    rw [h_PA', h_LU]
-    -- We need to prove equality for blocks (2,1) and (2,2).
-    -- The other blocks are equal by `rfl`.
-    constructor
-    · -- Prove 2,1 blocks are equal: `P' * A₂₁ = A₂₁ * !![inv] * A₁₁`
-      -- This is incorrect. The construction of L was slightly off.
-      -- Let's correct L_blk and restart this part.
-      -- Correct L_blk should be: fromBlocks 1 0 (A₂₁) (L')
-      -- No, the original construction was `fromBlocks 1 0 (P' * A₂₁ * !![inv]) L'`
-      -- Let's re-examine the standard proof.
-      -- P*A = L*U => A = P⁻¹LU.
-      -- A = [A₁₁ A₁₂; A₂₁ A₂₂]
-      -- L = [1 0; l₂₁ L'], U = [u₁₁ u₁₂; 0 U']
-      -- A₁₁ = u₁₁, A₁₂ = u₁₂
-      -- A₂₁ = l₂₁u₁₁, A₂₂ = l₂₁u₁₂ + L'U'
-      -- => l₂₁ = A₂₁u₁₁⁻¹ = A₂₁A₁₁⁻¹
-      -- => L'U' = A₂₂ - l₂₁u₁₂ = A₂₂ - A₂₁A₁₁⁻¹A₁₂ = SchurComplement
-      -- We have P' * (SchurComplement) = L' * U'.
-      -- So we need to prove P' * A₂₂ - P' * A₂₁A₁₁⁻¹A₁₂ = L'U'.
-      -- The equation to prove is P'A = LU, where P' is block diagonal [1, P'].
-      -- P'A = [A₁₁ A₁₂; P'A₂₁ P'A₂₂]
-      -- L = [1 0; P'A₂₁A₁₁⁻¹ L'], U = [A₁₁ A₁₂; 0 U']
-      -- LU = [A₁₁ A₁₂; P'A₂₁A₁₁⁻¹A₁₁ P'A₂₁A₁₁⁻¹A₁₂ + L'U']
-      --    = [A₁₁ A₁₂; P'A₂₁ P'A₂₁A₁₁⁻¹A₁₂ + L'U']
-      -- Comparing blocks, we need P'A₂₂ = P'A₂₁A₁₁⁻¹A₁₂ + L'U'
-      -- which is P'A₂₂ - P'A₂₁A₁₁⁻¹A₁₂ = L'U'
-      -- which is P'(A₂₂ - A₂₁A₁₁⁻¹A₁₂) = L'U', our core algebra.
-      -- So the correct L is `fromBlocks 1 0 (P' * A₂₁ * !![inv]) L'`.
-      -- Let's re-prove the block equality with this correct L.
+      -- Now rewrite U_blk/L_blk using these blocks (so everything is in the same world).
+      -- We will use `simp` to identify Bᵢⱼ with your Aᵢⱼ.
+      have hB₁₁ : B₁₁ = A₁₁ := by
+        -- both are 1×1: ext and simp
+        ext i j
+        -- fin_cases i <;> fin_cases j
+        -- unfold B₁₁/A₁₁, Aℓ/A'
+        simp [B₁₁, A₁₁, Aℓ, A', Matrix.toBlocks₁₁, Matrix.reindex_apply]
+      have hB₁₂ : B₁₂ = A₁₂ := by
+        ext i j
+        fin_cases i
+        -- j : Fin k
+        simp [B₁₂, A₁₂, Aℓ, A', Matrix.toBlocks₁₂, Matrix.reindex_apply]
+      have hB₂₁ : B₂₁ = A₂₁ := by
+        ext i j
+        fin_cases j
+        simp [B₂₁, A₂₁, Aℓ, A', Matrix.toBlocks₂₁, Matrix.reindex_apply]
+      have hB₂₂ : B₂₂ = A₂₂ := by
+        ext i j
+        simp [B₂₂, A₂₂, Aℓ, A', Matrix.toBlocks₂₂, Matrix.reindex_apply]
 
-      -- Goal: `P' * A₂₁ = (P' * A₂₁ * !![inv]) * A₁₁`
-      have h_A₁₁_is_singleton : A₁₁ = !![A 0 0] := by
-        -- Framework tool: `Components/BlockLifting.lean` -> `toBlocks₁₁_reindex_finSuccEquivSum`
-        exact toBlocks₁₁_reindex_finSuccEquivSum A
-      rw [h_A₁₁_is_singleton, mul_singleton, singleton_mul, smul_mul_assoc, smul_smul]
-      -- Goal: `P' * A₂₁ = (A 0 0 * (IsUnit.unit h_pivot_unit).inv) • (P' * A₂₁)`
-      have h_inv_mul_val : (A 0 0) * (IsUnit.unit h_pivot_unit).inv = 1 := by
-        -- This comes from the definition of `IsUnit.inv`
-        exact mul_inv_cancel (isUnit_iff_ne_zero.mp h_pivot_unit)
-      rw [h_inv_mul_val, one_smul]
-    · -- Prove 2,2 blocks are equal: `P' * A₂₂ = (P' * A₂₁ * !![inv]) * A₁₂ + L' * U'`
-      -- This is a direct rearrangement of our `h_core_alg`.
-      -- `h_core_alg` is `P' * (A₂₂ - A₂₁ * !![inv] * A₁₂) = L' * U'`
-      -- `P' * A₂₂ - P' * (A₂₁ * !![inv] * A₁₂) = L' * U'`
-      -- `P' * A₂₂ = P' * (A₂₁ * !![inv] * A₁₂) + L' * U'`
-      rw [mul_sub, sub_eq_iff_eq_add] at h_core_alg
-      -- The goal is `P' * A₂₂ = P' * A₂₁ * !![inv] * A₁₂ + L' * U'`
-      -- which is almost `h_core_alg`. We just need to re-associate the multiplication.
-      rw [h_core_alg, mul_assoc P' A₂₁ _]
+      have hAℓ_fromBlocks :
+          (fromBlocks B₁₁ B₁₂ B₂₁ B₂₂ :
+            Matrix (Fin 1 ⊕ₗ Fin k) (Fin 1 ⊕ₗ Fin k) R) = Aℓ := by
+        simpa [B₁₁, B₁₂, B₂₁, B₂₂] using (fromBlocks_toBlocks Aℓ)
+
+      -- Compute P_blk * Aℓ via block multiplication (in lex world).
+      have hPA :
+          P_blk * Aℓ =
+            (fromBlocks B₁₁ B₁₂ (P' * B₂₁) (P' * B₂₂) :
+              Matrix (Fin 1 ⊕ₗ Fin k) (Fin 1 ⊕ₗ Fin k) R) := by
+        calc
+          P_blk * Aℓ
+              = P_blk * (fromBlocks B₁₁ B₁₂ B₂₁ B₂₂).reindex toLex toLex := by
+                  simp [hAℓ_fromBlocks, Lex, toLex]
+          _ = (fromBlocks B₁₁ B₁₂ (P' * B₂₁) (P' * B₂₂) :
+                Matrix (Fin 1 ⊕ₗ Fin k) (Fin 1 ⊕ₗ Fin k) R) := by
+                  simpa [P_blk] using
+                    (block_P_mul_A (n₁ := 1) (n₂ := k) (m₁ := 1) (m₂ := k)
+                      (A₁₁ := B₁₁) (A₁₂ := B₁₂) (A₂₁ := B₂₁) (A₂₂ := B₂₂) (P' := P'))
+
+      -- Compute L_blk * U_blk via block multiplication.
+      have hLU :
+          L_blk * U_blk =
+            (fromBlocks B₁₁ B₁₂ ((P' * B₂₁ * inv₁₁) * B₁₁)
+              ((P' * B₂₁ * inv₁₁) * B₁₂ + L' * U') :
+              Matrix (Fin 1 ⊕ₗ Fin k) (Fin 1 ⊕ₗ Fin k) R) := by
+        -- use your BlockLifting lemma block_L_mul_U (or simp [fromBlocks_multiply])
+        simpa [L_blk, U_blk, hB₁₁, hB₁₂, hB₂₁] using
+          (block_L_mul_U (n₁ := 1) (n₂ := k)
+            (L₂₁ := (P' * B₂₁ * inv₁₁)) (L' := L')
+            (U₁₁ := B₁₁) (U₁₂ := B₁₂) (U' := U'))
+
+      -- Now reduce to checking block (2,1) and (2,2).
+      -- (2,1): (P'*B₂₁*inv₁₁)*B₁₁ = P'*B₂₁
+      have hinv_mul_B₁₁ : inv₁₁ * B₁₁ = (1 : Matrix (Fin 1) (Fin 1) R) := by
+        have hB₁₁_val : B₁₁ = !![A 0 0] := by
+          ext i j
+          simp [B₁₁, Aℓ, e, finSuccEquivSumLex, Matrix.toBlocks₁₁, Matrix.reindex_apply]
+        have hu : ((IsUnit.unit h_pivot_unit : Units R) : R) = A 0 0 :=
+          IsUnit.unit_spec h_pivot_unit
+        have hmul_units :
+            ((IsUnit.unit h_pivot_unit).inv) * (IsUnit.unit h_pivot_unit) = 1 := by
+          simp [IsUnit.inv_mul_cancel h_pivot_unit]
+        have hmul_R :
+            ((IsUnit.unit h_pivot_unit).inv : R) * (A 0 0) = 1 := by
+          simpa [hu] using congrArg (fun u : R => (u : R)) hmul_units
+        simp at hmul_R
+        simp [inv₁₁, hB₁₁_val, hmul_R]
+        ext i j; fin_cases i; fin_cases j; simp
+
+
+      have h21 :
+          (P' * B₂₁) = (P' * B₂₁ * inv₁₁) * B₁₁ := by
+        calc
+          P' * B₂₁
+              = (P' * B₂₁) * (1 : Matrix (Fin 1) (Fin 1) R) := by simp
+          _ = (P' * B₂₁) * (inv₁₁ * B₁₁) := by simp [hinv_mul_B₁₁]
+          _ = (P' * B₂₁ * inv₁₁) * B₁₁ := by
+                simp [Matrix.mul_assoc]
+
+      -- (2,2): use the Schur slice identity + h_core_alg.
+      -- Here we rely on the definitional form of SchurMethod.slice.
+      have h_slice_def :
+          (SchurMethod k R).slice A h_pivot_unit = B₂₂ - B₂₁ * inv₁₁ * B₁₂ := by
+        -- This should be `simp`-able if your SchurMethod.slice is defined via these blocks.
+        -- Adjust the simp set to match your SchurMethod implementation.
+        simp [SchurMethod, Aℓ, B₂₂, B₂₁, B₁₂, inv₁₁, e, finSuccEquivSumLex]
+        simp [finSuccEquivSum]
+
+      have h22 :
+          (P' * B₂₂) =
+            (P' * B₂₁ * inv₁₁) * B₁₂ + (L' * U') := by
+        -- rewrite L'*U' using the slice equation
+        have hLUcore : L' * U' = P' * (SchurMethod k R).slice A h_pivot_unit := by
+          simpa using h_core_alg.symm
+        -- expand slice
+        calc
+          P' * B₂₂
+              = (P' * B₂₁ * inv₁₁) * B₁₂ + (P' * (B₂₂ - B₂₁ * inv₁₁ * B₁₂)) := by
+                  -- pure algebra over matrices
+                  simp [Matrix.mul_add, Matrix.mul_assoc, sub_eq_add_neg,
+                        add_left_comm, add_comm]
+          _ = (P' * B₂₁ * inv₁₁) * B₁₂ + (P' * (SchurMethod k R).slice A h_pivot_unit) := by
+                  simp [h_slice_def]
+          _ = (P' * B₂₁ * inv₁₁) * B₁₂ + (L' * U') := by
+                  simp [hLUcore]
+
+      -- Put everything together.
+      -- Compare `hPA` and `hLU` blockwise.
+      have h_blocks_eq :
+          (fromBlocks B₁₁ B₁₂ (P' * B₂₁) (P' * B₂₂) :
+            Matrix (Fin 1 ⊕ₗ Fin k) (Fin 1 ⊕ₗ Fin k) R)
+          =
+          (fromBlocks B₁₁ B₁₂ ((P' * B₂₁ * inv₁₁) * B₁₁)
+            ((P' * B₂₁ * inv₁₁) * B₁₂ + L' * U') :
+            Matrix (Fin 1 ⊕ₗ Fin k) (Fin 1 ⊕ₗ Fin k) R) := by
+        ext i j
+        cases i using Sum.rec <;> cases j using Sum.rec <;>
+          rw [← h21, h22]
+
+      -- conclude block equation
+      calc
+        P_blk * Aℓ
+            = (fromBlocks B₁₁ B₁₂ (P' * B₂₁) (P' * B₂₂) :
+                Matrix (Fin 1 ⊕ₗ Fin k) (Fin 1 ⊕ₗ Fin k) R) := hPA
+        _ = (fromBlocks B₁₁ B₁₂ ((P' * B₂₁ * inv₁₁) * B₁₁)
+              ((P' * B₂₁ * inv₁₁) * B₁₂ + L' * U') :
+              Matrix (Fin 1 ⊕ₗ Fin k) (Fin 1 ⊕ₗ Fin k) R) := by
+              simpa using h_blocks_eq
+        _ = L_blk * U_blk := by simp [hLU]
+
+    -- Step 2: transport the block-world equation back to `Fin (k+1)` by reindexing with e.symm.
+    exact schur_case_transport_back (R := R) (A := A) (e := e)
+      (P_blk := P_blk) (L_blk := L_blk) (U_blk := U_blk) (by
+        exact h_blk)
+
 
 /--
 **Lifting Helper 2: Zero-Column Case**
@@ -311,47 +458,163 @@ private lemma lift_from_slice_zero_col_case {k : ℕ}
     (h_zero_col : ∀ i, A i 0 = 0)
     (h_slice : HasPLU_fin ((ZeroColumnMethod k k R).slice A h_zero_col)) :
     HasPLU_fin A := by
-  -- The proof here is exactly the content of the `else ...` block.
   classical
   rcases h_slice with ⟨⟨P', L', U'⟩, ⟨hP', hL', hU'⟩, h_slice_eq⟩
-  let e := finSuccEquivSum k
-  let A' := reindex e e A
-  let A₁₁ := A'.toBlocks₁₁
-  let A₁₂ := A'.toBlocks₁₂
-  let A₂₁ := A'.toBlocks₂₁
-  let A₂₂ := A'.toBlocks₂₂
 
-  have h_slice_is_submatrix :
-      (ZeroColumnMethod k k R).slice A h_zero_col = A₂₂ := by
-    dsimp [ZeroColumnMethod]
-    simp [A', A₂₂, e, submatrix_succ_eq_toBlocks₂₂]
+  -- Reindex to expose the 1×1 + k×k block structure (lex-ordered sum).
+  let e : Fin (k + 1) ≃ (Fin 1) ⊕ₗ (Fin k) := finSuccEquivSumLex k
+  have h_mono : StrictMono e := by
+    -- same helper you already have from the Schur case
+    simpa [e] using finSuccEquivSumLex_strictMono k
 
-  have h_core_alg : P' * A₂₂ = L' * U' := by
-    rw [← h_slice_is_submatrix] at h_slice_eq
-    simpa using h_slice_eq
+  -- Work in the block world (lex world).
+  let Aℓ : Matrix (Fin 1 ⊕ₗ Fin k) (Fin 1 ⊕ₗ Fin k) R := Matrix.reindex e e A
+  let B₁₁ : Matrix (Fin 1) (Fin 1) R := Aℓ.toBlocks₁₁
+  let B₁₂ : Matrix (Fin 1) (Fin k) R := Aℓ.toBlocks₁₂
+  let B₂₁ : Matrix (Fin k) (Fin 1) R := Aℓ.toBlocks₂₁
+  let B₂₂ : Matrix (Fin k) (Fin k) R := Aℓ.toBlocks₂₂
 
-  let P := fromBlocks 1 0 0 P'
-  let L := fromBlocks 1 0 0 L'
-  let U := fromBlocks 0 A₁₂ 0 U'
+  -- First column of A is zero ⇒ left blocks in this decomposition are zero.
+  have hB₁₁_zero : B₁₁ = 0 := by
+    ext i j
+    fin_cases i
+    fin_cases j
+    -- B₁₁ 0 0 = Aℓ (inl 0) (inl 0) = A 0 0
+    simpa [B₁₁, Aℓ, e, finSuccEquivSumLex, Matrix.toBlocks₁₁, Matrix.reindex_apply] using
+      (h_zero_col 0)
+
+  have hB₂₁_zero : B₂₁ = 0 := by
+    ext i j
+    fin_cases j
+    -- B₂₁ i 0 = Aℓ (inr i) (inl 0) = A (i.succ) 0
+    simpa [B₂₁, Aℓ, e, finSuccEquivSumLex, Matrix.toBlocks₂₁, Matrix.reindex_apply] using
+      (h_zero_col i.succ)
+
+  -- In your design, ZeroColumnMethod.slice should be definitionally the bottom-right block.
+  have h_slice_def :
+      (ZeroColumnMethod k k R).slice A h_zero_col = B₂₂ := by
+    ext i j
+    -- This `simp` should match your `ZeroColumnMethod.slice` definition.
+    simp [ZeroColumnMethod, B₂₂, Aℓ, e, finSuccEquivSumLex, Matrix.toBlocks₂₂, Matrix.reindex_apply]
+
+  have h_core_alg : P' * B₂₂ = L' * U' := by
+    simpa [h_slice_def] using h_slice_eq
+
+  -- Build block PLU (lex world).
+  let P_blk : Matrix (Fin 1 ⊕ₗ Fin k) (Fin 1 ⊕ₗ Fin k) R :=
+    fromBlocks (1 : Matrix (Fin 1) (Fin 1) R) 0 0 P'
+  let L_blk : Matrix (Fin 1 ⊕ₗ Fin k) (Fin 1 ⊕ₗ Fin k) R :=
+    fromBlocks (1 : Matrix (Fin 1) (Fin 1) R) 0 (0 : Matrix (Fin k) (Fin 1) R) L'
+  let U_blk : Matrix (Fin 1 ⊕ₗ Fin k) (Fin 1 ⊕ₗ Fin k) R :=
+    fromBlocks B₁₁ B₁₂ 0 U'
+
+  -- Transport back to Fin (k+1).
+  let P : Matrix (Fin (k + 1)) (Fin (k + 1)) R := Matrix.reindex e.symm e.symm P_blk
+  let L : Matrix (Fin (k + 1)) (Fin (k + 1)) R := Matrix.reindex e.symm e.symm L_blk
+  let U : Matrix (Fin (k + 1)) (Fin (k + 1)) R := Matrix.reindex e.symm e.symm U_blk
 
   refine ⟨⟨P, L, U⟩, ?_, ?_⟩
-  · -- Part 1: Prove properties of P, L, U.
+  · -- Properties: P permutation, L unit-lower-triangular, U upper-triangular.
     refine ⟨?_, ?_, ?_⟩
-    · exact (isPermutation_fromBlocks_blockDiag_iff _ _).mpr ⟨by simp [IsPermutation], hP'⟩
-    · exact isUnitLowerTriangular_fromBlocks_one_zero 0 hL'
-    · exact isUpperTriangular_fromBlocks_zero_top _ _ hU'
-  · -- Part 2: Prove the equation P * A = L * U.
-    apply reindex_inj e.symm e.symm
-    have h_A_zero_blocks : A₁₁ = 0 ∧ A₂₁ = 0 := by
-      have h_blocks :=
-        toBlocks_left_zero_of_first_col_zero (k := k) (m := k) (A := A) h_zero_col
-      simpa [A₁₁, A₂₁, A', e] using h_blocks
-    have h_PA' : P * A' = fromBlocks 0 A₁₂ 0 (P' * A₂₂) := by
-      rw [h_A_zero_blocks.1, h_A_zero_blocks.2]
-      simp [fromBlocks_multiply]
-    have h_LU : L * U = fromBlocks 0 A₁₂ 0 (L' * U') := by
-      simp [fromBlocks_multiply]
-    rw [h_PA', h_LU, h_core_alg]
+    · -- P permutation
+      have hP_id : IsPermutation (1 : Matrix (Fin 1) (Fin 1) R) := by
+        dsimp [IsPermutation]
+        refine ⟨Equiv.refl (Fin 1), ?_⟩
+        simp
+      have hP_blk : IsPermutation P_blk := by
+        exact
+          (isPermutation_fromBlocks_blockDiag_iff
+              (P₁₁ := (1 : Matrix (Fin 1) (Fin 1) R)) (P₂₂ := P')).2 ⟨hP_id, hP'⟩
+      have : IsPermutation (Matrix.reindex e.symm e.symm P_blk) :=
+        (isPermutation_reindex (e := e.symm) (A := P_blk)).1 hP_blk
+      simpa [P] using this
+
+    · -- L unit lower triangular
+      have hL_blk : IsUnitLowerTriangular L_blk := by
+        -- uses your block lemma (lex world)
+        simpa [L_blk] using
+          (isUnitLowerTriangular_fromBlocks_one_zero_toLex (n₁ := 1) (n₂ := k)
+            (L₂₁ := (0 : Matrix (Fin k) (Fin 1) R)) (L' := L') hL')
+      have hL_re : IsUnitLowerTriangular (Matrix.reindex e e L) := by
+        simpa [L, L_blk] using hL_blk
+      exact (isUnitLowerTriangular_reindex (e := e) (h_mono := h_mono) (A := L)).2 hL_re
+
+    · -- U upper triangular
+      have hB₁₁_ut : IsUpperTriangular B₁₁ := by
+        simpa using (isUpperTriangular_of_subsingleton (A := B₁₁))
+      have hU_blk : IsUpperTriangular U_blk := by
+        simpa [U_blk] using
+          (isUpperTriangular_fromBlocks_toLex (n₁ := 1) (n₂ := k)
+            (A₁₁ := B₁₁) (A₁₂ := B₁₂) (A₂₂ := U') hB₁₁_ut hU')
+      have hU_re : IsUpperTriangular (Matrix.reindex e e U) := by
+        simpa [U, U_blk] using hU_blk
+      exact (isUpperTriangular_reindex (e := e) (h_mono := h_mono) (A := U)).2 hU_re
+
+  · -- Equation: (PLU_Schema_fin (k+1)).equation A (P,L,U)  i.e.  P*A = L*U
+    dsimp [PLU_Schema_fin]
+    -- Step 1: block-world equation.
+    have h_blk : P_blk * Aℓ = L_blk * U_blk := by
+      have hAℓ_fromBlocks :
+          (fromBlocks B₁₁ B₁₂ B₂₁ B₂₂ :
+            Matrix (Fin 1 ⊕ₗ Fin k) (Fin 1 ⊕ₗ Fin k) R) = Aℓ := by
+        simpa [B₁₁, B₁₂, B₂₁, B₂₂] using (fromBlocks_toBlocks Aℓ)
+
+      have hPA :
+          P_blk * Aℓ =
+            (fromBlocks B₁₁ B₁₂ (P' * B₂₁) (P' * B₂₂) :
+              Matrix (Fin 1 ⊕ₗ Fin k) (Fin 1 ⊕ₗ Fin k) R) := by
+        -- block multiplication (P on left)
+        simpa [hAℓ_fromBlocks, P_blk] using
+          (block_P_mul_A (n₁ := 1) (n₂ := k) (m₁ := 1) (m₂ := k)
+            (A₁₁ := B₁₁) (A₁₂ := B₁₂) (A₂₁ := B₂₁) (A₂₂ := B₂₂) (P' := P'))
+
+      have hLU :
+          L_blk * U_blk =
+            (fromBlocks B₁₁ B₁₂ ((0 : Matrix (Fin k) (Fin 1) R) * B₁₁)
+              ((0 : Matrix (Fin k) (Fin 1) R) * B₁₂ + L' * U') :
+              Matrix (Fin 1 ⊕ₗ Fin k) (Fin 1 ⊕ₗ Fin k) R) := by
+        simpa [L_blk, U_blk] using
+          (block_L_mul_U (n₁ := 1) (n₂ := k)
+            (L₂₁ := (0 : Matrix (Fin k) (Fin 1) R)) (L' := L')
+            (U₁₁ := B₁₁) (U₁₂ := B₁₂) (U' := U'))
+
+      -- reduce to blocks using hB₂₁_zero and h_core_alg
+      have h_blocks_eq :
+          (fromBlocks B₁₁ B₁₂ (P' * B₂₁) (P' * B₂₂) :
+            Matrix (Fin 1 ⊕ₗ Fin k) (Fin 1 ⊕ₗ Fin k) R)
+          =
+          (fromBlocks B₁₁ B₁₂ ((0 : Matrix (Fin k) (Fin 1) R) * B₁₁)
+            ((0 : Matrix (Fin k) (Fin 1) R) * B₁₂ + L' * U') :
+            Matrix (Fin 1 ⊕ₗ Fin k) (Fin 1 ⊕ₗ Fin k) R) := by
+        ext i j
+        cases i using Sum.rec <;> cases j using Sum.rec
+        · -- (1,1)
+          simp
+        · -- (1,2)
+          simp
+        · -- (2,1)
+          simp [hB₂₁_zero]
+        · -- (2,2)
+          simp [h_core_alg]
+
+      calc
+        P_blk * Aℓ
+            = (fromBlocks B₁₁ B₁₂ (P' * B₂₁) (P' * B₂₂) :
+                Matrix (Fin 1 ⊕ₗ Fin k) (Fin 1 ⊕ₗ Fin k) R) := hPA
+        _ = (fromBlocks B₁₁ B₁₂ ((0 : Matrix (Fin k) (Fin 1) R) * B₁₁)
+              ((0 : Matrix (Fin k) (Fin 1) R) * B₁₂ + L' * U') :
+              Matrix (Fin 1 ⊕ₗ Fin k) (Fin 1 ⊕ₗ Fin k) R) := by
+              simpa using h_blocks_eq
+        _ = L_blk * U_blk := by simp [hLU]
+
+    -- Step 2: transport back (reuse the generic transport lemma you extracted earlier).
+    have h_fin :
+        (Matrix.reindex e.symm e.symm P_blk) * A =
+          (Matrix.reindex e.symm e.symm L_blk) * (Matrix.reindex e.symm e.symm U_blk) := by
+      exact schur_case_transport_back (R := R) (A := A) (e := e)
+        (P_blk := P_blk) (L_blk := L_blk) (U_blk := U_blk) h_blk
+
+    simpa [P, L, U] using h_fin
 
 /-- Lifting lemma: build a PLU decomposition of `A` from a slice. -/
 private lemma lift_from_slice_plu_fin {k : ℕ}
@@ -367,7 +630,7 @@ private lemma lift_from_slice_plu_fin {k : ℕ}
     | inl hA_schur =>
         -- Simplify the slice.
         have h_slice' : HasPLU_fin ((SchurMethod k R).slice A hA_schur) := by
-          simpa [PLU_Reduction_fin, ReductionMethod.try_else] using h_slice
+          simpa [PLU_Reduction_fin, ReductionMethod.try_else, hA_schur] using h_slice
         -- Align the pivot proofs via proof irrelevance.
         have h_eq : hA_schur = h_schur := Subsingleton.elim _ _
         have h_slice'' : HasPLU_fin ((SchurMethod k R).slice A h_schur) := by
@@ -383,7 +646,10 @@ private lemma lift_from_slice_plu_fin {k : ℕ}
         contradiction
     | inr h_zero_col =>
         have h_slice' : HasPLU_fin ((ZeroColumnMethod k k R).slice A h_zero_col) := by
-          simpa [PLU_Reduction_fin, ReductionMethod.try_else] using h_slice
+          simp [PLU_Reduction_fin, ReductionMethod.try_else] at h_slice
+          split_ifs at h_slice with h_case
+          · contradiction
+          · exact h_slice
         exact lift_from_slice_zero_col_case A h_zero_col h_slice'
 
 
@@ -391,19 +657,54 @@ private lemma lift_from_slice_plu_fin {k : ℕ}
 private lemma base_plu_zero_dim {x : FinRectUniverse R}
     (h_zero : x.1.1 = 0 ∨ x.1.2 = 0) :
     (if h : x.1.1 = x.1.2 then HasPLU_fin (cast (by rw [h]) x.matrix) else True) := by
-  -- This handles the `base_zero` case for the `RectDecompositionInstance`.
-  -- We only care about square matrices, so we use an `if`.
-  split_ifs with h_sq
-  · -- Case: Square matrix. `h_zero` implies dimension is 0.
-    have h_dim_zero : x.1.1 = 0 := by tauto
-    subst h_dim_zero
-    -- The 0×0 matrix has a trivial PLU decomposition: P=L=U=1.
-    refine ⟨⟨1, 1, 1⟩, ?_, by simp⟩
-    refine ⟨?_, isUnitLowerTriangular_one, isUpperTriangular_one⟩
-    -- Framework tool: `Components/Properties/Permutation.lean`
-    dsimp [IsPermutation]; use Equiv.refl _; simp
-  · -- Case: Non-square matrix. The property is trivially true.
-    trivial
+  classical
+  -- Unpack the rectangular universe element.
+  rcases x with ⟨nm, A⟩
+  rcases nm with ⟨n, m⟩
+  have h_zero' : n = 0 ∨ m = 0 := by
+    simpa using h_zero
+
+  by_cases h : n = m
+  · -- Square case: with `h_zero`, this forces `n = m = 0`.
+    have hn0 : n = 0 := by
+      rcases h_zero' with hn0 | hm0
+      · exact hn0
+      · -- hm0 : m = 0, and h : n = m
+        -- use h.symm : m = n to rewrite m to n
+        simpa [h.symm] using hm0
+
+    -- Rewrite dimensions to 0.
+    cases hn0
+    have hm0 : m = 0 := by
+      -- now h : 0 = m
+      simpa using h.symm
+    cases hm0
+
+    -- Now `h : 0 = 0`, so the cast is defeq.
+    cases h
+
+    dsimp [FinRectFamily]
+    -- 先把 A “看成”真正的 0×0 Matrix（通常 FinRectFamily 是 abbrev/defeq 到 Matrix）
+    have h_triv : HasPLU_fin (R := R) A.A := by
+      refine ⟨⟨(1 : Matrix (Fin 0) (Fin 0) R),
+                (1 : Matrix (Fin 0) (Fin 0) R),
+                (A.A : Matrix (Fin 0) (Fin 0) R)⟩, ?_, ?_⟩
+      · refine ⟨?_, ?_, ?_⟩
+        · dsimp [IsPermutation]
+          refine ⟨Equiv.refl (Fin 0), ?_⟩
+          ext i j
+          exact (Fin.elim0 i)
+        · simpa using (isUnitLowerTriangular_one (ι := Fin 0) (R := R))
+        · simpa using
+            (isUpperTriangular_of_subsingleton (ι := Fin 0) (R := R)
+              (A := (A.A : Matrix (Fin 0) (Fin 0) R)))
+      · dsimp [PLU_Schema_fin]
+
+    -- 最后把目标里的 cast / universe.matrix 化掉
+    simpa [FinRectUniverse.matrix] using h_triv
+  · -- Non-square case: goal is `True`.
+    simp [h]
+
 
 end FinImpl
 

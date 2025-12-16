@@ -6,7 +6,7 @@ import Mathlib.Data.Matrix.Diagonal
 
 namespace MatDecompFormal.Components.Properties
 
-open Matrix FinEnum MatDecompFormal.Framework
+open Matrix FinEnum --MatDecompFormal.Framework
 
 /-!
 # Reindex 与矩阵性质
@@ -97,7 +97,7 @@ end
 section OrderPropertyBased
 
 -- 对于序相关的性质，我们分离 Equiv 和序保持的假设
-variable {ι ι' R : Type*} [LT ι] [LT ι'] [Preorder ι] [Preorder ι'] [Zero R]
+variable {ι ι' R : Type*} [LinearOrder ι] [Preorder ι'] [Zero R]
 
 /--
 在一个保持严格单调的 `Equiv` 诱导的基变换下，上三角性保持。
@@ -109,10 +109,10 @@ lemma isUpperTriangular_reindex (e : ι ≃ ι') (h_mono : StrictMono e) (A : Ma
   · intro h i' j' h_lt
     -- `StrictMono` implies `Monotone`; use it to reflect the order through `e.symm`.
     have h_preimage_lt : e.symm j' < e.symm i' := by
-      by_contra h_not
-      have h_le : e.symm i' ≤ e.symm j' := not_lt.mp h_not
-      have h_le' : i' ≤ j' := by simpa using (h_mono.monotone h_le)
-      exact (not_lt_of_ge h_le') h_lt
+      -- `StrictMono.lt_iff_lt` lets us pull back `<` along `e`.
+      have h_lt' : e (e.symm j') < e (e.symm i') := by
+        simpa using h_lt
+      exact (h_mono.lt_iff_lt).1 h_lt'
     simpa [Matrix.reindex_apply] using h h_preimage_lt
   · intro h i j h_lt
     have h_image_lt : e j < e i := h_mono h_lt

@@ -1,5 +1,6 @@
 import Mathlib.LinearAlgebra.Matrix.Block
 import MatDecompFormal.Abstractions.ReductionMethod
+import MatDecompFormal.Framework.Fin
 import MatDecompFormal.Framework.FinEnum -- 导入新的 Fin 工具
 
 namespace MatDecompFormal.Components.Reductions
