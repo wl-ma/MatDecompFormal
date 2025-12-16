@@ -97,7 +97,7 @@ end
 section OrderPropertyBased
 
 -- 对于序相关的性质，我们分离 Equiv 和序保持的假设
-variable {ι ι' R : Type*} [LinearOrder ι] [LinearOrder ι'] [Zero R]
+variable {ι ι' R : Type*} [LT ι] [LT ι'] [Preorder ι] [Preorder ι'] [Zero R]
 
 /--
 在一个保持严格单调的 `Equiv` 诱导的基变换下，上三角性保持。
@@ -131,7 +131,7 @@ lemma isLowerTriangular_reindex (e : ι ≃ ι') (h_mono : StrictMono e) (A : Ma
 在一个保持严格单调的 `Equiv` 诱导的基变换下，单位下三角性保持。
 -/
 lemma isUnitLowerTriangular_reindex (e : ι ≃ ι') (h_mono : StrictMono e)
-    (A : Matrix ι ι R) [One R] [DecidableEq ι] [DecidableEq ι'] :
+    (A : Matrix ι ι R) [One R] : --[DecidableEq ι] [DecidableEq ι'] :
     IsUnitLowerTriangular A ↔ IsUnitLowerTriangular (A.reindex e e) := by
   dsimp [IsUnitLowerTriangular]
   -- We need to prove `IsLowerTriangular` and `diag` properties are preserved.
