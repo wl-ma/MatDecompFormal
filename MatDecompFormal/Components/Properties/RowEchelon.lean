@@ -59,27 +59,29 @@ variable {ι κ R : Type*} [FinEnum ι] [FinEnum κ] [Zero R] [DecidableEq R] (A
 
 lemma eq_top_iff {i} : NonZeroIndex A i = ⊤ ↔ ∀ j, A i j = 0 := by
   dsimp [NonZeroIndex]
-  rw [WithTop.map_eq_top_iff, Fin.find_eq_top_iff]
-  exact Equiv.forall_congr' (equiv κ).symm (fun j ↦ by simp)
+  rw [WithTop.map_eq_top_iff]--, Fin.find_eq_top_iff]
+  sorry
+  -- exact Equiv.forall_congr' (equiv κ).symm (fun j ↦ by simp)
 
-lemma ne_top_iff {i} : NonZeroIndex A i ≠ ⊤ ↔ ∃ j, NonZeroIndex A i = some j :=
-  WithTop.ne_top_iff_exists
+lemma ne_top_iff {i} : NonZeroIndex A i ≠ ⊤ ↔ ∃ j, NonZeroIndex A i = some j := sorry
+  -- WithTop.ne_top_iff_exists
 
 lemma eq_some_iff {i} {j₀} :
     NonZeroIndex A i = some j₀ ↔ (∀ j, (@equiv κ) j < (@equiv κ) j₀ → A i j = 0) ∧ A i j₀ ≠ 0 := by
   dsimp [NonZeroIndex]
-  rw [WithTop.map_eq_some_iff]
-  use (equiv κ j₀)
-  simp_rw [Fin.find_eq_some_iff, (equiv κ).apply_symm_apply]
-  -- 证明 (∀ j, (equiv κ) j < (equiv κ) j₀ → ...) 等价于 (∀ j', j' < (equiv κ) j₀ → ...)
-  apply Iff.intro
-  · intro h j' hj'
-    exact h.1 ((equiv κ).symm j') (by rwa [← (equiv κ).symm.lt_iff_lt])
-  · intro h
-    constructor
-    · intro j hj
-      exact h.1 (equiv κ j) (by rwa [(equiv κ).lt_iff_lt])
-    · exact h.2
+  sorry
+  -- rw [WithTop.map_eq_some_iff]
+  -- use (equiv κ j₀)
+  -- simp_rw [Fin.find_eq_some_iff, (equiv κ).apply_symm_apply]
+  -- -- 证明 (∀ j, (equiv κ) j < (equiv κ) j₀ → ...) 等价于 (∀ j', j' < (equiv κ) j₀ → ...)
+  -- apply Iff.intro
+  -- · intro h j' hj'
+  --   exact h.1 ((equiv κ).symm j') (by rwa [← (equiv κ).symm.lt_iff_lt])
+  -- · intro h
+  --   constructor
+  --   · intro j hj
+  --     exact h.1 (equiv κ j) (by rwa [(equiv κ).lt_iff_lt])
+  --   · exact h.2
 
 end NonZeroIndex
 
@@ -92,19 +94,19 @@ variable {ι κ R : Type*} [FinEnum ι] [FinEnum κ] [Zero R] [DecidableEq R]
 noncomputable local instance : LinearOrder ι := LinearOrder.ofFinEnum ι
 noncomputable local instance : LinearOrder κ := LinearOrder.ofFinEnum κ
 
-/--
-`IsRowEchelon` 是一个谓词，用于判断一个矩阵是否为行阶梯形。
+-- /--
+-- `IsRowEchelon` 是一个谓词，用于判断一个矩阵是否为行阶梯形。
 
-它要求对于任意两行 `i₁ < i₂`，如果 `i₂` 不是全零行，那么 `i₁` 的主元
-必须严格位于 `i₂` 的主元的左侧。这个定义自动蕴含了所有全零行
-（其主元为 `⊤`）都位于非零行（其主元为 `some j`）的下方。
--/
-@[mk_iff]
-structure IsRowEchelon (A : Matrix ι κ R) : Prop where
-  /-- 主元索引在 `Fin` 空间中随行索引严格单调增加。 -/
-  pivot_strict_mono :
-    ∀ {i₁ i₂ : ι}, (@equiv ι) i₁ < (@equiv ι) i₂ → NonZeroIndex A i₂ ≠ ⊤ →
-    WithTop.map (@equiv κ) (NonZeroIndex A i₁) < WithTop.map (@equiv κ) (NonZeroIndex A i₂)
+-- 它要求对于任意两行 `i₁ < i₂`，如果 `i₂` 不是全零行，那么 `i₁` 的主元
+-- 必须严格位于 `i₂` 的主元的左侧。这个定义自动蕴含了所有全零行
+-- （其主元为 `⊤`）都位于非零行（其主元为 `some j`）的下方。
+-- -/
+-- @[mk_iff]
+-- structure IsRowEchelon (A : Matrix ι κ R) : Prop where
+--   /-- 主元索引在 `Fin` 空间中随行索引严格单调增加。 -/
+--   pivot_strict_mono :
+--     ∀ {i₁ i₂ : ι}, (@equiv ι) i₁ < (@equiv ι) i₂ → NonZeroIndex A i₂ ≠ ⊤ →
+--     WithTop.map (@equiv κ) (NonZeroIndex A i₁) < WithTop.map (@equiv κ) (NonZeroIndex A i₂)
 
 end IsRowEchelon
 

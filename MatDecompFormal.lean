@@ -1,3 +1,3 @@
-import MatDecompFormal.Abstrctions
+import MatDecompFormal.Abstractions
 import MatDecompFormal.Components
 import MatDecompFormal.Framework

@@ -119,40 +119,34 @@ noncomputable def PLU_Transform_fin (k : ℕ) :
 /-- Complete reduction strategy on `(k+1)×(k+1)` matrices. -/
 noncomputable def PLU_Strategy_fin (k : ℕ) :
     ReductionStrategy (k + 1) (k + 1) k k R where
-  transform := PLU_Transform_fin (R := R) k
-  reduction := PLU_Reduction_fin (R := R) k
+  transform := (PLU_Transform_fin (R := R) k)
+  reduction := (PLU_Reduction_fin (R := R) k)
   goal_is_sliceable := rfl
-  μ := fun x => x.1.1
-  μ_mono := by
-    intro A t
-    simp
-  slice_progress := by
-    intro A hA
-    -- Slicing drops the dimension from `k+1` to `k`.
-    simp
+  μ := fun _A => k + 1
+  μ_slice := fun _A => k
+  μ_mono := by intro A t; simp
+  slice_progress := by intro A hA; simp
 
 /-- Transport lemma: the PLU property is invariant under the strategy relation. -/
 -- CORRECTED SIGNATURE: Use {k : ℕ} and Fin (k+1) to match the strategy's definition.
 private lemma transport_plu_fin {k : ℕ}
     {A B : Matrix (Fin (k + 1)) (Fin (k + 1)) R}
-    (hr : (PLU_Strategy_fin (R := R) k).r B A) (hA : HasPLU_fin A) :
-    HasPLU_fin B := by
+    (hr : (PLU_Strategy_fin (R := R) k).r B A) (hB : HasPLU_fin B) :
+    HasPLU_fin A := by
   classical
   rcases hr with rfl | ⟨t, rfl⟩
-  · -- Case 1: B = A, the property is trivial.
-    exact hA
+  · -- Case 1: B = A
+    exact hB
   · -- Case 2: B = (swap R 0 t) * A
-    rcases hA with ⟨⟨P, L, U⟩, ⟨hP, hL, hU⟩, hEq⟩
+    -- We have a PLU for `(swap 0 t) * A`, and we want one for `A`.
+    rcases hB with ⟨⟨P, L, U⟩, ⟨hP, hL, hU⟩, hEq⟩
     let t' : Fin (k + 1) := t
+    -- Multiply the equation on the left by `swap 0 t` to cancel the leading swap.
     have hP' : IsPermutation (P * swap R 0 t') :=
       isPermutation_mul hP (isPermutation_swap 0 t')
     refine ⟨⟨P * swap R 0 t', L, U⟩, ⟨hP', hL, hU⟩, ?_⟩
-    calc
-      (P * swap R 0 t') * (swap R 0 t' * A) = P * A := by
-        simp [← mul_assoc]
-        rw [mul_assoc P]
-        simp [swap_mul_self]
-      _ = L * U := hEq
+    dsimp [PLU_Schema_fin]
+    simpa [mul_assoc] using hEq
 
 /-- helper: `StrictMono (finSuccEquivSumLex k)`，证明体从原 proof 原样剪出 -/
 private lemma finSuccEquivSumLex_strictMono (k : ℕ) :
@@ -653,166 +647,360 @@ private lemma lift_from_slice_plu_fin {k : ℕ}
         exact lift_from_slice_zero_col_case A h_zero_col h_slice'
 
 
-/-- Base case: zero-dimensional matrices admit a trivial PLU. -/
-private lemma base_plu_zero_dim {x : FinRectUniverse R}
-    (h_zero : x.1.1 = 0 ∨ x.1.2 = 0) :
-    (if h : x.1.1 = x.1.2 then HasPLU_fin (cast (by rw [h]) x.matrix) else True) := by
+/-- Reach witness for PLU on `(k+1)×(k+1)` (NOT a Prop, so it is a `def`). -/
+private noncomputable def reach_plu_fin {k : ℕ} (μ_base : ℕ)
+    (A : Matrix (Fin (k + 1)) (Fin (k + 1)) R)
+    (hμ : (PLU_Strategy_fin (R := R) k).μ A > μ_base) :
+    Σ' (B : Matrix (Fin (k + 1)) (Fin (k + 1)) R),
+      Σ' (hB : (PLU_Reduction_fin (R := R) k).IsSliceable B),
+        (PLU_Strategy_fin (R := R) k).r B A ∧
+          (PLU_Strategy_fin (R := R) k).μ_slice
+            ((PLU_Reduction_fin (R := R) k).slice B hB) <
+              (PLU_Strategy_fin (R := R) k).μ A := by
+  -- use the generic reach constructor
+  simpa using
+    (ReductionStrategy.mk_reach
+      (S := (PLU_Strategy_fin (R := R) k))
+      (μ_base := μ_base)
+      (A := A)
+      (by
+        -- adjust if your mk_reach still requires a positivity hypothesis
+        -- otherwise delete this block
+        exact ⟨Nat.succ_pos _, Nat.succ_pos _⟩)
+      hμ)
+
+
+/-- Base case (Square universe): zero-dimensional square matrices admit a trivial PLU. -/
+private lemma base_plu_zero_dim_sq {R : Type*} [Field R] [DecidableEq R]
+    {x : FinSqUniverse R} (h_zero : x.1 = 0) :
+    HasPLU_fin (R := R) x.2.A := by
   classical
-  -- Unpack the rectangular universe element.
-  rcases x with ⟨nm, A⟩
-  rcases nm with ⟨n, m⟩
-  have h_zero' : n = 0 ∨ m = 0 := by
-    simpa using h_zero
-
-  by_cases h : n = m
-  · -- Square case: with `h_zero`, this forces `n = m = 0`.
-    have hn0 : n = 0 := by
-      rcases h_zero' with hn0 | hm0
-      · exact hn0
-      · -- hm0 : m = 0, and h : n = m
-        -- use h.symm : m = n to rewrite m to n
-        simpa [h.symm] using hm0
-
-    -- Rewrite dimensions to 0.
-    cases hn0
-    have hm0 : m = 0 := by
-      -- now h : 0 = m
-      simpa using h.symm
-    cases hm0
-
-    -- Now `h : 0 = 0`, so the cast is defeq.
-    cases h
-
-    dsimp [FinRectFamily]
-    -- 先把 A “看成”真正的 0×0 Matrix（通常 FinRectFamily 是 abbrev/defeq 到 Matrix）
-    have h_triv : HasPLU_fin (R := R) A.A := by
-      refine ⟨⟨(1 : Matrix (Fin 0) (Fin 0) R),
-                (1 : Matrix (Fin 0) (Fin 0) R),
-                (A.A : Matrix (Fin 0) (Fin 0) R)⟩, ?_, ?_⟩
-      · refine ⟨?_, ?_, ?_⟩
-        · dsimp [IsPermutation]
-          refine ⟨Equiv.refl (Fin 0), ?_⟩
-          ext i j
-          exact (Fin.elim0 i)
-        · simpa using (isUnitLowerTriangular_one (ι := Fin 0) (R := R))
-        · simpa using
-            (isUpperTriangular_of_subsingleton (ι := Fin 0) (R := R)
-              (A := (A.A : Matrix (Fin 0) (Fin 0) R)))
-      · dsimp [PLU_Schema_fin]
-
-    -- 最后把目标里的 cast / universe.matrix 化掉
-    simpa [FinRectUniverse.matrix] using h_triv
-  · -- Non-square case: goal is `True`.
-    simp [h]
-
+  rcases x with ⟨n, A⟩
+  cases h_zero
+  -- now `n = 0` and `A : FinRectFamily 0 0 R`
+  have h_triv : HasPLU_fin (R := R) A.A := by
+    refine ⟨⟨(1 : Matrix (Fin 0) (Fin 0) R),
+              (1 : Matrix (Fin 0) (Fin 0) R),
+              (A.A : Matrix (Fin 0) (Fin 0) R)⟩, ?_, ?_⟩
+    · refine ⟨?_, ?_, ?_⟩
+      · dsimp [IsPermutation]
+        refine ⟨Equiv.refl (Fin 0), ?_⟩
+        ext i j
+        exact (Fin.elim0 i)
+      · simpa using (isUnitLowerTriangular_one (ι := Fin 0) (R := R))
+      · simpa using
+          (isUpperTriangular_of_subsingleton (ι := Fin 0) (R := R)
+            (A := (A.A : Matrix (Fin 0) (Fin 0) R)))
+    · dsimp [PLU_Schema_fin]
+  simpa using h_triv
 
 end FinImpl
 
+-- 把矩阵沿着维度等式 cast 过去时，HasPLU_fin 不变
+@[simp] lemma HasPLU_fin_castSq {R : Type*} [Field R] [DecidableEq R]
+    {n n' : ℕ} (h : n = n') (A : Matrix (Fin n) (Fin n) R) :
+    HasPLU_fin (castSq (R := R) h A) ↔ HasPLU_fin A := by
+  cases h
+  -- h : n = n 之后，castSq 应该化成“什么都没做”
+  simp [castSq]
 
--- ==================================================================
--- 3. Assemble instance
--- ==================================================================
+-- 把 Matrix (Fin n) cast 到 Matrix (Fin (n-1+1)) 时，HasPLU_fin 不变
+@[simp] lemma HasPLU_fin_castToPredSucc {R : Type*} [Field R] [DecidableEq R]
+    {n : ℕ} (hn : n > 0) (A : Matrix (Fin n) (Fin n) R) :
+    HasPLU_fin (castToPredSucc (R := R) hn A) ↔ HasPLU_fin A := by
+  cases n with
+  | zero =>
+      cases (lt_irrefl 0 hn)
+  | succ k =>
+      simp [castToPredSucc]
+
+
 
 /--
 This instance packages all the components of the PLU decomposition proof
-into the structure expected by the main induction theorem.
+into the structure expected by the (flattened) subtype induction theorem
+on the square universe.
 -/
 noncomputable def PLU_Instance (R : Type*) [Field R] [DecidableEq R] :
-    RectDecompositionInstance R where
-  P_univ := fun x => if h : x.1.1 = x.1.2 then HasPLU_fin (cast (by rw [h]) x.matrix) else True
-  pos_instance := {
-    P_univ := fun x => if h : x.1.1 = x.1.2 then HasPLU_fin (cast (by rw [h]) x.matrix) else True
-    P_pos := fun x => HasPLU_fin x.val.matrix
-    P_compat := by
-      intro x; split_ifs with h
-      · rfl
-      · -- This case is impossible because `PosFinRectUniverse` implies m, n > 0,
-        -- but for PLU we are implicitly working with square matrices.
-        -- A better `P_univ` would make this case trivial.
-        -- For now, we assume our universe for PLU is square.
-        -- A better framework would use `SquareMatFamily` universe.
-        sorry
-    μ := fun x => x.1.1 -- Induction on the number of rows.
-    μ_base := 0
-    base_pos := by
-      intro x h_mu_le_base
-      -- A positive dimension cannot be <= 0.
-      exact (Nat.not_le_of_gt x.2.1 h_mu_le_base).elim
-    r_pos := fun y x =>
-      let k := x.val.1.1 - 1
-      (PLU_Strategy_fin (R := R) k).r y.val.matrix x.val.matrix
-    IsSliceable_pos := fun x =>
-      let k := x.val.1.1 - 1
-      (PLU_Reduction_fin (R := R) k).IsSliceable x.val.matrix
-    slice_pos := fun x hx =>
-      let k := x.val.1.1 - 1
-      let A_slice := (PLU_Reduction_fin (R := R) k).slice x.val.matrix hx
-      let n' := (PLU_Reduction_fin (R := R) k).slice_m
-      -- The slice of a square matrix is square.
-      ⟨⟨n', n'⟩, ⟨A_slice⟩⟩
-    transport := by
-      intro x y h_r h_y
-      -- Let n be the dimension of the matrices.
-      let n := x.val.1.1
-      have h_pos : n > 0 := x.2.1
-      -- Let k = n - 1, so n = k + 1.
-      let k := n - 1
-      have h_n_eq_k_succ : n = k + 1 := (Nat.succ_pred_eq_of_pos h_pos).symm
-      -- Use `subst` to align the types with the lemma's signature.
-      subst h_n_eq_k_succ
-      -- Now A and B have type `Matrix (Fin (k+1)) ...`, which matches the lemma.
-      exact transport_plu_fin (A := y.val.matrix) (B := x.val.matrix) h_r h_y
-    lift_from_slice := by
-      intro x hx h_slice
-      let n := x.val.1.1
-      have h_pos : n > 0 := x.2.1
-      let k := n - 1
-      have h_n_eq_k_succ : n = k + 1 := (Nat.succ_pred_eq_of_pos h_pos).symm
-      subst h_n_eq_k_succ
-      -- We need to show that the slice property implies the property on the slice's matrix.
-      have h_slice_prop : HasPLU_fin (h_slice.2.A) := by
-        -- The slice is a square matrix, so the `if` in `P_univ` is true.
-        have h_slice_sq : h_slice.1.1 = h_slice.1.2 := by
-          dsimp [slice_pos]; simp [PLU_Reduction_fin, ReductionMethod.try_else, SchurMethod, ZeroColumnMethod]
-        simpa [h_slice_sq] using h_slice
-      exact lift_from_slice_plu_fin x.val.matrix hx h_slice_prop
-    reach := by
-      intro x h_mu_gt_base
-      let n := x.val.1.1
-      have hn_pos : n > 0 := h_mu_gt_base
-      let k := n - 1
-      have h_n_eq_k_succ : n = k + 1 := (Nat.succ_pred_eq_of_pos hn_pos).symm
-      subst h_n_eq_k_succ
-      -- Use the strategy's `mk_reach` helper to construct the proof.
-      let S := PLU_Strategy_fin (R := R) k
-      rcases S.mk_reach 0 ⟨by simp, by simp⟩ x.val.matrix (by simp [S.μ, hn_pos]) with ⟨B, hB, h_r, h_prog⟩
-      -- Package the result `B` back into the universe type.
-      let y : PosFinRectUniverse R := ⟨⟨⟨k + 1, k + 1⟩, ⟨B⟩⟩, ⟨by simp, by simp⟩⟩
-      exact ⟨y, hB, h_r, h_prog⟩
-  }
-  P_univ_compat := rfl
-  P_pos_compat_top := by intro x; rfl
-  base_zero := base_plu_zero_dim (R := R)
+    SubtypeInductionInstance
+      (X := FinSqUniverse R)
+      (SubX := PosFinSqUniverse R)
+      (toX := Subtype.val) where
+  μ := fun x => x.1
+  μ_base := 0
 
+  P := fun x => HasPLU_fin (R := R) x.2.A
+  P_sub := fun x => HasPLU_fin (R := R) x.val.2.A
+  P_compat := by
+    intro x; rfl
 
--- ==================================================================
--- 4. Final theorem
--- ==================================================================
+  r_sub := fun y x =>
+    ∃ hny : y.val.1 = x.val.1,
+      (PLU_Strategy_fin (R := R) (x.val.1 - 1)).r
+        (castToPredSucc (R := R) x.property
+          (castSq (R := R) hny (y.val.2.A)))
+        (castToPredSucc (R := R) x.property x.val.2.A)
+
+  IsSliceable_sub := fun x =>
+    let n : ℕ := x.val.1
+    let k : ℕ := n - 1
+    (PLU_Reduction_fin (R := R) k).IsSliceable
+      (castToPredSucc (R := R) x.property (by simpa [n] using x.val.2.A))
+
+  slice_sub := fun x hx =>
+    let n : ℕ := x.val.1
+    let k : ℕ := n - 1
+    let A_cast : Matrix (Fin (k + 1)) (Fin (k + 1)) R :=
+      (castToPredSucc (R := R) x.property (by simpa [n] using x.val.2.A))
+    let A_slice := (PLU_Reduction_fin (R := R) k).slice A_cast hx
+    ⟨k, ⟨A_slice⟩⟩
+
+  transport_sub := by
+    intro x y h_r hPy
+    classical
+    rcases h_r with ⟨hny, h_r'⟩
+    rw [← HasPLU_fin_castSq hny, ← HasPLU_fin_castToPredSucc x.property] at hPy
+    have hPx_cast := transport_plu_fin (k := x.val.1 - 1) h_r' hPy
+    exact (HasPLU_fin_castToPredSucc (R := R) x.property _).1 hPx_cast
+
+  lift_from_slice_sub := by
+    intro x hx hSlice
+    dsimp at hSlice
+    have := lift_from_slice_plu_fin (R := R) (k := x.val.1 - 1)
+      (A := castToPredSucc (R := R) x.property x.val.2.A) hx hSlice
+    rw [HasPLU_fin_castToPredSucc x.property] at this
+    exact this
+
+  reach_sub := by
+    intro x_sub hx_pos
+    classical
+    let n : ℕ := x_sub.val.1
+    let k : ℕ := n - 1
+    -- have hk_def : k = n - 1 := rfl
+    let S := PLU_Strategy_fin (R := R) k
+
+    -- Cast A into the (k+1)x(k+1) world used by the fin-step strategy.
+    let A_cast : Matrix (Fin (k + 1)) (Fin (k + 1)) R := by
+      -- same cast as in IsSliceable_sub
+      simpa [n, k] using
+        (castToPredSucc (R := R) x_sub.property (by simpa [n] using x_sub.val.2.A))
+
+    by_cases h_goal : S.transform.Goal A_cast
+    · -- Case 1: already sliceable, take y := x.
+      refine ⟨x_sub, ?_, ?_, ?_⟩
+      · -- hy : IsSliceable_sub x_sub
+        dsimp [ReductionMethod.IsSliceable, n, k]
+        have hA_slice : S.reduction.IsSliceable A_cast := by
+          simpa [S.goal_is_sliceable] using h_goal
+        simpa [A_cast, S, PLU_Strategy_fin] using hA_slice
+      · -- r_sub x_sub x_sub
+        refine ⟨rfl, ?_⟩
+        refine Or.inl ?_
+        simp
+      · -- progress: (slice_sub x_sub hy).fst < x_sub.fst, i.e. n-1 < n
+        dsimp
+        apply Nat.pred_lt
+        simp [pos_iff_ne_zero] at hx_pos
+        simpa using hx_pos
+
+    · -- Case 2: apply one transform step to reach sliceable.
+      let t := S.transform.find A_cast h_goal
+      let B_cast := S.transform.apply t A_cast
+      have hB_goal : S.transform.Goal B_cast := S.transform.find_spec A_cast h_goal
+      have hB_slice : (PLU_Reduction_fin (R := R) k).IsSliceable B_cast := by
+        have : S.reduction.IsSliceable B_cast := by
+          simpa [S.goal_is_sliceable] using hB_goal
+        simpa [S, PLU_Strategy_fin] using this
+
+      -- (n-1)+1 = n
+      have hk : (k + 1) = n := by
+        simpa [n, k] using (Nat.succ_pred_eq_of_pos x_sub.property)
+
+      -- Package B_cast back to an n×n matrix universe element.
+      let y_mat : Matrix (Fin n) (Fin n) R := castSq (R := R) hk B_cast
+      let y_sub : PosFinSqUniverse R := ⟨⟨n, ⟨y_mat⟩⟩, x_sub.property⟩
+
+      refine ⟨y_sub, ?_, ?_, ?_⟩
+      · -- hy : IsSliceable_sub y_sub
+        dsimp
+        convert hB_slice
+        dsimp [y_sub, y_mat]
+        subst k
+        simp
+      · -- r_sub y_sub x_sub
+        dsimp
+        have hny : y_sub.val.1 = x_sub.val.1 := rfl
+        refine ⟨hny, ?_⟩
+        refine Or.inr ?_
+        use t
+        subst k
+        subst n
+        simp [y_sub, y_mat, B_cast, A_cast, S]
+      · -- progress: (slice_sub y_sub hy).fst < x_sub.fst, i.e. n-1 < n
+        dsimp
+        apply Nat.pred_lt
+        simp [pos_iff_ne_zero] at hx_pos
+        simpa using hx_pos
+
+  base_univ := by
+    intro x hx
+    have hx0 : x.1 = 0 := by
+      cases hx with
+      | inl hnot =>
+          by_contra hn0
+          have hnpos : x.1 > 0 := Nat.pos_of_ne_zero hn0
+          let x_sub : PosFinSqUniverse R := ⟨x, hnpos⟩
+          exact hnot x_sub rfl
+      | inr hle =>
+          exact Nat.eq_zero_of_le_zero hle
+    exact base_plu_zero_dim_sq (R := R) (x := x) hx0
+
 
 /--
-**PLU Decomposition Existence Theorem**
-
-For any square matrix `A` over a field `R`, there exists a permutation matrix `P`,
-a unit lower triangular matrix `L`, and an upper triangular matrix `U`
-such that `P * A = L * U`.
+**PLU Decomposition Existence Theorem (Fin n).**
 -/
-theorem exists_plu_decomposition {n : ℕ} {R : Type*} [Field R] [DecidableEq R]
+theorem exists_plu_decomposition_fin {n : ℕ} {R : Type*} [Field R] [DecidableEq R]
     (A : Matrix (Fin n) (Fin n) R) : HasPLU_fin A := by
-  -- The main theorem is now a direct application of the framework's engine.
-  let inst := PLU_Instance R
-  -- We need to show that `inst.P_univ` holds for our matrix `A`.
-  have h_proof := RectDecompositionInstance.prove_for_fin inst n n A
-  -- The `if` in `P_univ` is true since `n=n`.
-  simpa [inst.P_univ] using h_proof
+  simpa using
+    (SquareSubtypeInductionInstance.prove_for_fin
+      (inst := PLU_Instance (R := R)) n A)
+
+
+
+/-!
+================================================================================
+  3. FinEnum Generalization
+================================================================================
+
+This section lifts the `Fin n` specific proof to the general `FinEnum` world.
+The core idea is to show that the `HasPLU` property is invariant under
+reindexing by an `OrderIso`. This allows us to transform any `FinEnum`-indexed
+problem into an equivalent `Fin n`-indexed problem, solve it there, and then
+transport the solution back.
+-/
+
+section FinEnum
+
+variable {ι R : Type*} [FinEnum ι] [Field R]
+
+/-- PLU decomposition schema for general `FinEnum`-indexed square matrices. -/
+def PLU_Schema : DecompositionSchema' ι ι R where
+  Factors := Matrix ι ι R × Matrix ι ι R × Matrix ι ι R
+  property := fun (P, L, U) =>
+    IsPermutation P ∧ IsUnitLowerTriangular L ∧ IsUpperTriangular U
+  equation := fun A (P, L, U) => P * A = L * U
+
+/-- Proposition: matrix `A` admits a PLU decomposition. -/
+def HasPLU (A : Matrix ι ι R) : Prop :=
+  HasDecomposition' (PLU_Schema (R := R)) A
+
+/--
+**The Bridge Lemma**: The `HasPLU` property is invariant under reindexing
+by an order-preserving equivalence `e : ι ≃o Fin n`.
+-/
+private lemma hasPLU_reindex_iff (e : ι ≃o Fin (FinEnum.card ι)) (A : Matrix ι ι R) :
+    HasPLU A ↔ HasPLU_fin (A.reindex e.toEquiv e.toEquiv) := by
+  constructor
+  · -- (→) HasPLU A → HasPLU_fin (reindex A)
+    rintro ⟨⟨P, L, U⟩, ⟨hP, hL, hU⟩, hEq⟩
+    let P' := P.reindex e.toEquiv e.toEquiv
+    let L' := L.reindex e.toEquiv e.toEquiv
+    let U' := U.reindex e.toEquiv e.toEquiv
+    refine ⟨⟨P', L', U'⟩, ?_, ?_⟩
+    · -- Properties are preserved by reindex
+      refine ⟨(isPermutation_reindex e.toEquiv P).1 hP, ?_, ?_⟩
+      · have h_mono : StrictMono e.toEquiv := e.strictMono
+        exact (isUnitLowerTriangular_reindex e.toEquiv h_mono L).1 hL
+      · have h_mono : StrictMono e.toEquiv := e.strictMono
+        exact (isUpperTriangular_reindex e.toEquiv h_mono U).1 hU
+    · -- Equation is preserved by reindex
+      dsimp [PLU_Schema]
+      have h := congrArg (Matrix.reindex e.toEquiv e.toEquiv) hEq
+      simp [PLU_Schema_fin, P', L', U']
+      rw [← submatrix_mul, ← submatrix_mul]
+      · simpa [submatrix_mul_equiv] using h
+      all_goals exact e.toEquiv.symm.bijective
+  · -- (←) HasPLU_fin (reindex A) → HasPLU A
+    rintro ⟨⟨P', L', U'⟩, ⟨hP', hL', hU'⟩, hEq⟩
+    let P := P'.reindex e.symm.toEquiv e.symm.toEquiv
+    let L := L'.reindex e.symm.toEquiv e.symm.toEquiv
+    let U := U'.reindex e.symm.toEquiv e.symm.toEquiv
+    refine ⟨⟨P, L, U⟩, ?_, ?_⟩
+    · -- Properties are preserved by reindex.symm
+      refine ⟨(isPermutation_reindex e.symm.toEquiv P').1 hP', ?_, ?_⟩
+      · have h_mono : StrictMono e.symm.toEquiv := e.symm.strictMono
+        exact (isUnitLowerTriangular_reindex e.symm.toEquiv h_mono L').1 hL'
+      · have h_mono : StrictMono e.symm.toEquiv := e.symm.strictMono
+        exact (isUpperTriangular_reindex e.symm.toEquiv h_mono U').1 hU'
+    · -- Equation is preserved by reindex.symm
+      dsimp [PLU_Schema]
+      simp [P, L, U]
+      dsimp [PLU_Schema_fin] at hEq
+      -- 你前面已经 `simp [P, L, U]` 过了，所以此处目标是：
+      --   P'.submatrix ⇑e ⇑e * A = L'.submatrix ⇑e ⇑e * U'.submatrix ⇑e ⇑e
+      ext i j
+
+      -- 先把 hEq 在 (e i, e j) 处取值
+      have hentry := congrArg (fun M => M (e i) (e j)) hEq
+
+      -- 左边：把 (P'.submatrix e e * A) 的 (i,j) 项改写成 hEq 左边的 (e i, e j) 项
+      have hleft :
+          (P'.submatrix (fun x : ι => e x) (fun x : ι => e x) * A) i j
+            =
+          (P' * A.submatrix (fun x : Fin (FinEnum.card ι) => e.symm x)
+                            (fun x : Fin (FinEnum.card ι) => e.symm x)) (e i) (e j) := by
+        classical
+        -- 展开两边的乘法与 submatrix，目标会变成两个 sum 相等
+        simp [Matrix.mul_apply, Matrix.submatrix]
+        -- 用 `Fintype.sum_equiv e` 把左边的 ∑_{k:ι} 换成 ∑_{k:Fin _}
+        refine (Fintype.sum_equiv (e.toEquiv)
+          (fun k : ι => P' (e i) (e k) * A k j)
+          (g := fun x : Fin (FinEnum.card ι) => P' (e i) x * A (e.symm x) j) ?_)
+        intro x
+        -- 目标是：
+        -- P' (e i) (e x) * A x j = P' (e i) (e x) * A (e.symm (e x)) j
+        simp
+
+      -- 右边：把 (L'.submatrix e e * U'.submatrix e e) 的 (i,j) 项改写成 hEq 右边的 (e i, e j) 项
+      have hright :
+          (L'.submatrix (fun x : ι => e x) (fun x : ι => e x) *
+              U'.submatrix (fun x : ι => e x) (fun x : ι => e x)) i j
+            =
+          (L' * U') (e i) (e j) := by
+        classical
+        simp [Matrix.mul_apply, Matrix.submatrix]
+        refine (Fintype.sum_equiv (e.toEquiv)
+          (fun k : ι => L' (e i) (e k) * U' (e k) (e j))
+          (g := fun x : Fin (FinEnum.card ι) => L' (e i) x * U' x (e j)) ?_)
+        intro x
+        rfl
+
+      -- 最后把三段串起来
+      calc
+        (P'.submatrix (fun x : ι => e x) (fun x : ι => e x) * A) i j
+            =
+          (P' * A.submatrix (fun x : Fin (FinEnum.card ι) => e.symm x)
+                            (fun x : Fin (FinEnum.card ι) => e.symm x)) (e i) (e j) := hleft
+        _ = (L' * U') (e i) (e j) := by simpa using hentry
+        _ =
+          (L'.submatrix (fun x : ι => e x) (fun x : ι => e x) *
+              U'.submatrix (fun x : ι => e x) (fun x : ι => e x)) i j := by
+            simpa using hright.symm
+
+/--
+**PLU Decomposition Existence Theorem (FinEnum version).**
+
+Every square matrix over a field, indexed by a `FinEnum` type, admits a
+PLU decomposition.
+-/
+theorem exists_plu_decomposition [DecidableEq R] (A : Matrix ι ι R) : HasPLU A := by
+  -- 1. Construct the canonical order-isomorphism to `Fin (card ι)`.
+  let e := orderIsoOfFinEnum ι
+  -- 2. Use the bridge lemma to state that it's sufficient to prove PLU for the reindexed matrix.
+  rw [hasPLU_reindex_iff e]
+  -- 3. The reindexed matrix is a `Fin n` matrix, so we can apply the `_fin` version of the theorem.
+  exact exists_plu_decomposition_fin (A.reindex e.toEquiv e.toEquiv)
+
+end FinEnum
 
 end MatDecompFormal.Instances

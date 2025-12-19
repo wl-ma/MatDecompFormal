@@ -240,7 +240,8 @@ end BlockFromBlocks
 -- lemma isUpperTriangular_fromBlocks_zero_top
 --     (A₁₂ : Matrix (Fin n₁) (Fin n₂) R) (A₂₂ : Matrix (Fin n₂) (Fin n₂) R)
 --     (hA₂₂ : IsUpperTriangular A₂₂) :
---     IsUpperTriangular (fromBlocks 0 A₁₂ 0 A₂₂ : Matrix (Fin n₁ ⊕ Fin n₂) (Fin n₁ ⊕ Fin n₂) R) := by
+--     IsUpperTriangular (fromBlocks 0 A₁₂ 0 A₂₂ : Matrix (Fin n₁ ⊕ Fin n₂)
+--                        (Fin n₁ ⊕ Fin n₂) R) := by
 --   have h_zero_ut : IsUpperTriangular (0 : Matrix (Fin n₁) (Fin n₁) R) := by
 --     dsimp [IsUpperTriangular, BlockTriangular]; intro i j _; simp
 --   exact isUpperTriangular_fromBlocks 0 A₁₂ A₂₂ h_zero_ut hA₂₂

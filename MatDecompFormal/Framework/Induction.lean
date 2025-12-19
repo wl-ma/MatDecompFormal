@@ -207,7 +207,7 @@ theorem induction_on_subtype
     (r_sub : SubX → SubX → Prop)
     (IsSliceable_sub : SubX → Prop)
     (slice_sub : ∀ (x_sub : SubX), IsSliceable_sub x_sub → X)
-    (transport_sub : ∀ {x_sub y_sub}, r_sub y_sub x_sub → P_sub y_sub → P_sub x_sub)
+    (transport_sub : Transport r_sub P_sub)
     (lift_from_slice_sub : ∀ (x_sub : SubX) (hx : IsSliceable_sub x_sub),
                            P (slice_sub x_sub hx) → P_sub x_sub)
     (reach_sub : ∀ (x_sub : SubX), μ (toX x_sub) > μ_base → -- 修改：使用 toX
@@ -226,7 +226,7 @@ theorem induction_on_subtype
         let slice_obj := slice_sub y_sub hy
         have h_slice_p : P slice_obj := ih slice_obj h_prog
         have h_y_p : P_sub y_sub := lift_from_slice_sub y_sub hy h_slice_p
-        exact transport_sub h_r h_y_p
+        exact transport_sub _ _ h_r h_y_p
       · -- 子类型中的基例，直接由 base_univ 提供，再用兼容性转换
         have hP : P (toX x_sub) :=
           base_univ (toX x_sub) (Or.inr (le_of_not_gt h_mu))
@@ -239,6 +239,64 @@ theorem induction_on_subtype
       exact h_in_sub ⟨x_sub, hx⟩
     exact base_univ x (Or.inl h_forall)
 
+variable {α : Type*}
+/--
+`induction_on_subtype` (generalized version):
+
+This is the same “subtype-driven” induction principle as before, but generalized from
+`μ : X → Nat` (with `<`) to an arbitrary measure type `α` equipped with a well-founded
+relation `relα`.
+
+You also provide a base predicate `BaseSet : X → Prop` (replacing the old `μ x ≤ μ_base`).
+-/
+theorem induction_on_subtype'
+    (SubX : Type*) (toX : SubX → X)
+    (μ : X → α) (relα : α → α → Prop) (hwf : WellFounded relα)
+    (P : X → Prop)
+    (P_sub : SubX → Prop)
+    (P_compat : ∀ (x_sub : SubX), P_sub x_sub ↔ P (toX x_sub))
+    (r_sub : SubX → SubX → Prop)
+    (IsSliceable_sub : SubX → Prop)
+    (slice_sub : ∀ (x_sub : SubX), IsSliceable_sub x_sub → X)
+    (transport_sub : ∀ {x_sub y_sub}, r_sub y_sub x_sub → P_sub y_sub → P_sub x_sub)
+    (lift_from_slice_sub :
+      ∀ (x_sub : SubX) (hx : IsSliceable_sub x_sub),
+        P (slice_sub x_sub hx) → P_sub x_sub)
+    (BaseSet : X → Prop)
+    (reach_sub :
+      ∀ (x_sub : SubX), ¬ BaseSet (toX x_sub) →
+        Σ' (y_sub : SubX), Σ' (hy : IsSliceable_sub y_sub),
+          r_sub y_sub x_sub ∧ relα (μ (slice_sub y_sub hy)) (μ (toX x_sub)))
+    (base_univ :
+      ∀ (x : X), (∀ (x_sub : SubX), toX x_sub ≠ x) ∨ BaseSet x → P x)
+    : ∀ (x : X), P x := by
+  classical
+  -- Well-founded recursion on the inv-image relation `InvImage relα μ` on `X`.
+  refine
+    (WellFounded.fix (InvImage.wf (f := μ) hwf) (C := fun _ => P _) ?_)
+  intro x ih
+
+  by_cases h_in_sub : ∃ (x_sub : SubX), toX x_sub = x
+  · rcases h_in_sub with ⟨x_sub, rfl⟩
+
+    have hP_sub : P_sub x_sub := by
+      by_cases h_base : BaseSet (toX x_sub)
+      · -- Subtype base case: use `base_univ`, then convert via `P_compat`.
+        have hP : P (toX x_sub) := base_univ (toX x_sub) (Or.inr h_base)
+        exact (P_compat x_sub).2 hP
+      · -- Non-base: use `reach_sub`, then recurse on the slice (strict progress in `relα`).
+        rcases reach_sub x_sub h_base with ⟨y_sub, hy, h_r, h_prog⟩
+        let slice_obj := slice_sub y_sub hy
+        have h_slice_p : P slice_obj := ih slice_obj h_prog
+        have h_y_p : P_sub y_sub := lift_from_slice_sub y_sub hy h_slice_p
+        exact transport_sub h_r h_y_p
+
+    exact (P_compat x_sub).1 hP_sub
+  · -- Universe base case: not in the subtype, so discharge with `base_univ`.
+    have h_forall : ∀ (x_sub : SubX), toX x_sub ≠ x := by
+      intro x_sub hx
+      exact h_in_sub ⟨x_sub, hx⟩
+    exact base_univ x (Or.inl h_forall)
 
 end MatDecompFormal.Framework
 

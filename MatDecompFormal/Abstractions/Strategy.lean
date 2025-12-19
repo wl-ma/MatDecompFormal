@@ -31,14 +31,23 @@ structure ReductionStrategy (m n slice_m slice_n : ℕ) (R : Type*) [CommRing R]
   reduction : ReductionMethod m n slice_m slice_n R
   /-- 兼容性断言：变换的目标 `Goal` 必须与规约方法的 `IsSliceable` 条件在逻辑上等价。 -/
   goal_is_sliceable : transform.Goal = reduction.IsSliceable
-  /-- 归纳所依赖的度量函数。它作用于通用宇宙对象。 -/
-  μ : FinRectUniverse R → ℕ
-  /-- 度量单调性证明。 -/
-  μ_mono : ∀ (A : Matrix (Fin m) (Fin n) R) (t : transform.T),
-             μ ⟨⟨m, n⟩, ⟨transform.apply t A⟩⟩ ≤ μ ⟨⟨m, n⟩, ⟨A⟩⟩
-  /-- 切片进展性证明。 -/
-  slice_progress : ∀ (A : Matrix (Fin m) (Fin n) R) (hA : reduction.IsSliceable A),
-    μ ⟨⟨slice_m, slice_n⟩, ⟨reduction.slice A hA⟩⟩ < μ ⟨⟨m, n⟩, ⟨A⟩⟩
+
+  /-- 原问题尺寸 (m×n) 的度量函数。 -/
+  μ : Matrix (Fin m) (Fin n) R → ℕ
+
+  /-- 切片问题尺寸 (slice_m×slice_n) 的度量函数。 -/
+  μ_slice : Matrix (Fin slice_m) (Fin slice_n) R → ℕ
+
+  /-- 度量单调性：变换不会增大度量（作用在同尺寸 m×n 上）。 -/
+  μ_mono :
+    ∀ (A : Matrix (Fin m) (Fin n) R) (t : transform.T),
+      μ (transform.apply t A) ≤ μ A
+
+  /-- 切片进展性：切片后的度量（用 μ_slice 计）严格小于原问题度量（用 μ 计）。 -/
+  slice_progress :
+    ∀ (A : Matrix (Fin m) (Fin n) R) (hA : reduction.IsSliceable A),
+      μ_slice (reduction.slice A hA) < μ A
+
 
 /--
 `ReductionStrategy.r` 定义了策略所允许的变换关系。
@@ -55,10 +64,10 @@ noncomputable def ReductionStrategy.mk_reach {m n slice_m slice_n R} [CommRing R
     (S : ReductionStrategy m n slice_m slice_n R) (μ_base : ℕ)
     (_h_pos : m > 0 ∧ n > 0)
     (A : Matrix (Fin m) (Fin n) R)
-    (_h_mu_gt_base : S.μ ⟨⟨m, n⟩, ⟨A⟩⟩ > μ_base)
+    (_h_mu_gt_base : S.μ A > μ_base)
     : Σ' (B : Matrix (Fin m) (Fin n) R),
         Σ' (hB : S.reduction.IsSliceable B),
-          S.r B A ∧ S.μ ⟨⟨slice_m, slice_n⟩, ⟨S.reduction.slice B hB⟩⟩ < S.μ ⟨⟨m,n⟩,⟨A⟩⟩ := by
+          S.r B A ∧ S.μ_slice (S.reduction.slice B hB) < S.μ A := by
   by_cases h_goal : S.transform.Goal A
   · -- Case 1: Goal met. The new matrix is just A.
     refine ⟨A, ?_⟩
@@ -74,9 +83,12 @@ noncomputable def ReductionStrategy.mk_reach {m n slice_m slice_n R} [CommRing R
       rw [← S.goal_is_sliceable]; exact S.transform.find_spec A h_goal
     refine ⟨hB_sliceable, ?_⟩
     refine ⟨Or.inr ⟨t, rfl⟩, ?_⟩
-    calc
-      _ < S.μ ⟨⟨m,n⟩,⟨B⟩⟩ := S.slice_progress B hB_sliceable
-      _ ≤ S.μ ⟨⟨m,n⟩,⟨A⟩⟩ := S.μ_mono A t
+    have hprog : S.μ_slice (S.reduction.slice B hB_sliceable) < S.μ B :=
+      S.slice_progress B hB_sliceable
+    have hmono : S.μ B ≤ S.μ A := by
+      simpa [B] using S.μ_mono A t
+    exact lt_of_lt_of_le hprog hmono
+
 
 end MatDecompFormal.Abstractions
 

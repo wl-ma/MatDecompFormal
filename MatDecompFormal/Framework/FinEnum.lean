@@ -259,7 +259,8 @@ end MatDecompFormal.Framework
 -- --             _ = n - 1 := by
 -- --               simp [h_card_ι, h_card_eq_sub]
 -- --         simpa [h_card_compl_fintype] using h_card
--- --       exact FinEnum.orderIsoOfCardEq (α := {i // i ≠ i₀}) (β := Fin (n - 1)) (by simpa [h_card'])
+-- --       exact FinEnum.orderIsoOfCardEq (α := {i // i ≠ i₀})
+-- --         (β := Fin (n - 1)) (by simpa [h_card'])
 
 -- --   -- 6. {i₀} ⊕ {i≠i₀} ≃o Fin 1 ⊕ Fin (n-1)
 -- --   let e₃ : ({i // i = i₀} ⊕ {i // i ≠ i₀}) ≃o Fin 1 ⊕ Fin (n-1) :=
