@@ -1,10 +1,12 @@
 import Mathlib.Data.FinEnum
 import Mathlib.LinearAlgebra.Matrix.Permutation
 import Mathlib.LinearAlgebra.Matrix.Swap
+import MatDecompFormal.Abstractions.MatrixProperty
 
 namespace MatDecompFormal.Components.Properties
 
 open Matrix
+open MatDecompFormal.Abstractions
 
 /-!
 # 置换矩阵属性 (Permutation Matrix Property)
@@ -63,6 +65,41 @@ lemma isPermutation_mul {A B : Matrix ι ι R} [Fintype ι]
 
 end IsPermutation
 
+
+-- ==================================================================
+-- 为 IsPermutation 提供 MatrixGroup 实例
+-- ==================================================================
+section MatrixGroupInstance
+
+variable {n : ℕ} {R : Type*} [CommRing R]
+
+/--
+`IsPermutation` 构成一个矩阵群。
+-/
+noncomputable instance : MatrixGroup (IsPermutation (R := R) (ι := Fin n)) where
+  mul_closed := isPermutation_mul
+  one_mem := by
+    dsimp [IsPermutation]
+    use Equiv.refl (Fin n)
+    -- `1` is definitionally `(Equiv.toPEquiv (Equiv.refl _)).toMatrix`
+    simp [PEquiv.toMatrix_refl]
+  inv_closed := by
+    intro A hA
+    rcases hA with ⟨σ, rfl⟩
+    dsimp [IsPermutation]
+    use σ.symm
+    refine inv_eq_left_inv ?_
+    simp [← PEquiv.toMatrix_trans, ← Equiv.toPEquiv_trans]
+  invertible := by
+    intro A hA
+    rcases hA with ⟨σ, rfl⟩
+    -- Any permutation matrix is a unit.
+    refine
+      ⟨⟨(Equiv.toPEquiv σ).toMatrix, (Equiv.toPEquiv σ.symm).toMatrix, ?_, ?_⟩, rfl⟩
+    <;> simp [← PEquiv.toMatrix_trans, ← Equiv.toPEquiv_trans]
+
+end MatrixGroupInstance
+-- ==================================================================
 
 
 /-!
