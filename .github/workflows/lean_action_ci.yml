@@ -20,4 +20,4 @@ jobs:
       - uses: leanprover/lean-action@v1
       - uses: leanprover-community/docgen-action@v1
         with:
-          deploy: ${{ vars.ENABLE_PAGES == 'true' }}
+          deploy: ${{ vars.ENABLE_PAGES == 'false' }}
