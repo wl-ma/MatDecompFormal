@@ -1,3 +1,4 @@
 import MatDecompFormal.Abstractions
 import MatDecompFormal.Components
 import MatDecompFormal.Framework
+import MatDecompFormal.Instances

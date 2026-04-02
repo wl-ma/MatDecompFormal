@@ -1,5 +1,4 @@
 import MatDecompFormal.Components.Properties.Permutation
 import MatDecompFormal.Components.Properties.Rank
 import MatDecompFormal.Components.Properties.Reindex
-import MatDecompFormal.Components.Properties.RowEchelon
 import MatDecompFormal.Components.Properties.Triangular

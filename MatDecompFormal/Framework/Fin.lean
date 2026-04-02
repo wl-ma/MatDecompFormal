@@ -16,8 +16,6 @@ open Matrix
 这些是我们框架特有的“胶水代码”，用于简化 `Components` 中的证明。
 -/
 
-#check finSumFinEquiv
-
 /--
 一个专门用于将 `Fin (n + 1)` 拆分为 `Fin 1 ⊕ Fin n` 的等价关系。
 这个定义是“计算性的”，它通过模式匹配 (`Fin.cases`) 而不是类型转换 (`cast`)
@@ -50,6 +48,29 @@ def finSuccEquivSumLex (n : ℕ) : Fin (n + 1) ≃ (Fin 1 ⊕ₗ Fin n) := by
     -- y : Fin 1
     simp [Subsingleton.elim y 0]
 
+/-- `finSuccEquivSumLex` 的严格单调性。 -/
+lemma finSuccEquivSumLex_strictMono (k : ℕ) :
+    StrictMono (finSuccEquivSumLex k) := by
+  intro x y hxy
+  cases x using Fin.cases with
+  | zero =>
+      cases y using Fin.cases with
+      | zero =>
+          exact (lt_irrefl _ hxy).elim
+      | succ y_val =>
+          -- `e 0 = inl 0`, `e (succ y) = inr y`
+          -- and `inl _ < inr _` for lex order
+          simp [finSuccEquivSumLex]
+          apply Sum.Lex.inl_lt_inr
+  | succ x_val =>
+      cases y using Fin.cases with
+      | zero =>
+          exact (not_lt_of_ge (Fin.zero_le _) hxy).elim
+      | succ y_val =>
+          -- `inr x < inr y` iff `x < y`
+          have : x_val < y_val := (Fin.succ_lt_succ_iff.mp hxy)
+          simp [finSuccEquivSumLex]
+          exact Sum.Lex.inr_lt_inr_iff.mpr this
 
 -- /--
 -- `finSuccEquivSum` 的保序同构版本。

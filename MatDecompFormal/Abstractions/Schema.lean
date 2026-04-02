@@ -6,13 +6,26 @@ import Mathlib.Data.FinEnum
 namespace MatDecompFormal.Abstractions
 
 /-!
-# 分解模式 (Decomposition Schema) - v2.0 (Fin m n Version)
+# 分解模式 (Decomposition Schema)
 
-本文件定义了 `DecompositionSchema`，用于描述在 `Fin m × Fin n` 矩阵上的分解。
+本文件明确区分项目中的两层分解表面：
+
+* `DecompositionSchema` / `HasDecomposition`
+  是 **internal canonical surface**。它们服务于 `Fin` 世界中的构造、规约、
+  归纳和主证明，是项目内部的标准工作层。
+* `DecompositionSchema'` / `HasDecomposition'`
+  是 **external presentation surface**。它们服务于 `FinEnum` 索引下的对外结果
+  表达，通常由 internal `_fin` 结果经由 reindex/bridge 得到。
+
+这两层不是并行的主接口：`Fin` 层负责完成主要证明工作，`FinEnum` 层负责给出
+统一的对外展示与最终结果包装。
 -/
 
 /--
-`DecompositionSchema` (Fin m n 版)
+`DecompositionSchema` 是项目的 **internal canonical schema surface**。
+
+它面向 `Fin m × Fin n` 矩阵，承载项目内部的主要工作流：
+构造、规约、归纳、以及 `_fin` 版本的主 existence theorem。
 
 *   `m`, `n`: 矩阵的行数和列数。
 *   `R`: 矩阵元素的环类型。
@@ -29,16 +42,20 @@ structure DecompositionSchema (m n : ℕ) (R : Type*) [CommRing R] where
   equation : Matrix (Fin m) (Fin n) R → Factors → Prop
 
 /--
-`HasDecomposition sch A` 是一个命题，表示矩阵 `A` 存在一个满足 `sch`
-所描述模式的分解。
+`HasDecomposition sch A` 是 internal canonical existence proposition。
+
+它是项目统一存在性层在 `Fin` 内部证明世界中的最小落脚点：实例语义包装
+（例如 `HasPLU_fin`、`HasQR_fin`）都应建立在它之上。
 -/
 def HasDecomposition {m n R} [CommRing R]
     (sch : DecompositionSchema m n R) (A : Matrix (Fin m) (Fin n) R) : Prop :=
   ∃ (factors : sch.Factors), sch.property factors ∧ sch.equation A factors
 
-
 /--
-`DecompositionSchema'` 是一个描述矩阵分解“蓝图”的结构体。
+`DecompositionSchema'` 是 **external presentation schema surface**。
+
+它面向一般 `FinEnum` 索引的矩阵，用于表达 internal `_fin` 结果桥接后的
+对外 schema 视图，而不是替代 `DecompositionSchema` 的第二套内部工作接口。
 
 *   `ι`, `κ`: 矩阵的行和列索引类型，要求是有限且可枚举的 (`FinEnum`)。
 *   `R`: 矩阵元素的环类型。
@@ -56,66 +73,13 @@ structure DecompositionSchema' (ι κ : Type*) (R : Type*)
   equation : Matrix ι κ R → Factors → Prop
 
 /--
-`HasDecomposition' sch A` 是一个命题，表示矩阵 `A` 存在一个满足 `sch`
-所描述模式的分解。
+`HasDecomposition' sch A` 是 external presentation existence proposition。
+
+它用于对外陈述 `FinEnum` 索引下的分解存在性，通常应被理解为 internal
+existence result 经过规范桥接后的展示层命题。
 -/
 def HasDecomposition' {ι κ R} [FinEnum ι] [FinEnum κ] [CommRing R]
     (sch : DecompositionSchema' ι κ R) (A : Matrix ι κ R) : Prop :=
   ∃ (factors : sch.Factors), sch.property factors ∧ sch.equation A factors
 
 end MatDecompFormal.Abstractions
-
-
-
-
--- import Mathlib.Data.Fintype.Basic
--- import Mathlib.Data.FinEnum
--- import Mathlib.Algebra.Ring.Defs
--- import Mathlib.LinearAlgebra.Matrix.Basis
-
--- namespace MatDecompFormal.Abstractions
-
--- /-!
--- # 分解模式 (Decomposition Schema)
-
--- 本文件定义了一个通用的结构体 `DecompositionSchema`，用于以统一和声明式的方式
--- 描述各种矩阵分解。
-
--- 一个“分解模式”精确地回答了以下三个问题：
--- 1.  **分解成什么 (`Factors`)**: 分解后的产物是什么？例如，对于LU分解，
---     它是一个由三个矩阵组成的元组 `(L, U, P)`。
--- 2.  **产物有何性质 (`property`)**: 这些产物需要满足什么条件？例如，`L` 必须是
---     单位下三角矩阵，`U` 是上三角矩阵，`P` 是置换矩阵。
--- 3.  **如何重构原矩阵 (`equation`)**: 这些产物如何与原始矩阵 `A` 关联起来？
---     例如，它们必须满足方程 `P * A = L * U`。
-
--- 通过这个抽象，我们可以将“定义一个分解”这一任务从“证明一个分解”中彻底分离出来。
--- -/
-
--- /--
--- `DecompositionSchema` 是一个描述矩阵分解“蓝图”的结构体。
-
--- *   `ι`, `κ`: 矩阵的行和列索引类型，要求是有限且可枚举的 (`FinEnum`)。
--- *   `R`: 矩阵元素的环类型。
--- *   `Factors`: 分解后因子的类型。
--- *   `property`: 描述分解后因子所需满足的性质。
--- *   `equation`: 描述分解因子与原矩阵之间的代数关系。
--- -/
--- structure DecompositionSchema (ι κ : Type*) (R : Type*)
---     [FinEnum ι] [FinEnum κ] [CommRing R] where
---   /-- 分解后各个因子的类型。例如 `Matrix ι ι R × Matrix ι κ R` 用于 QR 分解。 -/
---   Factors : Type*
---   /-- 描述分解后因子所需满足的性质。 -/
---   property : Factors → Prop
---   /-- 描述分解因子与原矩阵之间的代数关系。 -/
---   equation : Matrix ι κ R → Factors → Prop
-
--- /--
--- `HasDecomposition sch A` 是一个命题，表示矩阵 `A` 存在一个满足 `sch`
--- 所描述模式的分解。
--- -/
--- def HasDecomposition {ι κ R} [FinEnum ι] [FinEnum κ] [CommRing R]
---     (sch : DecompositionSchema ι κ R) (A : Matrix ι κ R) : Prop :=
---   ∃ (factors : sch.Factors), sch.property factors ∧ sch.equation A factors
-
--- end MatDecompFormal.Abstractions

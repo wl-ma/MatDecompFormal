@@ -1,3 +1,4 @@
 import MatDecompFormal.Framework.FinEnum
 import MatDecompFormal.Framework.Induction
 import MatDecompFormal.Framework.Universe
+import MatDecompFormal.Framework.UniverseDecompositionFin
