@@ -9,14 +9,14 @@ open Matrix
 open MatDecompFormal.Abstractions
 
 /-!
-# 置换矩阵属性 (Permutation Matrix Property)
+# Permutation Matrix Property
 
-本文件定义了 `IsPermutation` 属性，并证明了其基本性质。
-一个矩阵是置换矩阵，如果它等价于某个 `Equiv.Perm` 的矩阵表示。
+This file defines the `IsPermutation` property and proves its basic properties.
+A matrix is a permutation matrix if it is equal to the matrix representation of some `Equiv.Perm`.
 
-设计要点：
-- 核心性质仅依赖于 `[Fintype ι]` 和 `[DecidableEq ι]`，以获得最大的通用性
-  并避免类型类实例冲突。
+Design notes:
+- The core property only depends on `[Fintype ι]` and `[DecidableEq ι]` for maximum generality
+  and to avoid typeclass instance conflicts.
 -/
 
 section IsPermutation
@@ -24,13 +24,13 @@ section IsPermutation
 variable {ι R : Type*} [CommRing R] [DecidableEq ι]
 
 /--
-`IsPermutation A` 是一个谓词，判断矩阵 `A` 是否为一个置换矩阵。
+`IsPermutation A` is a predicate determining whether the matrix `A` is a permutation matrix.
 -/
 def IsPermutation (A : Matrix ι ι R) : Prop :=
   ∃ (σ : Equiv.Perm ι), A = (Equiv.toPEquiv σ).toMatrix
 
 /--
-由 `Equiv.swap` 构造的行（列）交换矩阵是一个置换矩阵。
+A row/column swap matrix constructed from `Equiv.swap` is a permutation matrix.
 -/
 lemma isPermutation_swap (i j : ι) : IsPermutation (swap R i j) := by
   dsimp [IsPermutation]
@@ -40,8 +40,8 @@ lemma isPermutation_swap (i j : ι) : IsPermutation (swap R i j) := by
   rfl
 
 /--
-置换矩阵的集合在矩阵乘法下是封闭的。
-约束从 `FinEnum` 放宽到了 `Fintype`，以避免实例钻石问题。
+The set of permutation matrices is closed under matrix multiplication.
+The constraint was relaxed from `FinEnum` to `Fintype` to avoid instance diamond problems.
 -/
 @[simp]
 lemma isPermutation_mul {A B : Matrix ι ι R} [Fintype ι]
@@ -67,14 +67,14 @@ end IsPermutation
 
 
 -- ==================================================================
--- 为 IsPermutation 提供 MatrixGroup 实例
+-- Provide a MatrixGroup instance for IsPermutation
 -- ==================================================================
 section MatrixGroupInstance
 
 variable {n : ℕ} {R : Type*} [CommRing R]
 
 /--
-`IsPermutation` 构成一个矩阵群。
+`IsPermutation` forms a matrix group.
 -/
 noncomputable instance : MatrixGroup (IsPermutation (R := R) (ι := Fin n)) where
   mul_closed := isPermutation_mul
@@ -103,9 +103,9 @@ end MatrixGroupInstance
 
 
 /-!
-## `fromBlocks` 与置换矩阵结构
+## `fromBlocks` and permutation-matrix structure
 
-这一小节刻画 **块对角矩阵** 何时是置换矩阵：
+This subsection characterizes when a **block diagonal matrix** is a permutation matrix:
 
 \[
   \begin{pmatrix}
@@ -113,7 +113,7 @@ end MatrixGroupInstance
     0   & P₂₂
   \end{pmatrix}
 \]
-是置换矩阵，当且仅当 `P₁₁` 与 `P₂₂` 分别都是置换矩阵。
+is a permutation matrix if and only if `P₁₁` and `P₂₂` are both permutation matrices.
 -/
 
 section BlockFromBlocks
@@ -123,10 +123,10 @@ variable {n₁ n₂ : ℕ} {R : Type*} [CommRing R] [NeZero (1 : R)]
 local notation "ι" => Fin n₁ ⊕ Fin n₂
 
 /--
-块对角矩阵 `fromBlocks P₁₁ 0 0 P₂₂` 是置换矩阵，
-当且仅当两个对角块 `P₁₁` 和 `P₂₂` 都是置换矩阵。
+The block diagonal matrix `fromBlocks P₁₁ 0 0 P₂₂` is a permutation matrix
+if and only if both diagonal blocks `P₁₁` and `P₂₂` are permutation matrices.
 
-索引类型是 `Sum (Fin n₁) (Fin n₂)`。
+The index type is `Sum (Fin n₁) (Fin n₂)`.
 -/
 lemma isPermutation_fromBlocks_blockDiag_iff
     (P₁₁ : Matrix (Fin n₁) (Fin n₁) R)

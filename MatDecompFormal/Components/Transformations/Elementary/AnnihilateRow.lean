@@ -6,10 +6,11 @@ namespace MatDecompFormal.Components.Transformations.Elementary
 open Matrix
 
 /-!
-# 行消元变换 (Row Annihilation Transformation)
+# Row Annihilation Transformation
 
-本文件定义了 `AnnihilateRowTransform`，这是一个在 `Fin n` 世界中实现的
-`Transformation` 实例，其目标是通过右乘高斯变换将矩阵第一行主元之右的所有元素变为零。
+This file defines `AnnihilateRowTransform`, a `Transformation` instance implemented
+in the `Fin n` world. Its goal is to right-multiply by Gaussian transformations to
+zero all entries to the right of the pivot in the first row of the matrix.
 -/
 
 section GaussUtilsRight
@@ -38,11 +39,12 @@ lemma mul_gaussTransRight_apply (A : Matrix (Fin n) (Fin m) R)
 end GaussUtilsRight
 
 /--
-`AnnihilateRowTransform` 是一个 `Transformation` 实例，它通过右乘高斯变换
-来消去第一行中主元 `A 0 0` 之右的所有元素。
+`AnnihilateRowTransform` is a `Transformation` instance that right-multiplies by
+Gaussian transformations to eliminate all entries to the right of the pivot `A 0 0`
+in the first row.
 
-*   `h_pivot_nz`: 一个关键的前提假设，断言如果第一行有非零元需要被消去，
-    那么主元 `A 0 0` 必须是非零的。
+*   `h_pivot_nz`: a key assumption asserting that if the first row has a nonzero
+    entry that must be eliminated, then the pivot `A 0 0` must be nonzero.
 -/
 noncomputable def AnnihilateRowTransform (n m : ℕ) (R : Type*) [NeZero n] [NeZero m]
     [Field R] [DecidableEq R]

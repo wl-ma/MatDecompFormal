@@ -4,53 +4,62 @@ import MatDecompFormal.Abstractions.Transformation
 namespace MatDecompFormal.Abstractions
 
 /-!
-# 规约策略 (Reduction Strategy)
+# Reduction Strategy
 
-本文件定义了 `ReductionStrategy`，它将“变换”和“规约”组合成一个
-完整的、在 `Fin m × Fin n` 矩阵上可执行的归纳步骤。
+This file defines `ReductionStrategy`, which combines a transformation and a reduction
+into a complete induction step executable on `Fin m × Fin n` matrices.
 -/
 
 /--
 `ReductionStrategy`
 
-*   `m`, `n`: 原始矩阵的维度。
-*   `slice_m`, `slice_n`: 子问题矩阵的维度。
-*   `R`: 环类型。
+*   `m`, `n`: dimensions of the original matrix.
+*   `slice_m`, `slice_n`: dimensions of the subproblem matrix.
+*   `R`: the ring type.
 -/
 structure ReductionStrategy (m n slice_m slice_n : ℕ) (R : Type*) [CommRing R] where
-  /-- 用于达到可切片状态的变换。 -/
+  /-- The transformation used to reach a sliceable state. -/
   transform : Transformation (Matrix (Fin m) (Fin n) R)
-  /-- 用于分解问题的规约方法。 -/
+  /-- The reduction method used to decompose the problem. -/
   reduction : ReductionMethod m n slice_m slice_n R
-  /-- 兼容性断言：变换的目标 `Goal` 必须与规约方法的 `IsSliceable` 条件在逻辑上等价。 -/
+  /--
+  Compatibility assertion: the transformation target `Goal` must be logically
+  equivalent to the reduction method’s `IsSliceable` condition.
+  -/
   goal_is_sliceable : transform.Goal = reduction.IsSliceable
 
-  /-- 原问题尺寸 (m×n) 的度量函数。 -/
+  /-- Measure function for the original problem size (m×n). -/
   μ : Matrix (Fin m) (Fin n) R → ℕ
 
-  /-- 切片问题尺寸 (slice_m×slice_n) 的度量函数。 -/
+  /-- Measure function for the sliced problem size (slice_m×slice_n). -/
   μ_slice : Matrix (Fin slice_m) (Fin slice_n) R → ℕ
 
-  /-- 度量单调性：变换不会增大度量（作用在同尺寸 m×n 上）。 -/
+  /--
+  Measure monotonicity: transformations do not increase the measure, acting on
+  the same m×n size.
+  -/
   μ_mono :
     ∀ (A : Matrix (Fin m) (Fin n) R) (t : transform.T),
       μ (transform.apply t A) ≤ μ A
 
-  /-- 切片进展性：切片后的度量（用 μ_slice 计）严格小于原问题度量（用 μ 计）。 -/
+  /--
+  Slice progress: the sliced measure, computed with μ_slice, is strictly smaller
+  than the original problem measure, computed with μ.
+  -/
   slice_progress :
     ∀ (A : Matrix (Fin m) (Fin n) R) (hA : reduction.IsSliceable A),
       μ_slice (reduction.slice A hA) < μ A
 
 /--
-`ReductionStrategy.r` 定义了策略所允许的变换关系。
+`ReductionStrategy.r` defines the transformation relation allowed by the strategy.
 -/
 def ReductionStrategy.r {m n slice_m slice_n R} [CommRing R]
     (S : ReductionStrategy m n slice_m slice_n R) (y x : Matrix (Fin m) (Fin n) R) : Prop :=
   (y = x) ∨ (∃ (t : S.transform.T), y = S.transform.apply t x)
 
 /--
-`ReductionStrategy.mk_reach` 从一个策略中自动构造出
-子类型归纳实例所需的 `reach` 证明。
+`ReductionStrategy.mk_reach` automatically constructs from a strategy the `reach` proof
+required by subtype induction instances.
 -/
 noncomputable def ReductionStrategy.mk_reach {m n slice_m slice_n R} [CommRing R]
     (S : ReductionStrategy m n slice_m slice_n R) (μ_base : ℕ)

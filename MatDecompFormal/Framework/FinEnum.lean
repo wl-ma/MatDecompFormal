@@ -20,8 +20,8 @@ Within the project, the intended reading is:
 -/
 
 /--
-为任何 `FinEnum` 类型 `α` 提供一个规范的 `LinearOrder` 实例。
-序关系 `i ≤ j` 被定义为 `i` 的枚举索引小于等于 `j` 的枚举索引。
+Provide a canonical `LinearOrder` instance for any `FinEnum` type `α`.
+The order relation `i ≤ j` is defined by comparing the enumeration indices of `i` and `j`.
 -/
 noncomputable instance LinearOrder.ofFinEnum (α : Type*) [FinEnum α] : LinearOrder α :=
   LinearOrder.lift' (@equiv α _) (equiv.injective)
@@ -41,8 +41,8 @@ noncomputable def orderIsoOfFinEnum (α : Type*) [FinEnum α] : α ≃o Fin (car
 }
 
 /--
-`FinEnum.orderIsoOfCardEq` 构造了一个保序同构 `α ≃o β`，
-只要 `α` 和 `β` 的基数相等。
+`FinEnum.orderIsoOfCardEq` constructs an order isomorphism `α ≃o β` whenever
+`α` and `β` have equal cardinality.
 -/
 noncomputable def FinEnum.orderIsoOfCardEq {α β} [FinEnum α] [FinEnum β]
     (h : card α = card β) : α ≃o β :=

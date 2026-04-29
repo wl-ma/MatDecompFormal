@@ -6,10 +6,11 @@ namespace MatDecompFormal.Components.Transformations.Elementary
 open Matrix
 
 /-!
-# 列消元变换 (Column Annihilation Transformation)
+# Column Annihilation Transformation
 
-本文件定义了 `AnnihilateColumnTransform`，这是一个在 `Fin n` 世界中实现的
-`Transformation` 实例，其目标是通过高斯消元将矩阵第一列主元之下的所有元素变为零。
+This file defines `AnnihilateColumnTransform`, a `Transformation` instance implemented
+in the `Fin n` world. Its goal is to use Gaussian elimination to zero all entries
+below the pivot in the first column of the matrix.
 -/
 
 section GaussUtils
@@ -37,11 +38,11 @@ lemma gaussTrans_mul_apply (A : Matrix (Fin n) (Fin m) R) (l : Fin n → R) (i :
 end GaussUtils
 
 /--
-`AnnihilateColumnTransform` 是一个 `Transformation` 实例，它通过高斯变换
-来消去第一列中主元 `A 0 0` 之下的所有元素。
+`AnnihilateColumnTransform` is a `Transformation` instance that uses Gaussian
+transformations to eliminate all entries below the pivot `A 0 0` in the first column.
 
-*   `h_pivot_nz`: 一个关键的前提假设，断言如果第一列有非零元需要被消去，
-    那么主元 `A 0 0` 必须是非零的。
+*   `h_pivot_nz`: a key assumption asserting that if the first column has a nonzero
+    entry that must be eliminated, then the pivot `A 0 0` must be nonzero.
 -/
 noncomputable def AnnihilateColumnTransform (n m : ℕ) (R : Type*) [NeZero n] [NeZero m]
     [Field R] [DecidableEq R]

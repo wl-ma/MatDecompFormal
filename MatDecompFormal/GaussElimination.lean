@@ -14,7 +14,8 @@ theorem mul_assoc_nested [NonUnitalSemiring α]
   simp only [Matrix.mul_assoc]
 
 /-- Multiplication of a 1x1 matrix with a 1×n matrix is a scalar multiplication. -/
-lemma one_one_mul_one_n [Mul R] [AddCommMonoid R] (a : Matrix (Fin 1) (Fin 1) R) (b : Matrix (Fin 1) m R) :
+lemma one_one_mul_one_n [Mul R] [AddCommMonoid R]
+    (a : Matrix (Fin 1) (Fin 1) R) (b : Matrix (Fin 1) m R) :
     a * b = (a 0 0) • b := by
   funext i j
   simp only [HMul.hMul, dotProduct, Finset.univ_unique, Fin.fin_one_eq_zero, Fin.isValue,
@@ -95,7 +96,10 @@ lemma dot_product_as_matrix_mul [Fintype m] [Mul R] [AddCommMonoid R] (b c : m �
   ((of fun (_ : Fin 1) i ↦ b i) * (of fun j (_ : Fin 1) ↦ c j)) 0 0 = (b ⬝ᵥ c) := by
   simp only [HMul.hMul, Fin.isValue, of_apply]
 
-/-- The product of two outer products can be expressed as a scalar multiple of another outer product. -/
+/--
+The product of two outer products can be expressed as a scalar multiple of
+another outer product.
+-/
 lemma vecMulVec_mul_vecMulVec [Fintype m] [CommSemiring R] (a b c d : m → R) :
     vecMulVec a b * vecMulVec c d = (b ⬝ᵥ c) • (vecMulVec a d):= by
   simp only [vecMulVec_eq_mul, mul_assoc_nested, m_one_mul_one_one, Fin.isValue,

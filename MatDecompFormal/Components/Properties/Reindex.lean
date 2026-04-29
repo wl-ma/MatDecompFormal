@@ -9,29 +9,30 @@ namespace MatDecompFormal.Components.Properties
 open Matrix FinEnum
 
 /-!
-# Reindex 与矩阵性质
+# Reindex and Matrix Properties
 
-本文件收集各种关于 `Matrix.reindex` 的“性质保持”引理，包括：
+This file collects preservation lemmas for `Matrix.reindex`, including:
 
-* 置换矩阵 (`IsPermutation`)
-* 对角线 (`diag`)
-* 上三角 / 下三角 / 单位下三角 (`IsUpperTriangular`, `IsLowerTriangular`,
-  `IsUnitLowerTriangular`)
+* permutation matrices (`IsPermutation`)
+* diagonals (`diag`)
+* upper triangular / lower triangular / unit lower triangular matrices
+  (`IsUpperTriangular`, `IsLowerTriangular`, `IsUnitLowerTriangular`)
 
-并且在 `FinEnum` 场景下，给出了新版 `IsUpperTriangular` 与旧式
-`BlockTriangular A (@equiv ι _)` 定义之间的等价关系。
+In the `FinEnum` setting, it also relates `IsUpperTriangular` to the equivalent
+`BlockTriangular A (@equiv ι _)` formulation.
 -/
 
 
--- 我们将引理分为两部分：一部分只需要 Equiv，另一部分需要更强的 OrderIso
+-- We split the lemmas into two parts: one only needs Equiv,
+-- and the other needs the stronger OrderIso
 
 section EquivBased
 
 variable {ι ι' R : Type*} [CommRing R] [DecidableEq ι] [DecidableEq ι']
 
 /--
-对置换矩阵 `(Equiv.toPEquiv σ).toMatrix` 做 `reindex e e`，
-等价于对置换做 `permCongr` 后再取矩阵。
+Reindexing the permutation matrix `(Equiv.toPEquiv σ).toMatrix` by `e e`
+is equivalent to applying `permCongr` to the permutation and then taking its matrix.
 -/
 lemma toMatrix_reindex_permCongr (e : ι ≃ ι') (σ : Equiv.Perm ι) :
     ((Equiv.toPEquiv σ).toMatrix : Matrix ι ι R).reindex e e =
@@ -42,7 +43,7 @@ lemma toMatrix_reindex_permCongr (e : ι ≃ ι') (σ : Equiv.Perm ι) :
     Equiv.permCongr_apply, Equiv.eq_symm_apply]
 
 /--
-`IsPermutation` 在 `reindex e e` 下保持。
+`IsPermutation` is preserved under `reindex e e`.
 -/
 lemma isPermutation_reindex (e : ι ≃ ι') (A : Matrix ι ι R) :
     IsPermutation A ↔ IsPermutation (A.reindex e e) := by
@@ -58,10 +59,11 @@ lemma isPermutation_reindex (e : ι ≃ ι') (A : Matrix ι ι R) :
     intro hA_reindexed
     rcases hA_reindexed with ⟨σ, hσ⟩
     refine ⟨e.symm.permCongr σ, ?_⟩
-    -- 对等式两边再 reindex 回来
+    -- Reindex both sides of the equality back again
     have h := congrArg (Matrix.reindex e.symm e.symm) hσ
-    -- 左边收缩为 A，右边用前一个引理（此时等价是 e.symm）
-    -- `Matrix.reindex_apply` + `Equiv.symm_apply_apply` 保证 reindex 再 reindex 回原矩阵。
+    -- The left side contracts to A; use the permutation congruence lemma,
+    -- now with equivalence e.symm `Matrix.reindex_apply` + `Equiv.symm_apply_apply`
+    -- ensure that reindexing and then reindexing back recovers the original matrix.
     simpa [Matrix.reindex_apply,
       toMatrix_reindex_permCongr (e := e.symm) (σ := σ)] using h
 
@@ -70,7 +72,7 @@ end EquivBased
 
 
 /-!
-## 对角线与 reindex
+## Diagonals and reindex
 -/
 
 section
@@ -78,12 +80,12 @@ section
 variable {ι ι' R : Type*}
 
 /--
-`reindex` 后的对角线是“原对角线复合 `e.symm`”。
+The diagonal after `reindex` is the original diagonal composed with `e.symm`.
 -/
 lemma diag_reindex (e : ι ≃ ι') (A : Matrix ι ι R) :
     (A.reindex e e).diag = A.diag ∘ e.symm := by
   funext i'
-  -- 展开 diag 和 reindex
+  -- Unfold diag and reindex
   simp [Matrix.diag, Matrix.reindex_apply, Function.comp]
 
 end
@@ -91,16 +93,16 @@ end
 
 
 /-!
-## 上/下三角与 OrderIso 下的 reindex
+## Upper/lower triangularity and reindex under OrderIso
 -/
 
 section OrderPropertyBased
 
--- 对于序相关的性质，我们分离 Equiv 和序保持的假设
+-- For order-dependent properties, separate the Equiv from the order-preservation assumption
 variable {ι ι' R : Type*} [LinearOrder ι] [Preorder ι'] [Zero R]
 
 /--
-在一个保持严格单调的 `Equiv` 诱导的基变换下，上三角性保持。
+Upper triangularity is preserved under the basis change induced by a strictly monotone `Equiv`.
 -/
 lemma isUpperTriangular_reindex (e : ι ≃ ι') (h_mono : StrictMono e) (A : Matrix ι ι R) :
     IsUpperTriangular A ↔ IsUpperTriangular (A.reindex e e) := by
@@ -119,7 +121,7 @@ lemma isUpperTriangular_reindex (e : ι ≃ ι') (h_mono : StrictMono e) (A : Ma
     simpa [Matrix.reindex_apply] using h h_image_lt
 
 /--
-在一个保持严格单调的 `Equiv` 诱导的基变换下，下三角性保持。
+Lower triangularity is preserved under the basis change induced by a strictly monotone `Equiv`.
 -/
 lemma isLowerTriangular_reindex (e : ι ≃ ι') (h_mono : StrictMono e) (A : Matrix ι ι R) :
     IsLowerTriangular A ↔ IsLowerTriangular (A.reindex e e) := by
@@ -128,7 +130,7 @@ lemma isLowerTriangular_reindex (e : ι ≃ ι') (h_mono : StrictMono e) (A : Ma
   simpa [IsLowerTriangular, Matrix.transpose_reindex] using h
 
 /--
-在一个保持严格单调的 `Equiv` 诱导的基变换下，单位下三角性保持。
+Unit lower triangularity is preserved under the basis change induced by a strictly monotone `Equiv`.
 -/
 lemma isUnitLowerTriangular_reindex (e : ι ≃ ι') (h_mono : StrictMono e)
     (A : Matrix ι ι R) [One R] : --[DecidableEq ι] [DecidableEq ι'] :
@@ -156,13 +158,13 @@ end OrderPropertyBased
 
 
 /-!
-## 在 FinEnum 场景下，新旧上三角定义的等价性
+## Upper-triangular compatibility in the FinEnum setting
 
-旧设计中，上三角性被定义为 `BlockTriangular A (@equiv ι _)`，其中
-`equiv : ι ≃ Fin (card ι)` 是 `FinEnum` 提供的规范枚举；新设计直接在
-索引类型自身的 `LinearOrder` 上使用 `BlockTriangular A id`。
+For a `FinEnum` index type, upper triangularity can be expressed either through
+the canonical enumeration `equiv : ι ≃ Fin (card ι)` or through the
+`LinearOrder` on the index type itself.
 
-下面的引理说明两者在 `FinEnum` 场景下是等价的。
+The lemma below states that the two are equivalent in the `FinEnum` setting.
 -/
 
 section FinEnumCompat
@@ -170,33 +172,33 @@ section FinEnumCompat
 variable {ι R : Type*} [FinEnum ι] [Zero R]
 
 /--
-在 `FinEnum` 场景下，新定义的 `IsUpperTriangular` 等价于旧式
-`BlockTriangular A (@equiv ι _)`（使用 `FinEnum.equiv` 作为分块函数）。
+In the `FinEnum` setting, `IsUpperTriangular` is equivalent to
+`BlockTriangular A (@equiv ι _)`, using `FinEnum.equiv` as the blocking function.
 -/
 lemma isUpperTriangular_iff_blockTriangular_equiv (A : Matrix ι ι R) :
     IsUpperTriangular A ↔ BlockTriangular A (@equiv ι _) := by
   classical
   -- e : ι ≃o Fin (card ι)
   let e := MatDecompFormal.Framework.orderIsoOfFinEnum ι
-  -- 新定义：IsUpperTriangular A = BlockTriangular A (fun i => i)
+  -- IsUpperTriangular A = BlockTriangular A (fun i => i)
   dsimp [IsUpperTriangular]
-  -- 先证明：用 id 和用 e 的结果等价
+  -- First prove that using id and using e give equivalent results
   have h :
       BlockTriangular A (fun i : ι => i) ↔
         BlockTriangular A (fun i : ι => e i) := by
     constructor
     · intro hBT i j hlt
-      -- e.lt_iff_lt 把 e j < e i 转成 j < i
+      -- e.lt_iff_lt turns e j < e i into j < i
       have hlt' : j < i := (e.lt_iff_lt).mp hlt
       exact hBT hlt'
     · intro hBT i j hlt
-      -- 反向同理
+      -- The reverse direction is analogous
       have hlt' : e j < e i := (e.lt_iff_lt).mpr hlt
       exact hBT hlt'
-  -- 再注意：e.toEquiv = equiv（在 Framework.FinEnum 中就是这么定义的）
+  -- Then note that e.toEquiv = equiv, by the definition in Framework.FinEnum
   have heq : (fun i : ι => e i) = (fun i : ι => (@equiv ι _) i) := by
     funext i; rfl
-  -- 用 heq 把 BlockTriangular 的分块函数改写成 (@equiv ι _)
+  -- Use heq to rewrite the BlockTriangular blocking function as (@equiv ι _)
   simpa [heq] using h
 
 end FinEnumCompat

@@ -8,10 +8,10 @@ namespace MatDecompFormal.Components.Properties
 open FinEnum Matrix MatDecompFormal.Framework
 
 /-!
-# 行阶梯形属性 (Row Echelon Form Property)
+# Row Echelon Form Property
 
-本文件定义了矩阵的“行阶梯形”辅助对象。当前文件仍未收口，
-保留为内部模块，不进入公共导出面。
+This file defines helper objects for matrix row echelon form. The file is not yet
+finalized, so it remains an internal module and is not part of the public export surface.
 -/
 
 section NonZeroIndex
@@ -19,15 +19,16 @@ section NonZeroIndex
 variable {ι κ R : Type*} [FinEnum ι] [FinEnum κ] [Zero R] [DecidableEq R]
 
 /--
-`NonZeroIndex A i` 计算矩阵 `A` 的第 `i` 行中第一个非零元素的列索引。
+`NonZeroIndex A i` computes the column index of the first nonzero entry in row `i` of matrix `A`.
 
-为了在通用的 `FinEnum` 类型 `κ` 上实现查找，我们利用 `κ` 与 `Fin (card κ)`
-的等价关系，在 `Fin` 类型上执行 `Fin.find`，然后将结果映射回 `κ`。
+To implement lookup over a general `FinEnum` type `κ`, we use the equivalence between
+`κ` and `Fin (card κ)`, run `Fin.find` on the `Fin` type, and then map the result
+back to `κ`.
 
-*   `A`: 输入矩阵。
-*   `i`: 行索引。
-*   **返回**: `WithTop κ` 类型的值。如果找到主元，则为 `some j`；
-    如果该行为全零行，则为 `⊤` (即 `none`)。
+*   `A`: the input matrix.
+*   `i`: the row index.
+*   **Returns**: a value of type `WithTop κ`. If a pivot is found, it is `some j`;
+    if the row is all zero, it is `⊤`, i.e. `none`.
 -/
 noncomputable def NonZeroIndex (A : Matrix ι κ R) (i : ι) : WithTop κ :=
   let finEnum_κ : FinEnum κ := inferInstance

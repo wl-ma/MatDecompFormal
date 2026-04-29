@@ -8,7 +8,7 @@ namespace MatDecompFormal.Components.Reductions
 open Matrix MatDecompFormal.Framework
 
 /-!
-# 基于子矩阵的规约方法
+# Submatrix-Based Reduction Method
 
 `SubmatrixMethod` packages the standard lower-right submatrix reduction on
 `Fin (n + 1) × Fin (m + 1)` matrices. The recursive slice is obtained by
@@ -17,10 +17,11 @@ boundary blocks around the recursive solution.
 -/
 
 /--
-`SubmatrixMethod` 是一个 `ReductionMethod` 的实例，它实现了直接处理右下角
-子矩阵的规约策略。它被定义在 `Fin (n+1)` 和 `Fin (m+1)` 类型的矩阵上。
+`SubmatrixMethod` is a `ReductionMethod` instance implementing the reduction strategy
+that directly handles the lower-right submatrix. It is defined on matrices indexed by
+`Fin (n+1)` and `Fin (m+1)`.
 
-*   `IsSliceable_def`: 一个由用户提供的谓词，用于定义何时可以进行切片。
+*   `IsSliceable_def`: a user-provided predicate defining when slicing is allowed.
 -/
 noncomputable def SubmatrixMethod (n m : ℕ) (R : Type*) [CommRing R]
     (IsSliceable_def : Matrix (Fin (n + 1)) (Fin (m + 1)) R → Prop) :
@@ -30,37 +31,37 @@ noncomputable def SubmatrixMethod (n m : ℕ) (R : Type*) [CommRing R]
   slice := fun A _hA ↦ A.submatrix Fin.succ Fin.succ
 
   reconstruct := fun A _hA slice_sol ↦
-    -- 引入计算性等价关系
+    -- Introduce the computational equivalences
     let e_ι := finSuccEquivSum n
     let e_κ := finSuccEquivSum m
-    -- 将原始矩阵转换到分块世界，以提取边角料
+    -- Move the original matrix to the block world to extract the corner data
     let A' := reindex e_ι e_κ A
     let A₁₁ := A'.toBlocks₁₁
     let A₁₂ := A'.toBlocks₁₂
     let A₂₁ := A'.toBlocks₂₁
-    -- 使用 fromBlocks 将边角料和子问题的解重新组装
+    -- Use fromBlocks to reassemble the corner data and the subproblem solution
     let blocks := fromBlocks A₁₁ A₁₂ A₂₁ slice_sol
-    -- reindex 回原始类型
+    -- Reindex back to the original types
     blocks.reindex e_ι.symm e_κ.symm
 
   reconstruct_slice_eq := by
     intro A hA
-    -- 展开 reconstruct 和 slice 的定义
+    -- Unfold the definitions of reconstruct and slice
     dsimp only
-    -- 引入计算性等价关系
+    -- Introduce the computational equivalences
     let e_ι := finSuccEquivSum n
     let e_κ := finSuccEquivSum m
     let A' := reindex e_ι e_κ A
-    -- 关键步骤：使用 submatrix_succ_eq_toBlocks₂₂ 将 slice 与 toBlocks₂₂ 联系起来
+    -- Key step: use submatrix_succ_eq_toBlocks₂₂ to relate slice to toBlocks₂₂
     have h_slice_eq_A₂₂ : A.submatrix Fin.succ Fin.succ = A'.toBlocks₂₂ := by
       rw [submatrix_succ_eq_toBlocks₂₂ A, ← submatrix_succ_eq_toBlocks₂₂ A]
     rw [h_slice_eq_A₂₂]
-    -- 证明重构后的分块矩阵等于原始的分块矩阵
+    -- Prove that the reconstructed block matrix equals the original block matrix
     have h_reconstructed_eq_A' :
         fromBlocks A'.toBlocks₁₁ A'.toBlocks₁₂ A'.toBlocks₂₁ A'.toBlocks₂₂ = A' :=
       fromBlocks_toBlocks A'
     rw [h_reconstructed_eq_A']
-    -- 证明 reindex 再 reindex.symm 会得到原始矩阵
+    -- Prove that reindexing and then reindexing by reindex.symm gives the original matrix
     simp [A', e_ι, e_κ]
 
 

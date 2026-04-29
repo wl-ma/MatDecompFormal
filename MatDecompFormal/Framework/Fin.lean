@@ -12,17 +12,19 @@ open Matrix
 /-!
 ### Fin n Utilities
 
-本节定义了我们项目中特有的、基于 `Mathlib` 基础工具的高级 `Fin n` 等价关系。
-这些是我们框架特有的“胶水代码”，用于简化 `Components` 中的证明。
+This section defines project-specific higher-level `Fin n` equivalences built on
+basic `Mathlib` tools.
+These are framework-specific glue code used to simplify proofs in `Components`.
 -/
 
 /--
-一个专门用于将 `Fin (n + 1)` 拆分为 `Fin 1 ⊕ Fin n` 的等价关系。
-这个定义是“计算性的”，它通过模式匹配 (`Fin.cases`) 而不是类型转换 (`cast`)
-来构造，因此对 Lean 的 `simp` 自动化工具非常友好。
+An equivalence specialized for splitting `Fin (n + 1)` into `Fin 1 ⊕ Fin n`.
+This definition is computational: it is constructed by pattern matching
+(`Fin.cases`) rather than type casts (`cast`), so it works well with Lean’s
+`simp` automation.
 
-- `0` 映射到 `Sum.inl 0`。
-- `i.succ` 映射到 `Sum.inr i`。
+- `0` maps to `Sum.inl 0`.
+- `i.succ` maps to `Sum.inr i`.
 -/
 def finSuccEquivSum (n : ℕ) : Fin (n + 1) ≃ Fin 1 ⊕ Fin n where
   toFun := Fin.cases (Sum.inl 0) (fun i => Sum.inr i)
@@ -35,8 +37,8 @@ def finSuccEquivSum (n : ℕ) : Fin (n + 1) ≃ Fin 1 ⊕ Fin n where
     rw [Subsingleton.elim y 0]
 
 def finSuccEquivSumLex (n : ℕ) : Fin (n + 1) ≃ (Fin 1 ⊕ₗ Fin n) := by
-  -- 直接把你原来的 finSuccEquivSum 的 toFun / invFun 搬过来
-  -- 注意 codomain 改成 ⊕ₗ
+  -- Reuse the toFun / invFun from finSuccEquivSum.
+  -- Note that the codomain is changed to ⊕ₗ
   classical
   refine
   { toFun := Fin.cases (Sum.inl 0) (fun i => Sum.inr i)
@@ -48,7 +50,7 @@ def finSuccEquivSumLex (n : ℕ) : Fin (n + 1) ≃ (Fin 1 ⊕ₗ Fin n) := by
     -- y : Fin 1
     simp [Subsingleton.elim y 0]
 
-/-- `finSuccEquivSumLex` 的严格单调性。 -/
+/-- Strict monotonicity of `finSuccEquivSumLex`. -/
 lemma finSuccEquivSumLex_strictMono (k : ℕ) :
     StrictMono (finSuccEquivSumLex k) := by
   intro x y hxy
@@ -72,72 +74,13 @@ lemma finSuccEquivSumLex_strictMono (k : ℕ) :
           simp [finSuccEquivSumLex]
           exact Sum.Lex.inr_lt_inr_iff.mpr this
 
--- /--
--- `finSuccEquivSum` 的保序同构版本。
-
--- 它证明了 `finSuccEquivSum` 定义的映射，在 `Fin (n + 1)` 的标准序和
--- `Fin 1 ⊕ Fin n` 的字典序之间是保序的。
--- -/
--- def finSuccOrderIsoSum (n : ℕ) : Fin (n + 1) ≃o Fin 1 ⊕ₗ Fin n where
---   toEquiv := (finSuccEquivSum n).trans (toLex (α := Fin 1 ⊕ Fin n))
---   map_rel_iff' := by
---     intro x y
---     cases x using Fin.cases with
---     | zero =>
---         cases y using Fin.cases with
---         | zero =>
---             simp [finSuccEquivSum]
---         | succ y =>
---             -- `0 ≤ y.succ` corresponds to the lexicographic fact that `inl 0` is
---             -- always before any `inr y`.
---             simp [finSuccEquivSum]
---     | succ x =>
---         cases y using Fin.cases with
---         | zero =>
---             simp [finSuccEquivSum]
---         | succ y =>
---             simp [finSuccEquivSum, Fin.succ_le_succ_iff]
-
-
--- /--
--- A helper lemma proving that `finSuccEquivSum` (viewed in the lex order)
--- is strictly monotone. This encapsulates the proof logic so it can be
--- reused easily.
--- -/
--- lemma finSuccEquivSum_strictMono (n : ℕ) : StrictMono (finSuccEquivSum n) := by
---   intro x y h_lt
---   cases x using Fin.cases with
---   | zero =>
---       cases y using Fin.cases with
---       | zero =>
---           -- x=0, y=0 contradicts h_lt : 0 < 0
---           exact (lt_irrefl _ h_lt).elim
---       | succ y_val =>
---           -- x=0, y=y_val.succ
---           -- finSuccEquivSum sends 0 ↦ inl 0, succ _ ↦ inr _
---           dsimp [finSuccEquivSum]
---           -- goal: Sum.inl 0 < Sum.inr y_val, true for lex order on sums
---           change toLex (Sum.inl 0) < toLex (Sum.inr y_val)
---           exact Sum.Lex.inl_lt_inr _ _
---   | succ x_val =>
---       cases y using Fin.cases with
---       | zero =>
---           -- x=x_val.succ, y=0 contradicts h_lt
---           exact (by cases (not_lt_of_ge (Fin.zero_le _) h_lt))
---       | succ y_val =>
---           -- x=x_val.succ, y=y_val.succ
---           dsimp [finSuccEquivSum]
---           -- goal reduces to x_val < y_val
---           simpa using (Fin.succ_lt_succ_iff.mp h_lt)
-
-
-
 /--
-一个用于将 `Fin n` 视为 `Fin 0 ⊕ Fin n` 的等价关系。
-这个定义是“计算性的”，它直接将 `Fin n` 中的每个元素 `i` 映射到 `Sum.inr i`。
+An equivalence for viewing `Fin n` as `Fin 0 ⊕ Fin n`.
+This definition is computational: it directly maps every element `i` of
+`Fin n` to `Sum.inr i`.
 
-这在需要对行或列进行“平凡”的分块以适应 `fromBlocks` API 时非常有用，
-例如在 `ZeroColumnMethod` 中。
+This is useful when a trivial row or column block split is needed to fit the
+`fromBlocks` API, for example in `ZeroColumnMethod`.
 -/
 def finZeroSumFinEquiv (n : ℕ) : Fin n ≃ Fin 0 ⊕ Fin n where
   toFun := Sum.inr
@@ -151,8 +94,8 @@ def finZeroSumFinEquiv (n : ℕ) : Fin n ≃ Fin 0 ⊕ Fin n where
 
 
 /--
-一个关键的“胶水”引理，它证明了通过 `Fin.succ` 切片与通过 `finSuccEquivSum`
-进行 `reindex` 后取 `toBlocks₂₂` 是等价的。
+A key glue lemma proving that slicing through `Fin.succ` is equivalent to
+taking `toBlocks₂₂` after reindexing by `finSuccEquivSum`.
 -/
 lemma submatrix_succ_eq_toBlocks₂₂ {n m : ℕ} {R : Type*}
     (A : Matrix (Fin (n + 1)) (Fin (m + 1)) R) :

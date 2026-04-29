@@ -6,77 +6,91 @@ import Mathlib.Data.FinEnum
 namespace MatDecompFormal.Abstractions
 
 /-!
-# 分解模式 (Decomposition Schema)
+# Decomposition Schema
 
-本文件明确区分项目中的两层分解表面：
+This file explicitly distinguishes the two decomposition surfaces in the project:
 
 * `DecompositionSchema` / `HasDecomposition`
-  是 **internal canonical surface**。它们服务于 `Fin` 世界中的构造、规约、
-  归纳和主证明，是项目内部的标准工作层。
+  are the **internal canonical surface**. They serve construction, reduction,
+  induction, and main proofs in the `Fin` world. They form the project’s
+  standard internal work layer.
 * `DecompositionSchema'` / `HasDecomposition'`
-  是 **external presentation surface**。它们服务于 `FinEnum` 索引下的对外结果
-  表达，通常由 internal `_fin` 结果经由 reindex/bridge 得到。
+  are the **external presentation surface**. They serve external results indexed by `FinEnum`,
+  and are usually obtained from internal `_fin` results via reindexing/bridges.
 
-这两层不是并行的主接口：`Fin` 层负责完成主要证明工作，`FinEnum` 层负责给出
-统一的对外展示与最终结果包装。
+These two layers are not parallel primary interfaces: the `Fin` layer carries
+the main proof work, while the `FinEnum` layer provides the unified external
+presentation and final result packaging.
 -/
 
 /--
-`DecompositionSchema` 是项目的 **internal canonical schema surface**。
+`DecompositionSchema` is the project’s **internal canonical schema surface**.
 
-它面向 `Fin m × Fin n` 矩阵，承载项目内部的主要工作流：
-构造、规约、归纳、以及 `_fin` 版本的主 existence theorem。
+It targets `Fin m × Fin n` matrices and carries the main internal workflow:
+construction, reduction, induction, and the `_fin` version of the main existence theorem.
 
-*   `m`, `n`: 矩阵的行数和列数。
-*   `R`: 矩阵元素的环类型。
-*   `Factors`: 分解后因子的类型。
-*   `property`: 描述分解后因子所需满足的性质。
-*   `equation`: 描述分解因子与原矩阵之间的代数关系。
+*   `m`, `n`: the row and column counts of the matrix.
+*   `R`: the ring type of matrix entries.
+*   `Factors`: the type of the factors after decomposition.
+*   `property`: describes the properties required of the decomposed factors.
+*   `equation`: describes the algebraic relation between the decomposition
+    factors and the original matrix.
 -/
 structure DecompositionSchema (m n : ℕ) (R : Type*) [CommRing R] where
-  /-- 分解后各个因子的类型。例如 `Matrix (Fin m) (Fin m) R × Matrix (Fin m) (Fin n) R` 用于 QR。 -/
+  /--
+  The type of the decomposed factors, for example
+  `Matrix (Fin m) (Fin m) R × Matrix (Fin m) (Fin n) R` for QR.
+  -/
   Factors : Type*
-  /-- 描述分解后因子所需满足的性质。 -/
+  /-- Describe the properties required of the decomposed factors. -/
   property : Factors → Prop
-  /-- 描述分解因子与原矩阵之间的代数关系。 -/
+  /-- Describe the algebraic relation between the decomposition factors and the original matrix. -/
   equation : Matrix (Fin m) (Fin n) R → Factors → Prop
 
 /--
-`HasDecomposition sch A` 是 internal canonical existence proposition。
+`HasDecomposition sch A` is the internal canonical existence proposition.
 
-它是项目统一存在性层在 `Fin` 内部证明世界中的最小落脚点：实例语义包装
-（例如 `HasPLU_fin`、`HasQR_fin`）都应建立在它之上。
+It is the minimal landing point of the project’s unified existence layer inside
+the internal `Fin` proof world. Semantic wrappers for instances such as
+`HasPLU_fin` and `HasQR_fin` should be built on top of it.
 -/
 def HasDecomposition {m n R} [CommRing R]
     (sch : DecompositionSchema m n R) (A : Matrix (Fin m) (Fin n) R) : Prop :=
   ∃ (factors : sch.Factors), sch.property factors ∧ sch.equation A factors
 
 /--
-`DecompositionSchema'` 是 **external presentation schema surface**。
+`DecompositionSchema'` is the **external presentation schema surface**.
 
-它面向一般 `FinEnum` 索引的矩阵，用于表达 internal `_fin` 结果桥接后的
-对外 schema 视图，而不是替代 `DecompositionSchema` 的第二套内部工作接口。
+It targets matrices indexed by general `FinEnum` types and expresses the view
+of internal `_fin` results after bridging to an external schema, rather than
+serving as a second internal working interface replacing `DecompositionSchema`.
 
-*   `ι`, `κ`: 矩阵的行和列索引类型，要求是有限且可枚举的 (`FinEnum`)。
-*   `R`: 矩阵元素的环类型。
-*   `Factors`: 分解后因子的类型。
-*   `property`: 描述分解后因子所需满足的性质。
-*   `equation`: 描述分解因子与原矩阵之间的代数关系。
+*   `ι`, `κ`: the row and column index types of the matrix, required to be
+    finite and enumerable (`FinEnum`).
+*   `R`: the ring type of matrix entries.
+*   `Factors`: the type of the factors after decomposition.
+*   `property`: describes the properties required of the decomposed factors.
+*   `equation`: describes the algebraic relation between the decomposition
+    factors and the original matrix.
 -/
 structure DecompositionSchema' (ι κ : Type*) (R : Type*)
     [FinEnum ι] [FinEnum κ] [CommRing R] where
-  /-- 分解后各个因子的类型。例如 `Matrix ι ι R × Matrix ι κ R` 用于 QR 分解。 -/
+  /--
+  The type of the decomposed factors, for example
+  `Matrix ι ι R × Matrix ι κ R` for QR decomposition.
+  -/
   Factors : Type*
-  /-- 描述分解后因子所需满足的性质。 -/
+  /-- Describe the properties required of the decomposed factors. -/
   property : Factors → Prop
-  /-- 描述分解因子与原矩阵之间的代数关系。 -/
+  /-- Describe the algebraic relation between the decomposition factors and the original matrix. -/
   equation : Matrix ι κ R → Factors → Prop
 
 /--
-`HasDecomposition' sch A` 是 external presentation existence proposition。
+`HasDecomposition' sch A` is the external presentation existence proposition.
 
-它用于对外陈述 `FinEnum` 索引下的分解存在性，通常应被理解为 internal
-existence result 经过规范桥接后的展示层命题。
+It states decomposition existence externally for `FinEnum` indices, and should
+usually be understood as an internal existence result after canonical bridging
+to the presentation layer.
 -/
 def HasDecomposition' {ι κ R} [FinEnum ι] [FinEnum κ] [CommRing R]
     (sch : DecompositionSchema' ι κ R) (A : Matrix ι κ R) : Prop :=

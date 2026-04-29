@@ -3,11 +3,11 @@ import MatDecompFormal.Abstractions.ReductionMethod
 namespace MatDecompFormal.Abstractions
 
 /-!
-# 规约方法组合子 (Reduction Method Combinators)
+# Reduction Method Combinators
 -/
 
 /--
-`ReductionMethod.try_else` (Fin m n 版)
+`ReductionMethod.try_else` (Fin m n version)
 -/
 noncomputable def ReductionMethod.try_else {m n slice_m slice_n : ℕ} {R : Type*} [CommRing R]
     (M₁ M₂ : ReductionMethod m n slice_m slice_n R)
@@ -20,7 +20,7 @@ noncomputable def ReductionMethod.try_else {m n slice_m slice_n : ℕ} {R : Type
     by_cases h₁ : M₁.IsSliceable A
     · exact M₁.slice A h₁
     · let h₂ : M₂.IsSliceable A := hA.resolve_left h₁
-      -- 使用前提来统一类型
+      -- Use the assumption to unify the types
       exact M₂.slice A h₂
 
   reconstruct := by

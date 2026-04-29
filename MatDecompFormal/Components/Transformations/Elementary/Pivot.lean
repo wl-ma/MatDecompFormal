@@ -7,50 +7,53 @@ namespace MatDecompFormal.Components.Transformations.Elementary
 open Matrix
 
 /-!
-# 主元变换 (Pivoting Transformation) - v2.0 (NeZero 修正版)
+# Pivoting Transformation
 
-本文件定义了 `PivotTransform`，这是一个在 `Fin n` 世界中实现的 `Transformation`
-实例，其目标是通过行交换确保矩阵的 `A 0 0` 元素非零。
+This file defines `PivotTransform`, a `Transformation` instance implemented in the
+`Fin n` world. Its goal is to ensure the matrix entry `A 0 0` is nonzero by swapping rows.
 
-### 设计 (v2.0)
-- **NeZero 约束**: 为了解决 `Fin n` 上的 `0` 索引问题，`PivotTransform`
-  现在要求 `n` 和 `m` 必须为非零，即 `[NeZero n]` 和 `[NeZero m]`。
-  这保证了 `Fin n` 和 `Fin m` 类型是非空的，使得 `0` 成为一个合法的索引。
-- **解耦机制与策略**: 保持了原有的设计，将“执行交换”的机制与“找到交换目标”
-  的策略（由外部提供）解耦。
+### Design
+- **NeZero constraints**: To make `0` a valid index on `Fin n` and `Fin m`,
+  `PivotTransform` requires `n` and `m` to be nonzero, namely `[NeZero n]`
+  and `[NeZero m]`. This ensures that `Fin n` and `Fin m` are nonempty, making
+  `0` a valid index.
+- **Decoupled mechanism and strategy**: the mechanism that performs the swap is
+  decoupled from the externally provided strategy that finds the target row to
+  swap with.
 -/
 
 /--
-`PivotTransform` 是一个 `Transformation` 实例，它通过行交换来确保
-主元 `A 0 0` 的元素非零。
+`PivotTransform` is a `Transformation` instance that ensures the pivot entry
+`A 0 0` is nonzero by swapping rows.
 
-*   `[NeZero n]`, `[NeZero m]`: 关键的前提，确保 `0` 是 `Fin n` 和 `Fin m` 的有效索引。
-*   `search_for_pivot`: 一个由外部提供的“搜索算法”。
-*   `search_spec`: 对 `search_for_pivot` 算法的正确性证明。
+*   `[NeZero n]`, `[NeZero m]`: key assumptions ensuring that `0` is a valid
+    index of `Fin n` and `Fin m`.
+*   `search_for_pivot`: an externally provided search algorithm.
+*   `search_spec`: a correctness proof for the `search_for_pivot` algorithm.
 -/
 noncomputable def PivotTransform (n m : ℕ) (R : Type*)
-    -- 添加 NeZero 约束
+    -- Add NeZero constraints
     [NeZero n] [NeZero m] [Field R] [DecidableEq R]
     (search_for_pivot : (A : Matrix (Fin n) (Fin m) R) → (h : A 0 0 = 0) → Fin n)
     (search_spec : ∀ (A : Matrix (Fin n) (Fin m) R) (h : A 0 0 = 0),
       A (search_for_pivot A h) 0 ≠ 0) :
     Abstractions.Transformation (Matrix (Fin n) (Fin m) R) where
-  -- 变换参数就是目标行的索引。
+  -- The transformation parameter is the target row index.
   T := Fin n
-  -- 目标是主元非零。
+  -- The goal is that the pivot is nonzero.
   Goal := fun A ↦ A 0 0 ≠ 0
-  -- `Field` 和 `DecidableEq` 保证了 `Goal` 是可判定的。
+  -- `Field` and `DecidableEq` ensure that `Goal` is decidable.
   decGoal := by infer_instance
-  -- 应用变换：左乘一个行交换矩阵 `swap R 0 i₁`。
-  -- 这里的 `0` 现在是类型安全的，因为有 `[NeZero n]` 约束。
+  -- Apply the transformation by left-multiplying by the row-swap matrix `swap R 0 i₁`.
+  -- This `0` is now type-safe because of the `[NeZero n]` constraint.
   apply := fun i₁ A ↦ (swap R 0 i₁) * A
-  -- `find` 操作直接委托给外部提供的搜索算法。
+  -- The `find` operation delegates directly to the externally provided search algorithm.
   find := fun A h_goal_not_met ↦ search_for_pivot A (not_ne_iff.mp h_goal_not_met)
-  -- `find_spec` 的证明直接来自搜索算法的正确性证明 `search_spec`。
+  -- The proof of `find_spec` comes directly from `search_spec`.
   find_spec := by
     intro A h_goal_not_met
     let i₁ := search_for_pivot A (not_ne_iff.mp h_goal_not_met)
-    -- `swap_mul_apply_left` 同样需要 `0` 是有效索引，`[NeZero n]` 保证了这一点。
+    -- `swap_mul_apply_left` also needs `0` to be a valid index.
     rw [swap_mul_apply_left]
     exact search_spec A (not_ne_iff.mp h_goal_not_met)
 

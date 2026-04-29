@@ -2,60 +2,78 @@
 
 ## Project Overview
 
-`MatDecompFormal` is a Lean 4 + Mathlib repository for formalizing matrix decomposition
-existence proofs with a reusable "transformation + reduction + induction" framework.
-The repository is still research-oriented: some parts are stable enough to use, while
-other parts remain internal or unfinished.
+`MatDecompFormal` is a Lean 4 library for formalizing matrix decomposition
+existence proofs. The project develops reusable abstractions for decomposition
+schemas, matrix transformations, reduction methods, and well-founded induction
+over matrix universes.
 
-## Current Status
+The current library includes formal developments for PLU and QR existence
+statements, together with supporting components for permutation matrices,
+triangular matrix properties, reindexing, block lifting, and reduction steps.
+The repository is intended to be a relatively independent Lean formalization
+library built on top of Mathlib.
 
-The project currently has completed PLU and QR existence proof pipelines for square
-matrices, organized around reusable abstractions and framework code. It also contains a
-Cholesky-style result over `ℝ`, packaged from Mathlib's `LDL` theory.
+## Project Structure and Main Contents
 
-This is not yet a finished library of matrix decomposition existence theorems. Some
-internal modules are incomplete, and several directions are still under development.
+- `MatDecompFormal/Abstractions`
 
-## Implemented
+  Core abstract interfaces for decomposition schemas, transformations,
+  reduction methods, reduction strategies, and matrix-property typeclasses.
 
-- `PLU`: existence theorems for square matrices over a field, both in the `Fin n` world
-  and the `FinEnum`-indexed formulation.
-- `QR`: existence theorems for square real matrices, both on the internal `Fin` layer
-  and on the external `FinEnum` presentation layer.
-- `Cholesky`: a Cholesky-style `LDL` packaging for positive definite real square matrices.
-- Reusable framework pieces for decomposition schemas, reduction strategies, and subtype
-  induction over matrix universes.
-- Reusable component lemmas for permutation, triangularity, reindexing, block lifting,
-  and reduction steps used by the PLU and QR developments.
+- `MatDecompFormal/Framework`
 
-## Not Yet Finished
+  General framework code, including matrix universe types, `Fin` and `FinEnum`
+  index bridges, and induction principles for dimension-changing reductions.
 
-- `RowEchelon` is not yet finalized and still contains `sorry`; it is kept as an
-  internal module and is not part of the public aggregate exports.
-- `Rank` is currently a retained property-layer module rather than a completed instance
-  line.
-- Some modules remain preparatory or internal even though the PLU and QR public instance
-  lines are complete.
+- `MatDecompFormal/Components`
 
-## Repository Layout
+  Reusable formal components for matrix properties, block algebra, reductions,
+  lifting lemmas, and elementary transformations.
 
-- `MatDecompFormal/Abstractions`: decomposition schemas, transformations, and reduction strategies.
-- `MatDecompFormal/Framework`: universe setup and induction machinery.
-- `MatDecompFormal/Components`: reusable matrix properties, reductions, transformations, and block lifting.
-- `MatDecompFormal/Instances`: concrete exposed instance developments (`PLU`, `QR`,
-  and the conditional `Cholesky` wrapper).
+- `MatDecompFormal/Instances`
 
-## Build
+  Concrete matrix decomposition developments, including PLU, QR, and a
+  Cholesky-style wrapper based on Mathlib's LDL theory.
+
+- `MatDecompFormal.lean`
+
+  The main aggregate import for the library.
+
+## Usage
+
+Build the project with Lake:
 
 ```bash
 lake build
 ```
 
-## Entry Points
+Use the full public entry point in Lean:
 
-- `import MatDecompFormal`
-  Use this as the full public entry point. It exposes the abstractions, components,
-  framework layers, and the currently exported instances.
-- `import MatDecompFormal.Instances`
-  Use this to access just the currently exposed concrete instances: `PLU`, `QR`, and
-  the conditional `Cholesky` wrapper.
+```lean
+import MatDecompFormal
+```
+
+Use the instance-level entry point for currently exposed decomposition
+developments:
+
+```lean
+import MatDecompFormal.Instances
+```
+
+The project assumes the Lean toolchain specified in `lean-toolchain` and the
+dependencies pinned by `lake-manifest.json`.
+
+## Contributors
+
+Wanli Ma, Beijing International Center for Mathematical Research, Peking
+University, China (wlma@pku.edu.cn)
+
+Zichen Wang, School of Mathematical Sciences, Peking University, China
+(zichenwang25@stu.pku.edu.cn)
+
+Zaiwen Wen, Beijing International Center for Mathematical Research, Peking
+University, China (wenzw@pku.edu.cn)
+
+## License
+
+Released under the Apache 2.0 license. See `LICENSE` for details.
