@@ -221,8 +221,7 @@ lemma svdRightBasis_image_eq_singularValue_smul_leftHead [DecidableEq n]
       rfl
 
 lemma svdLeftHeadVectorOfPositive_head_row_zero [DecidableEq n]
-    (A : Matrix m n ℂ) (i j : n) (hpos : 0 < svdRightEigenvalue A i)
-    (hij : i ≠ j) :
+    (A : Matrix m n ℂ) (i j : n) (hij : i ≠ j) :
     star ⇑(svdLeftHeadVectorOfPositive A i) ⬝ᵥ
         (A *ᵥ ⇑(svdRightBasis A j)) = 0 := by
   let σ : ℝ := svdSingularValue A i
