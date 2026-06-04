@@ -19,6 +19,13 @@ abbrev squareSubtypeμ (x : SquareUniverse R) : Nat :=
 /-- The standard square subtype induction base measure. -/
 abbrev squareSubtypeμBase : Nat := 0
 
+/-- The standard rectangular-universe measure: the smaller matrix dimension. -/
+abbrev rectSubtypeμ (x : RectUniverse R) : Nat :=
+  min (Fintype.card x.ι) (Fintype.card x.κ)
+
+/-- The standard rectangular subtype induction base measure. -/
+abbrev rectSubtypeμBase : Nat := 0
+
 /--
 Framework-level zero-dimensional base skeleton for square subtype induction.
 -/
@@ -36,5 +43,28 @@ theorem squareSubtypeBaseDimEqZero
       exact hnot x_sub rfl
   | inr hle =>
       exact Nat.eq_zero_of_le_zero hle
+
+/--
+Framework-level zero-dimensional base skeleton for rectangular subtype
+induction. At base measure, at least one side is empty.
+-/
+theorem rectSubtypeBaseDimEqZero
+    (x : RectUniverse R)
+    (hx :
+      (∀ x_sub : PosRectUniverse R, (x_sub : RectUniverse R) ≠ x) ∨
+        rectSubtypeμ x ≤ rectSubtypeμBase) :
+    Fintype.card x.ι = 0 ∨ Fintype.card x.κ = 0 := by
+  cases hx with
+  | inl hnot =>
+      by_contra hne
+      rw [not_or] at hne
+      have hrow : 0 < Fintype.card x.ι := Nat.pos_of_ne_zero hne.1
+      have hcol : 0 < Fintype.card x.κ := Nat.pos_of_ne_zero hne.2
+      let x_sub : PosRectUniverse R := ⟨x, ⟨hrow, hcol⟩⟩
+      exact hnot x_sub rfl
+  | inr hle =>
+      have hmin : min (Fintype.card x.ι) (Fintype.card x.κ) = 0 :=
+        Nat.eq_zero_of_le_zero hle
+      omega
 
 end MatDecompFormal.Framework

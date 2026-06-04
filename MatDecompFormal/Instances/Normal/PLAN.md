@@ -246,7 +246,7 @@ Roles:
 3. Add block diagonal lift lemmas independent of eigenvectors.
 4. Add unitary similarity transport lemmas.
 5. Define the strategy core with a high-level `NormalEigenReady` predicate.
-6. Prove the lift assuming the ready predicate and block diagonalization lemmas.
+6. Prove the lift assuming the block-ready predicate and block diagonalization lemmas.
 7. Assemble `SquareStrategyData`.
 8. Assemble `SquareSubtypeInductionInstance`.
 9. Prove the final theorem via `prove_for_matrix`.
@@ -312,10 +312,60 @@ theorem exists_normal_spectral_decomposition_framework
     HasNormalSpectral A
 ```
 
+The main framework theorem can now be invoked without separate proof hooks:
+
+```lean
+theorem exists_normal_spectral_decomposition_framework_oracle
+    (oracle :
+      ∀ {κ : Type u} [Fintype κ] [DecidableEq κ] [LinearOrder κ] [Nonempty κ],
+        NormalSimilarityOracle κ)
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι ℂ) (hA : IsNormalMatrix A) :
+    HasNormalSpectral A
+```
+
+There is also a tighter entry point whose only remaining input is the normal-case
+block-ready constructor:
+
+```lean
+theorem exists_normal_spectral_decomposition_framework_blockOracle
+    (blockOracle :
+      ∀ {κ : Type u} [Fintype κ] [DecidableEq κ] [LinearOrder κ] [Nonempty κ],
+        @NormalBlockReadyOracle κ _ _ _ _)
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι ℂ) (hA : IsNormalMatrix A) :
+    HasNormalSpectral A
+```
+
+The strongest current bridge accepts the usual spectral-theorem-shaped
+diagonalization oracle and converts it to the block-ready oracle automatically:
+
+```lean
+theorem exists_normal_spectral_decomposition_framework_diagonalization
+    (diagOracle :
+      ∀ {κ : Type u} [Fintype κ] [DecidableEq κ] [LinearOrder κ] [Nonempty κ],
+        @NormalDiagonalizationOracle κ _ _ _ _)
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι ℂ) (hA : IsNormalMatrix A) :
+    HasNormalSpectral A
+```
+
+There is also a bridge shaped for mathlib's joint eigenspace API:
+
+```lean
+theorem exists_normal_spectral_decomposition_framework_hermitianPair
+    (pairOracle :
+      ∀ {κ : Type u} [Fintype κ] [DecidableEq κ] [LinearOrder κ] [Nonempty κ],
+        @NormalHermitianPairDiagonalizationOracle κ _ _ _ _)
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι ℂ) (hA : IsNormalMatrix A) :
+    HasNormalSpectral A
+```
+
 This theorem already follows the intended framework route:
 
 ```text
-exists_normal_spectral_decomposition_framework
+exists_normal_spectral_decomposition_framework_oracle
   -> normal_framework_inst
   -> mkSquareSubtypeInductionInstanceFromStrategy
   -> normal_strategy_data
@@ -323,14 +373,71 @@ exists_normal_spectral_decomposition_framework
   -> SquareSubtypeInductionInstance.prove_for_matrix
 ```
 
-The remaining work is not hidden behind unsupported proof placeholders; it is exposed as two
-explicit parameters:
+The proof-side descent hooks are no longer external assumptions:
 
-- `NormalSimilarityOracle`: constructs a unitary similarity putting a matrix into
-  head-tail block-ready form.
-- `NormalDescentHooks`: proves transport and lift for `NormalSpectral_P` along
-  the strategy core.
+- `normal_transport_hook`: transports the spectral decomposition across the
+  strategy relation, using unitary-similarity transport and preservation of
+  normality.
+- `normal_lift_hook`: turns the tail spectral decomposition into the full
+  block-ready spectral decomposition, using tail normality, block diagonal lift,
+  and reindex transport.
 
-Next implementation step: construct `NormalDescentHooks.lift` from block diagonal
-lift lemmas, then construct `NormalSimilarityOracle` from eigenvector existence
-and unitary basis completion.
+The remaining work is not hidden behind unsupported proof placeholders; it is exposed as one
+explicit mathematical parameter:
+
+- `NormalBlockReadyOracle`: for a normal matrix, constructs a unitary similarity
+  whose result is head-tail block-ready. `normalSimilarityOracleOfBlockReady`
+  handles the framework's non-normal progress branch automatically.
+- `NormalDiagonalizationOracle`: stronger, standard spectral-theorem-shaped
+  interface. `normalBlockReadyOracleOfDiagonalization` proves that a diagonalized
+  matrix is head-tail block-ready for the descent step.
+- `NormalHermitianPairDiagonalizationOracle`: joint-Hermitian-pair interface.
+  `normalDiagonalizationOracleOfHermitianPair` proves that simultaneously
+  diagonalizing the real and imaginary Hermitian parts diagonalizes the original
+  normal matrix.
+- `NormalHermitianPartJointEigenbasisSubordinateGeneralSigma`: the current
+  fixed-fiber sigma interface. It asks for a sigma indexed orthonormal basis
+  subordinate to joint eigenspaces, without requiring the outer eigenvalue-label
+  type to be finite.
+- `NormalHermitianPartJointEigenbasisSubordinateDependentSigma`: the current
+  matrix-dependent-fiber interface for collected-basis constructions. Its sigma fibers
+  may depend on the matrix and normality proof, matching the natural fiber
+  `Fin (finrank jointSpace)` over each joint eigenspace label.
+- `NormalHermitianPartJointEigenbasisSubordinateMatrixSigma`: the discharged
+  interface used by the final theorem. Both the finite label type and sigma
+  fibers may depend on the matrix, allowing labels
+  `Eigenvalues H × Eigenvalues I` for the canonical commuting Hermitian parts.
+
+The unconditional theorem is now implemented as
+`exists_normal_spectral_decomposition`. It constructs
+`normalHermitianPartMatrixSigma` from the finite actual eigenvalue labels of the
+canonical commuting Hermitian parts, uses
+`DirectSum.IsInternal.collectedOrthonormalBasis` to obtain a subordinate
+orthonormal joint eigenbasis, and routes the result through the existing descent
+framework theorem
+`exists_normal_spectral_decomposition_framework_subordinateJointEigenbasisMatrixSigma`.
+
+
+## Descent Template Contract
+
+This plan is required to use the project descent template. The implementation
+must explicitly instantiate these components rather than only giving a direct
+standalone proof:
+
+1. `Universe`: the object being recursively decomposed.
+2. `μ`: a natural-number or well-founded measure.
+3. `P`: the target predicate on the universe.
+4. `base`: proof for objects at the base measure.
+5. `transform`: an allowed equivalence/similarity/unitary/change-of-generators
+   step that moves an object to a ready form.
+6. `readiness`: the predicate saying the transformed object can be sliced.
+7. `slice`: the smaller recursive subproblem.
+8. `reach`: proof that every non-base object can reach a ready sliceable object.
+9. `transport`: proof that `P` moves backward across `transform`.
+10. `lift`: proof that `P (slice x)` implies `P x` for ready objects.
+11. `driver`: assembly through the relevant decomposition-driver instance or a
+    new algebraic driver with the same fields.
+12. `final theorem`: obtained from the driver, not from a direct-only proof.
+
+If the existing square/rectangular matrix drivers do not fit, add a reusable
+algebraic descent driver instead of bypassing the template.
