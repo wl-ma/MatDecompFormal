@@ -1,4 +1,3 @@
-import Mathlib.Data.FinEnum
 import Mathlib.LinearAlgebra.Matrix.Basis
 import Mathlib.Tactic.SplitIfs -- Explicitly import `split_ifs`
 

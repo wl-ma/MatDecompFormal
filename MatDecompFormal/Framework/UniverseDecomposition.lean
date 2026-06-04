@@ -1,21 +1,14 @@
 import MatDecompFormal.Framework.Induction
-import MatDecompFormal.Framework.UniverseDecompositionFinSquareSubtype
+import MatDecompFormal.Framework.UniverseDecompositionSquareSubtype
 
 namespace MatDecompFormal.Framework
 
 open Matrix
 
 /-!
-# Universe Decomposition Instances (Fin)
+# Universe Decomposition Instances
 
-This file is the framework entry point for `Fin`-indexed universe decomposition
-drivers.
-
-Layering:
-1. square cast/subtype support lives in
-   `Framework.UniverseDecompositionFinSquareSubtype`;
-2. this file defines the core driver packaging;
-3. this file also exposes the rectangular and square specializations.
+This file is the framework entry point for the universe decomposition drivers.
 -/
 
 section CoreDriverPackaging
@@ -68,11 +61,11 @@ theorem prove (inst : SubtypeInductionInstance X SubX toX) :
 
   refine induction_on_subtype'
     (X := X)
-    (SubX := SubX) (toX := toX)
-    (μ := inst.μ) (relα := (· < ·)) (hwf := wellFounded_lt)
-    (P := inst.P)
-    (P_sub := inst.P_sub)
-    (P_compat := inst.P_compat)
+    SubX toX
+    inst.μ (· < ·) wellFounded_lt
+    inst.P
+    inst.P_sub
+    inst.P_compat
     (r_sub := inst.r_sub)
     (IsSliceable_sub := inst.IsSliceable_sub)
     (slice_sub := inst.slice_sub)
@@ -95,39 +88,38 @@ end CoreDriverPackaging
 
 section Specializations
 
-/-- Rectangular specialization: `X = FinRectUniverse R`, `SubX = PosFinRectUniverse R`. -/
+/-- Rectangular specialization: `X = RectUniverse R`, `SubX = PosRectUniverse R`. -/
 abbrev RectSubtypeInductionInstance (R : Type*) :=
-  SubtypeInductionInstance (X := FinRectUniverse R)
-    (SubX := PosFinRectUniverse R) (toX := Subtype.val)
+  SubtypeInductionInstance (X := RectUniverse R)
+    (SubX := PosRectUniverse R) (toX := Subtype.val)
 
 namespace RectSubtypeInductionInstance
 
 variable {R : Type*} (inst : RectSubtypeInductionInstance R)
 
-/-- Convenience API: prove `inst.P` for every `m × n` matrix. -/
-theorem prove_for_fin :
-    ∀ (m n : ℕ) (A : Matrix (Fin m) (Fin n) R),
-      inst.P ⟨⟨m, n⟩, ⟨A⟩⟩ := by
-  intro m n A
-  exact (SubtypeInductionInstance.prove inst) ⟨⟨m, n⟩, ⟨A⟩⟩
+theorem prove_for_matrix :
+    ∀ {ι κ : Type*} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+      [Fintype κ] [DecidableEq κ] [LinearOrder κ],
+      (A : Matrix ι κ R) → inst.P (RectUniverse.ofMatrix A) := by
+  intro ι κ _ _ _ _ _ _ A
+  exact (SubtypeInductionInstance.prove inst) (RectUniverse.ofMatrix A)
 
 end RectSubtypeInductionInstance
 
-/-- Square specialization: `X = FinSqUniverse R`, `SubX = PosFinSqUniverse R`. -/
+/-- Square specialization: `X = SquareUniverse R`, `SubX = PosSquareUniverse R`. -/
 abbrev SquareSubtypeInductionInstance (R : Type*) :=
-  SubtypeInductionInstance (X := FinSqUniverse R)
-    (SubX := PosFinSqUniverse R) (toX := Subtype.val)
+  SubtypeInductionInstance (X := SquareUniverse R)
+    (SubX := PosSquareUniverse R) (toX := Subtype.val)
 
 namespace SquareSubtypeInductionInstance
 
 variable {R : Type*} (inst : SquareSubtypeInductionInstance R)
 
-/-- Convenience API: prove `inst.P` for every `n × n` matrix. -/
-theorem prove_for_fin :
-    ∀ (n : ℕ) (A : Matrix (Fin n) (Fin n) R),
-      inst.P ⟨n, ⟨A⟩⟩ := by
-  intro n A
-  exact (SubtypeInductionInstance.prove (inst := inst)) ⟨n, ⟨A⟩⟩
+theorem prove_for_matrix :
+    ∀ {ι : Type*} [Fintype ι] [DecidableEq ι] [LinearOrder ι],
+      (A : Matrix ι ι R) → inst.P (SquareUniverse.ofMatrix A) := by
+  intro ι _ _ _ A
+  exact (SubtypeInductionInstance.prove (inst := inst)) (SquareUniverse.ofMatrix A)
 
 end SquareSubtypeInductionInstance
 
