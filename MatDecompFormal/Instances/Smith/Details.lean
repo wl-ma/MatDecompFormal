@@ -500,9 +500,9 @@ lemma appendZeroCols_mul_blockDiag_right
   ext i j
   cases j with
   | inl jn =>
-      simp [smithAppendZeroCols, Matrix.mul_apply, fromBlocks_apply]
+      simp [smithAppendZeroCols, Matrix.mul_apply, Matrix.fromBlocks]
   | inr jk =>
-      simp [smithAppendZeroCols, Matrix.mul_apply, fromBlocks_apply]
+      simp [smithAppendZeroCols, Matrix.mul_apply, Matrix.fromBlocks]
 
 /-- Appending zero columns preserves the project-level Smith witness. -/
 theorem hasSmithNormalForm_appendZeroCols
@@ -518,6 +518,8 @@ theorem hasSmithNormalForm_appendZeroCols
     smithAppendZeroCols (κ := κ) D =
         smithAppendZeroCols (κ := κ) (P * A * Q) := by
       rw [hEq]
+    _ = smithAppendZeroCols (κ := κ) (P * (A * Q)) := by
+      rw [Matrix.mul_assoc]
     _ = P * smithAppendZeroCols (κ := κ) (A * Q) := by
       rw [matrix_mul_appendZeroCols]
     _ = P * (smithAppendZeroCols (κ := κ) A * Qblk) := by
