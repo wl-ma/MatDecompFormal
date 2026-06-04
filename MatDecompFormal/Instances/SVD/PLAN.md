@@ -202,10 +202,19 @@ Completed framework-facing milestones:
   `star_dotProduct_orthonormalBasis_apply`,
   `svdRightBasis_star_dotProduct`, and
   `svdRightBasis_image_star_dotProduct_image_of_ne`.
+- Positive singular-pair head-vector bridge:
+  `svdRightBasis_image_star_dotProduct_image_self`,
+  `svdSingularValue_sq`, `svdSingularValue_mul_self_complex`,
+  `svdRightBasis_image_ne_zero_of_pos_eigenvalue`,
+  `svdLeftHeadVectorOfPositive`,
+  `svdLeftHeadVectorOfPositive_star_dotProduct_self`,
+  `svdRightBasis_image_eq_singularValue_smul_leftHead`,
+  `svdLeftHeadVectorOfPositive_head_row_zero`, and
+  `svdLeftHeadVectorOfPositive_head_entry`.
 
 Remaining mathematical step:
 
 - Construct `SVDHeadBasisData` from the right Gram spectral data by selecting
-  a head right singular vector, proving the positive and zero singular-value
-  cases, and completing the corresponding left singular vector to an
-  orthonormal basis.
+  a head right singular vector, finishing the zero singular-value case,
+  extending the positive-case left head vector to an orthonormal basis, and
+  wiring the completed bases into the framework-routed theorem.

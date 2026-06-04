@@ -240,6 +240,16 @@ lemma svdLeftHeadVectorOfPositive_head_row_zero [DecidableEq n]
       rw [svdRightBasis_image_star_dotProduct_image_of_ne A hij]
       simp
 
+lemma svdLeftHeadVectorOfPositive_head_entry [DecidableEq n]
+    (A : Matrix m n ℂ) (j : n) (hpos : 0 < svdRightEigenvalue A j) :
+    star ⇑(svdLeftHeadVectorOfPositive A j) ⬝ᵥ
+        (A *ᵥ ⇑(svdRightBasis A j)) =
+      (svdSingularValue A j : ℂ) := by
+  rw [svdRightBasis_image_eq_singularValue_smul_leftHead A j hpos]
+  rw [dotProduct_smul]
+  rw [svdLeftHeadVectorOfPositive_star_dotProduct_self A j hpos]
+  simp
+
 lemma star_dotProduct_mulVec_eq_entry
     {m n : Type*} [Fintype m] [Fintype n]
     (A : Matrix m n ℂ) (u : m → ℂ) (v : n → ℂ) :
