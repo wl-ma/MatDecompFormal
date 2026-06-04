@@ -1,6 +1,6 @@
 import MatDecompFormal.Components.Lifting.LowLevel
 import MatDecompFormal.Components.Properties.Reindex
-import MatDecompFormal.Instances.PLU.Direct
+import MatDecompFormal.Components.BlockAlgebra
 import MatDecompFormal.Instances.LU.Strategy
 
 namespace MatDecompFormal.Instances
@@ -19,11 +19,76 @@ strategy. The transform is identity; the lift consumes recursive pivot-readiness
 evidence and assembles a Schur-complement LU block factorization.
 -/
 
-variable {ι : Type} {R : Type*} [Fintype ι] [LinearOrder ι]
+variable {ι : Type*} {R : Type*} [Fintype ι] [LinearOrder ι]
 
 section PivotLift
 
 variable [DecidableEq ι] [Nonempty ι] [DivisionRing R]
+
+omit [DecidableEq ι] in
+lemma luPivotLowerFactor_mul_headBlock
+    (A : Matrix ι ι R)
+    (hPivot : LUPivotReady ι A) :
+    let A' := luHeadTailPlain ι A
+    luPivotLowerFactor ι A * A'.toBlocks₁₁ = A'.toBlocks₂₁ := by
+  classical
+  ext i j
+  cases j
+  have h_inv :
+      (A (headElem (α := ι)) (headElem (α := ι)))⁻¹ *
+          A (headElem (α := ι)) (headElem (α := ι)) = 1 :=
+    inv_mul_cancel₀ hPivot
+  simp [luPivotLowerFactor, pluPivotLowerFactor, luHeadTailPlain, pluHeadTailPlain, pluHeadInv,
+    Matrix.mul_apply, Matrix.toBlocks₂₁, Matrix.toBlocks₁₁, Matrix.reindex_apply, h_inv,
+    mul_assoc]
+
+lemma luPivotReady_plain_equation
+    (A : Matrix ι ι R)
+    (hPivot : LUPivotReady ι A)
+    {L' U' : Matrix (LUTailIdx ι) (LUTailIdx ι) R}
+    (hEq' : luSchurSlice ι A = L' * U') :
+    let Aplain := luHeadTailPlain ι A
+    let l := luPivotLowerFactor ι A
+    let Lplain : Matrix (Unit ⊕ LUTailIdx ι) (Unit ⊕ LUTailIdx ι) R :=
+      fromBlocks (1 : Matrix Unit Unit R) 0 l L'
+    let Uplain : Matrix (Unit ⊕ LUTailIdx ι) (Unit ⊕ LUTailIdx ι) R :=
+      fromBlocks Aplain.toBlocks₁₁ Aplain.toBlocks₁₂ 0 U'
+    (1 : Matrix (Unit ⊕ LUTailIdx ι) (Unit ⊕ LUTailIdx ι) R) * Aplain =
+      Lplain * Uplain := by
+  classical
+  dsimp
+  let Aplain : Matrix (Unit ⊕ LUTailIdx ι) (Unit ⊕ LUTailIdx ι) R := luHeadTailPlain ι A
+  let l : Matrix (LUTailIdx ι) Unit R := luPivotLowerFactor ι A
+  have hlA11 : l * Aplain.toBlocks₁₁ = Aplain.toBlocks₂₁ := by
+    simpa [l, Aplain] using luPivotLowerFactor_mul_headBlock A hPivot
+  have hSchur_restore :
+      luSchurSlice ι A + l * Aplain.toBlocks₁₂ = Aplain.toBlocks₂₂ := by
+    dsimp [luSchurSlice, pluSchurSlice, luPivotLowerFactor, pluPivotLowerFactor,
+      luHeadTailPlain, pluHeadTailPlain, l, Aplain]
+    abel
+  calc
+    (1 : Matrix (Unit ⊕ LUTailIdx ι) (Unit ⊕ LUTailIdx ι) R) * Aplain = Aplain := by
+      simp
+    _ = fromBlocks Aplain.toBlocks₁₁ Aplain.toBlocks₁₂ Aplain.toBlocks₂₁
+          Aplain.toBlocks₂₂ := by
+        simpa using (fromBlocks_toBlocks Aplain).symm
+    _ = fromBlocks Aplain.toBlocks₁₁ Aplain.toBlocks₁₂ (l * Aplain.toBlocks₁₁)
+          (l * Aplain.toBlocks₁₂ + L' * U') := by
+        rw [hlA11]
+        congr 1
+        calc
+          Aplain.toBlocks₂₂ = luSchurSlice ι A + l * Aplain.toBlocks₁₂ := by
+            simpa using hSchur_restore.symm
+          _ = l * Aplain.toBlocks₁₂ + L' * U' := by
+            rw [hEq']
+            abel
+    _ =
+        (fromBlocks (1 : Matrix Unit Unit R) 0 l L' :
+          Matrix (Unit ⊕ LUTailIdx ι) (Unit ⊕ LUTailIdx ι) R) *
+        (fromBlocks Aplain.toBlocks₁₁ Aplain.toBlocks₁₂ 0 U' :
+          Matrix (Unit ⊕ LUTailIdx ι) (Unit ⊕ LUTailIdx ι) R) := by
+          symm
+          exact block_L_mul_U l L' Aplain.toBlocks₁₁ Aplain.toBlocks₁₂ U'
 
 theorem luHeadTailSchurLift
     (A : Matrix ι ι R)
@@ -47,12 +112,8 @@ theorem luHeadTailSchurLift
   have hPlainEq :
       (1 : Matrix (Unit ⊕ LUTailIdx ι) (Unit ⊕ LUTailIdx ι) R) * Aplain =
         Lplain * Uplain := by
-    have hPLU := pivotReady_plain_equation
-      (A := A) (hPivot := hPivot)
-      (P' := (1 : Matrix (LUTailIdx ι) (LUTailIdx ι) R))
-      (L' := L') (U' := U') ?_
-    · simpa [Lplain, Uplain, Aplain, l, Matrix.one_mul] using hPLU
-    · simpa [luSchurSlice, Matrix.one_mul] using hEqSchur
+    simpa [Lplain, Uplain, Aplain, l] using
+      luPivotReady_plain_equation (A := A) hPivot hEqSchur
   let Lblk : Matrix (Unit ⊕ₗ LUTailIdx ι) (Unit ⊕ₗ LUTailIdx ι) R :=
     fromBlocks (1 : Matrix Unit Unit R) 0 l L'
   let Ublk : Matrix (Unit ⊕ₗ LUTailIdx ι) (Unit ⊕ₗ LUTailIdx ι) R :=

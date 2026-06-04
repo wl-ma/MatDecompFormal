@@ -74,6 +74,21 @@ For a nontrivial square matrix:
 Over `RCLike`, the step can be strengthened to a unitary Householder/Givens
 step, but the generic theorem should use only invertibility.
 
+Important lift constraint: unlike Schur triangularization, a Hessenberg tail
+similarity does not automatically lift through the parent block. If the parent
+block has lower-left column `A₂₁`, replacing the tail block by
+`Ptail⁻¹ * A₂₂ * Ptail` also changes the parent column to `Ptail⁻¹ * A₂₁`.
+The recursive target must therefore either:
+
+1. carry a proof that this transformed boundary column keeps the first-column
+   Hessenberg zero pattern; or
+2. use a stronger universe that includes boundary-column data and proves the
+   correct protected-column invariant.
+
+The current Lean implementation uses option 1 through `HessenbergLiftReady`.
+The full oracle-free theorem should move to option 2 if we want to discharge the
+one-step oracle constructively.
+
 ## 4. Framework Mapping
 
 ### Transformation
@@ -175,17 +190,22 @@ After reindexing by `headTailEquiv`, readiness must isolate exactly the data
 needed for the lift:
 
 ```lean
-def HessenbergDescentReady
-    (ι : Type*) [Fintype ι] [LinearOrder ι] [Nonempty ι]
+def HessenbergLiftReady
+    (ι : Type*) [Fintype ι] [DecidableEq ι] [LinearOrder ι] [Nonempty ι]
     (A : Matrix ι ι R) : Prop :=
-  let A' := Matrix.reindex (headTailEquiv (α := ι)) (headTailEquiv (α := ι)) A
-  HessenbergFirstColumnReady A'
+  HasHessenberg (hessenbergTailSlice ι A) → HasHessenberg A
+
+
+def HessenbergDescentReady
+    (ι : Type*) [Fintype ι] [DecidableEq ι] [LinearOrder ι] [Nonempty ι]
+    (A : Matrix ι ι R) : Prop :=
+  HessenbergLiftReady ι A
 ```
 
-where `HessenbergFirstColumnReady A'` means the lower-left column block has all
-entries below the first tail row equal to zero. Equivalently, in the recursive
-predicate formulation, `fromBlocks A₁₁ A₁₂ A₂₁ A₂₂` is Hessenberg whenever
-`A₂₂` is Hessenberg and `A₂₁` has only its head-tail entry possibly nonzero.
+The concrete column-zeroing/block-characterization work should prove
+`HessenbergLiftReady` from a first-column block shape: after head-tail reindexing,
+`fromBlocks A₁₁ A₁₂ A₂₁ A₂₂` is Hessenberg whenever `A₂₂` is Hessenberg and
+`A₂₁` has only its head-tail entry possibly nonzero.
 
 ### Transform
 
@@ -251,7 +271,7 @@ structure HessenbergStepOracle
     [Fintype ι] [DecidableEq ι] [LinearOrder ι] [Nonempty ι] where
   P : Matrix ι ι R → Matrix ι ι R
   invertible_P : ∀ A, InvertibleMatrix (P A)
-  ready : ∀ A, HessenbergDescentReady ι ((P A)⁻¹ * A * (P A))
+  liftReady : ∀ A, HessenbergLiftReady ι ((P A)⁻¹ * A * (P A))
 ```
 
 Later work discharges this oracle by elementary field-level column-zeroing on
@@ -303,24 +323,150 @@ noncomputable def hessenberg_framework_inst ... :
 ### Final Framework Theorem
 
 The first final theorem must be framework-routed and conditional on the step
-oracle/hooks:
+oracle. The oracle's readiness field contains the lift proof:
 
 ```lean
-theorem exists_hessenberg_reduction_framework
-    (oracle : HessenbergStepOracleFamily R)
-    (hooks : HessenbergDescentHooks oracle)
+theorem exists_hessenberg_reduction_framework_stepOracle
+    (stepOracle : HessenbergStepOracleFamily R)
     {ι : Type*} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
     (A : Matrix ι ι R) :
     HasHessenberg A := by
   have hP :
-      (hessenberg_framework_inst oracle hooks).P (SquareUniverse.ofMatrix A) :=
+      (hessenberg_framework_inst oracle).P (SquareUniverse.ofMatrix A) :=
     SquareSubtypeInductionInstance.prove_for_matrix
-      (inst := hessenberg_framework_inst oracle hooks) A
+      (inst := hessenberg_framework_inst oracle) A
   exact hP
 ```
 
 Only after this theorem exists should the oracle be discharged by concrete
 field-level elementary transformations.
+
+### Boundary-Column Driver Needed for Oracle Discharge
+
+The square driver theorem above is the first strict-template milestone. To
+remove the remaining `HessenbergStepOracle`, implement a second, more precise
+algebraic descent universe:
+
+```lean
+structure HessenbergBoundaryUniverse (R : Type*) where
+  ι : Type*
+  [fintype_ι : Fintype ι]
+  [decEq_ι : DecidableEq ι]
+  [linOrder_ι : LinearOrder ι]
+  A : Matrix ι ι R
+  c : Matrix ι Unit R
+```
+
+The target should state that there is an invertible change of basis `P` such
+that:
+
+1. `P⁻¹ * A * P` is upper Hessenberg;
+2. `P⁻¹ * c` has the boundary-column shape needed by the parent lift.
+
+This boundary target is stable under recursive tail similarities. The ordinary
+Hessenberg theorem follows by using the zero boundary column at the top level.
+
+The boundary driver has the same required fields:
+
+```text
+Universe / μ / P / base / transform / readiness / slice / reach / transport /
+lift / driver / final theorem
+```
+
+but its `slice` passes the parent lower-left column as the boundary column for
+the tail subproblem. This is the mathematically correct way to make the
+Hessenberg lift concrete rather than hiding it in `HessenbergLiftReady`.
+
+Current Lean status:
+
+- `HessenbergBoundaryUniverse`
+- `PosHessenbergBoundaryUniverse`
+- `HasHessenbergBoundary`
+- `HessenbergBoundary_P`
+- `base_hessenbergBoundary_subsingleton`
+- `hessenbergBoundarySliceSub`
+- `HessenbergBoundaryProofData`
+- `HessenbergBoundaryStepOracle`
+- `hessenbergBoundaryProofDataOfStepOracle`
+- `hessenbergBoundary_framework_inst`
+- `exists_hessenbergBoundary_framework`
+- `exists_hessenberg_reduction_boundary_framework`
+- `hessenbergBoundarySimilarityObject`
+- `hessenbergBoundary_transport_similarity`
+- `HessenbergBoundaryReady`
+- `hessenbergBlockDiagOne`
+- `hasMatrixInverse_blockDiagOne`
+- `hasMatrixInverse_reindex`
+- `hessenbergBlockDiagOne_lowerLeftColumn`
+- `hessenbergBlockDiagOne_lowerRightBlock`
+- `hessenbergBlockDiagOne_ready_lowerLeft`
+- `finiteOrderRank_headElem`
+- `ne_headElem_of_finiteOrderRank_pos`
+- `finiteOrderRank_sumLex_inl_unit`
+- `lowerSetSumLexInrHeadEquivUnit`
+- `finiteOrderRank_sumLex_inr_head`
+- `sumLex_lt_inr_iff`
+- `sumLexTailLowerSetEquiv`
+- `sumLexHeadTailLowerSet_disjoint`
+- `finiteOrderRank_sumLex_inr`
+- `tail_ne_head_of_sumLex_lowerLeft_hessenberg_rank`
+- `isUpperHessenberg_fromBlocks_lowerLeft`
+- `sumLex_tail_tail_hessenberg_rank`
+- `isUpperHessenberg_fromBlocks_tailTail`
+- `isUpperHessenberg_fromBlocks_ready`
+- `lowerSetEquivOfStrictMonoEquiv`
+- `finiteOrderRank_equiv`
+- `finiteOrderRank_equiv_symm`
+- `isUpperHessenberg_reindex_strictMono`
+- `hessenbergBlockDiagOne_parentBlock_eq`
+- `hessenbergBoundary_lift_from_ready`
+- `hessenbergColumnClearPinv`
+- `hessenbergPlainStepPinv`
+- `hessenbergBoundaryStepOracle_divisionRing`
+- `exists_hessenberg_reduction_divisionRing`
+- `exists_hessenberg_reduction`
+
+are already defined. The boundary slice now passes the current lower-left
+head-tail column as the recursive boundary column, and the boundary theorem is
+routed through `SubtypeInductionInstance.prove`. The ordinary Hessenberg target
+also has a boundary-routed theorem by starting with the zero boundary column and
+forgetting the protected-column condition. The boundary step oracle now supplies
+same-index `P/Pinv`, inverse proof, readiness of the transformed object, and the
+boundary lift; transport and reach are assembled by the boundary wrapper. The
+block-diagonal inverse and lower-left/lower-right block equations needed for
+the lift are also available. The rank facts now cover the head column and
+first-tail boundary case and the tail-tail case: in the one-head lexicographic
+order, the head has rank `0`, the first tail head has rank `1`, and every tail
+rank is shifted by one. Consequently, a ready lower-left boundary column plus a
+Hessenberg tail block makes the full one-head block matrix Hessenberg. There is
+also a strictly-monotone reindex invariance lemma for `IsUpperHessenberg`, and a
+block-diagonal parent similarity equation for extending a tail witness by
+`diag(1, Ptail)`.
+
+The concrete boundary lift is now proved as `hessenbergBoundary_lift_from_ready`:
+a ready boundary object plus a recursive tail `HasHessenbergBoundary` witness is
+lifted by the block-diagonal tail extension and reindexed back to the current
+finite linear order. The boundary step oracle no longer hides a lift proof; it
+only supplies same-index `P`, `Pinv`, their inverse proof, and readiness of the
+transformed boundary object.
+
+The field-level step construction is also discharged over `[DivisionRing R]` in
+`Elementary.lean`. It chooses a nonzero boundary-column entry, swaps it to the
+head, and applies an explicit lower block factor whose inverse is written down
+directly. This gives `hessenbergBoundaryStepOracle_divisionRing`, and the
+ordinary oracle-free theorem is:
+
+```lean
+theorem exists_hessenberg_reduction
+    {R : Type v} [DivisionRing R]
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι R) :
+    HasHessenberg A
+```
+
+The older square-level `HessenbergStepOracle` interface is still present as a
+conditional framework entry, but the completed theorem is now boundary-routed
+and does not require that square-level oracle.
 
 ## 6. Required Lemmas
 
@@ -336,7 +482,7 @@ field-level elementary transformations.
   ```
 
 - Tail lift from a ready head-tail block and a tail Hessenberg witness.
-- Column-zeroing step over `[Field R]`; Householder/Givens only for the unitary
+- Column-zeroing step over `[DivisionRing R]`; Householder/Givens only for the unitary
   corollary.
 
 Initial oracle:
@@ -346,8 +492,9 @@ structure HessenbergStepOracle
     (R ι : Type*) [Field R]
     [Fintype ι] [DecidableEq ι] [LinearOrder ι] [Nonempty ι] where
   P : Matrix ι ι R → Matrix ι ι R
-  invertible_P : ∀ A, InvertibleMatrix (P A)
-  ready : ∀ A, HessenbergDescentReady ((P A)⁻¹ * A * (P A))
+  Pinv : Matrix ι ι R → Matrix ι ι R
+  inverse_P : ∀ A, HasMatrixInverse (P A) (Pinv A)
+  liftReady : ∀ A, HessenbergLiftReady ι ((Pinv A) * A * (P A))
 ```
 
 ## 7. File Layout
@@ -359,6 +506,8 @@ MatDecompFormal/Instances/Hessenberg/Details.lean
 MatDecompFormal/Instances/Hessenberg/Strategy.lean
 MatDecompFormal/Instances/Hessenberg/Direct.lean
 MatDecompFormal/Instances/Hessenberg/Existence.lean
+MatDecompFormal/Instances/Hessenberg/Boundary.lean
+MatDecompFormal/Instances/Hessenberg/Elementary.lean
 ```
 
 ## 8. Implementation Order
@@ -369,8 +518,9 @@ MatDecompFormal/Instances/Hessenberg/Existence.lean
 4. Build the square descent strategy with invertible similarity.
 5. Add a conditional framework theorem with `HessenbergStepOracle`.
 6. Prove generic similarity transport.
-7. Prove block lift.
-8. Discharge the field-level step oracle.
+7. Prove block lift. Done in `Boundary.lean`.
+8. Discharge the field-level step oracle. Done over `[DivisionRing R]` in
+   `Elementary.lean`.
 9. Add optional unitary/RCLike corollary.
 
 

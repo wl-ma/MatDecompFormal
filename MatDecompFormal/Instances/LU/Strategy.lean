@@ -2,6 +2,7 @@ import MatDecompFormal.Framework.DecompositionDriver
 import MatDecompFormal.Framework.HeadTail
 import MatDecompFormal.Instances.PLU.Strategy
 import MatDecompFormal.Instances.LU.Details
+import Mathlib.LinearAlgebra.Matrix.Determinant.Basic
 
 namespace MatDecompFormal.Instances
 
@@ -73,12 +74,54 @@ decreasing_by
         (by simp))
   exact hlt
 
+/-- User-facing no-pivot LU hypothesis, stated as a recursive determinant criterion.
+
+At every descent step, the current `1 × 1` leading principal block has nonzero
+determinant, and the Schur complement satisfies the same condition.  The theorem
+`hasNoZeroLUPivots_iff_recursivePivotReady` below is the bridge from this
+determinant API to the internal pivot-readiness predicate consumed by the
+descent driver.
+-/
+noncomputable def HasNoZeroLUPivots
+    {R : Type*} [Field R]
+    {ι : Type*} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι R) : Prop :=
+  if hbase : Fintype.card ι ≤ 1 then
+    True
+  else
+    have hcard : 1 < Fintype.card ι := Nat.lt_of_not_ge hbase
+    letI : Nonempty ι := Fintype.card_pos_iff.mp (Nat.zero_lt_of_lt hcard)
+    letI : Nontrivial ι := Fintype.one_lt_card_iff_nontrivial.mp hcard
+    (luHeadTailPlain ι A).toBlocks₁₁.det ≠ 0 ∧
+      HasNoZeroLUPivots (luSchurSlice ι A)
+termination_by Fintype.card ι
+decreasing_by
+  classical
+  have hcard : 1 < Fintype.card ι := Nat.lt_of_not_ge hbase
+  letI : Nonempty ι := Fintype.card_pos_iff.mp (Nat.zero_lt_of_lt hcard)
+  letI : Nontrivial ι := Fintype.one_lt_card_iff_nontrivial.mp hcard
+  have hlt : Fintype.card (LUTailIdx ι) < Fintype.card ι := by
+    simpa [LUTailIdx, PLUTailIdx] using
+      (Fintype.card_subtype_lt
+        (p := fun a : ι => a ≠ headElem (α := ι))
+        (x := headElem (α := ι))
+        (by simp))
+  exact hlt
+
 lemma luRecursivePivotReady_of_card_le_one
     {R : Type*} [DivisionRing R]
     {ι : Type*} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
     {A : Matrix ι ι R} (hbase : Fintype.card ι ≤ 1) :
     LURecursivePivotReady A := by
   rw [LURecursivePivotReady]
+  simp [hbase]
+
+lemma hasNoZeroLUPivots_of_card_le_one
+    {R : Type*} [Field R]
+    {ι : Type*} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {A : Matrix ι ι R} (hbase : Fintype.card ι ≤ 1) :
+    HasNoZeroLUPivots A := by
+  rw [HasNoZeroLUPivots]
   simp [hbase]
 
 lemma luRecursivePivotReady_step_iff
@@ -91,9 +134,63 @@ lemma luRecursivePivotReady_step_iff
   rw [LURecursivePivotReady]
   simp [hbase]
 
+lemma hasNoZeroLUPivots_step_iff
+    {R : Type*} [Field R]
+    {ι : Type*} [Fintype ι] [DecidableEq ι] [LinearOrder ι] [Nonempty ι]
+    [Nontrivial ι]
+    {A : Matrix ι ι R} (hbase : ¬ Fintype.card ι ≤ 1) :
+    HasNoZeroLUPivots A ↔
+      (luHeadTailPlain ι A).toBlocks₁₁.det ≠ 0 ∧
+        HasNoZeroLUPivots (luSchurSlice ι A) := by
+  rw [HasNoZeroLUPivots]
+  simp [hbase]
+
+lemma luHeadPivotDet_ne_zero_iff
+    {R : Type*} [Field R]
+    {ι : Type*} [Fintype ι] [LinearOrder ι] [Nonempty ι]
+    (A : Matrix ι ι R) :
+    (luHeadTailPlain ι A).toBlocks₁₁.det ≠ 0 ↔ LUPivotReady ι A := by
+  classical
+  rw [Matrix.det_eq_elem_of_subsingleton _ ()]
+  simp [LUPivotReady, PLUPivotReady, luHeadTailPlain, pluHeadTailPlain, Matrix.toBlocks₁₁]
+
+/--
+The determinant-style public LU hypothesis is equivalent to the internal
+recursive pivot-readiness predicate used by the descent driver.
+-/
+theorem hasNoZeroLUPivots_iff_recursivePivotReady
+    {R : Type*} [Field R]
+    {ι : Type*} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {A : Matrix ι ι R} :
+    HasNoZeroLUPivots A ↔ LURecursivePivotReady A := by
+  classical
+  by_cases hbase : Fintype.card ι ≤ 1
+  · rw [HasNoZeroLUPivots, LURecursivePivotReady]
+    simp [hbase]
+  · have hcard : 1 < Fintype.card ι := Nat.lt_of_not_ge hbase
+    letI : Nonempty ι := Fintype.card_pos_iff.mp (Nat.zero_lt_of_lt hcard)
+    letI : Nontrivial ι := Fintype.one_lt_card_iff_nontrivial.mp hcard
+    rw [hasNoZeroLUPivots_step_iff (A := A) hbase,
+      luRecursivePivotReady_step_iff (A := A) hbase]
+    exact and_congr (luHeadPivotDet_ne_zero_iff A)
+      (hasNoZeroLUPivots_iff_recursivePivotReady (A := luSchurSlice ι A))
+termination_by Fintype.card ι
+decreasing_by
+  classical
+  have hcard : 1 < Fintype.card ι := Nat.lt_of_not_ge hbase
+  letI : Nonempty ι := Fintype.card_pos_iff.mp (Nat.zero_lt_of_lt hcard)
+  letI : Nontrivial ι := Fintype.one_lt_card_iff_nontrivial.mp hcard
+  have hlt : Fintype.card (LUTailIdx ι) < Fintype.card ι := by
+    simpa [LUTailIdx, PLUTailIdx] using
+      (Fintype.card_subtype_lt
+        (p := fun a : ι => a ≠ headElem (α := ι))
+        (x := headElem (α := ι))
+        (by simp))
+  exact hlt
+
 /-- Pivot-ready Schur-complement reduction for no-pivot LU. -/
 noncomputable def luSchurReduction
-    (ι : Type)
+    (ι : Type*)
     [Fintype ι] [LinearOrder ι] [Nonempty ι] [Ring R] [Inv R] :
     ReductionMethod ι ι (LUTailIdx ι) (LUTailIdx ι) R where
   IsSliceable := fun _ => True

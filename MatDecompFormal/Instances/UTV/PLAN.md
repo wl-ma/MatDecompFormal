@@ -191,3 +191,46 @@ lake build MatDecompFormal.Instances.UTV
 lake build MatDecompFormal.Instances
 rg -n "sorry|admit|axiom|unsafe|undefined" MatDecompFormal/Instances/UTV -S
 ```
+
+Before marking the implementation complete, also check:
+
+```bash
+printf 'import MatDecompFormal.Instances.UTV\n#check MatDecompFormal.Instances.exists_utv\n' | lake env lean --stdin
+rg -n "prove_for_matrix|exists_utv_framework|exists_utv" MatDecompFormal/Instances/UTV MatDecompFormal/Instances/UTV.lean -S
+```
+
+## 10. Current Status
+
+Completed implementation-facing milestones:
+
+- File skeleton is present:
+  `UTV.lean`, `UTV/Details.lean`, `UTV/Strategy.lean`,
+  `UTV/Direct.lean`, and `UTV/Existence.lean`.
+- Matrix-level target predicate is defined:
+  `IsGenericRectangularUpperTriangular`, `HasTriangularEquivalence`,
+  `IsRectangularUpperTriangular`, `HasUTV`, `UTV_P`, and empty row/column base
+  cases.
+- Strategy-side descent skeleton is implemented through the rectangular driver:
+  `UTVTailRowIdx`, `UTVTailColIdx`, `UTVDescentReady`,
+  `UTVSimilarityOracle`, `utvTwoSidedUnitaryTransform`,
+  `utvHeadTailReduction`, and `utv_strategy_core`.
+- Transport and lift hooks are concrete:
+  `utv_transport_twoSidedUnitary`, `utv_transport_hook`,
+  `utv_of_blockReady_reindex`, `utv_lift_hook`, and `utv_descent_hooks`.
+- Framework theorem chain is routed through
+  `RectSubtypeInductionInstance.prove_for_matrix`:
+  `exists_utv_framework`, `exists_utv_framework_oracle`, and `exists_utv`.
+- Generic triangular equivalence is exposed as
+  `exists_triangular_equivalence_framework_oracle`; it is routed through the
+  rectangular Gauss framework theorem and keeps the remaining
+  `GaussRankStepOracle` dependency explicit.
+- The one-step oracle is discharged by reusing the already formalized SVD
+  head-basis block-ready construction via `utv_step_oracle`.
+- `MatDecompFormal.Instances` imports `MatDecompFormal.Instances.UTV`.
+
+Remaining implementation work:
+
+- None for the complex unitary UTV theorem currently exposed as `exists_utv`.
+- The generic field-level theorem is currently conditional on
+  `GaussRankStepOracle`, matching the current state of the Gauss plan. It should
+  become unconditional once the Gauss elementary-operation oracle is discharged.

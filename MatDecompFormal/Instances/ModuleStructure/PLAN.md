@@ -7,9 +7,33 @@ The theorem is algebraic, not analytic. It should not depend on `ℝ` or `ℂ`.
 
 ## 1. Target Theorems
 
-A practical first target should be stated for finitely generated modules over a
-PID, with finite presentation data if that is easier to connect to Smith normal
-form.
+The completed target is the finite-presentation route. It connects directly to
+the rectangular descent driver and Smith normal form.
+
+Public presentation theorem:
+
+```lean
+theorem exists_presented_pid_module_structure
+    {R rel gen : Type*} [Field R]
+    [Fintype rel] [DecidableEq rel] [LinearOrder rel]
+    [Fintype gen] [DecidableEq gen] [LinearOrder gen]
+    (A : Matrix rel gen R) :
+    HasPresentedPIDModuleStructure A
+```
+
+Underlying matrix theorem:
+
+```lean
+theorem exists_structure_of_presentation
+    {R rel gen : Type*} [Field R]
+    [Fintype rel] [DecidableEq rel] [LinearOrder rel]
+    [Fintype gen] [DecidableEq gen] [LinearOrder gen]
+    (A : Matrix rel gen R) :
+    HasPIDModuleStructure A
+```
+
+The abstract finitely generated module theorem remains the intended corollary
+after adding a quotient/free-presentation API:
 
 ```lean
 theorem exists_pid_module_structure
@@ -18,16 +42,13 @@ theorem exists_pid_module_structure
     ∃ F T, ModuleStructureDecomposition R M F T
 ```
 
-A more concrete theorem may use an explicit finite presentation matrix and
-Smith normal form:
+There is also a framework theorem conditional on a Smith one-step oracle:
 
 ```lean
-theorem exists_structure_of_presentation
-    {R g r : Type*} [CommRing R] [IsDomain R] [IsPrincipalIdealRing R]
-    [Fintype g] [DecidableEq g] [LinearOrder g]
-    [Fintype r] [DecidableEq r] [LinearOrder r]
-    (A : Matrix r g R) :
-    HasPIDModuleStructure (PresentedModule A)
+theorem exists_structure_of_presentation_oracle
+    (oracle : ∀ ..., ModuleStructureStepOracle R rel gen)
+    (A : Matrix rel gen R) :
+    HasPIDModuleStructure A
 ```
 
 ## 2. Algebraic Assumptions
@@ -49,7 +70,7 @@ Use one of these universes:
 3. finitely generated torsion modules plus free rank data.
 
 The first is recommended because Smith normal form gives a concrete descent
-engine.
+engine. This is the implemented universe.
 
 ### Measure
 
@@ -59,13 +80,25 @@ For presentation matrices:
 μ A = min (Fintype.card r) (Fintype.card g)
 ```
 
-For abstract modules, use number of generators plus torsion complexity. If this
-is too hard, keep the abstract theorem as a corollary of the presentation route.
+For abstract modules, use number of generators plus torsion complexity. Keep the
+abstract theorem as a corollary of the presentation route.
 
 ### Predicate
 
 `P A` means the presented module decomposes as a direct sum of a free part and
-cyclic torsion factors with divisibility chain.
+cyclic torsion factors with divisibility chain. In the current matrix-level API:
+
+```lean
+def HasPIDModuleStructure (A : Matrix rel gen R) : Prop :=
+  Nonempty (PIDModuleStructureData A)
+```
+
+where `PIDModuleStructureData A` records invertible presentation changes and a
+Smith normal-form matrix `D = P * A * Q`.
+
+`HasPresentedPIDModuleStructure A` is the public alias for this matrix-backed
+finite-presentation predicate. It corresponds to the `PresentedModule A` route
+without committing to a quotient-module API in this file.
 
 ### Base
 
@@ -98,18 +131,21 @@ Lower-right presentation matrix.
 ### Reach
 
 Use a `SmithStepOracle` initially, then discharge via Euclidean/PID Smith
-reduction.
+reduction. The current concrete field theorem discharges this oracle through
+the Gauss rank-normal-form oracle and `smithStepOracleOfGauss`.
 
 ### Transport
 
 Invertible row/column operations preserve the presented module up to isomorphism,
-so the structure predicate transports backward.
+so the structure predicate transports backward. Implemented as
+`moduleStructure_transport_twoSidedUnits`.
 
 ### Lift
 
 A Smith-ready pivot gives one cyclic/free summand, and the recursive tail
 structure supplies the rest. Pivot divisibility preserves the invariant-factor
-chain.
+chain. Implemented by converting the recursive tail module-structure witness to
+a Smith witness, applying `smith_of_blockReady_reindex`, and converting back.
 
 ### Driver
 
@@ -127,6 +163,10 @@ Smith normal form -> PID module structure theorem
 ```
 
 Do not duplicate the PID pivot-reduction proof in both instances.
+
+The implementation follows this: `ModuleStructureStepOracle` is an alias of
+`SmithStepOracle`, and the field-level concrete theorem uses
+`smithStepOracleOfGauss`.
 
 ## 5. File Layout
 

@@ -9,7 +9,23 @@ requires nonzero pivots to be invertible.
 
 ## 1. Target Theorems
 
-Primary theorem over a division ring:
+Compatibility theorem, conditional on a one-step Gauss elimination oracle:
+
+```lean
+theorem exists_gauss_rank_normal_form_oracle
+    {R m n : Type*} [Semiring R]
+    (oracle :
+      ∀ {p q : Type*} [Fintype p] [DecidableEq p] [LinearOrder p] [Nonempty p]
+        [Fintype q] [DecidableEq q] [LinearOrder q] [Nonempty q],
+        GaussRankStepOracle R p q)
+    [Fintype m] [DecidableEq m] [LinearOrder m]
+    [Fintype n] [DecidableEq n] [LinearOrder n]
+    (A : Matrix m n R) :
+    HasGaussRankNormalForm A
+```
+
+Primary theorem over a division ring, obtained by discharging
+`GaussRankStepOracle` with concrete elementary row/column operations:
 
 ```lean
 theorem exists_gauss_rank_normal_form
@@ -17,17 +33,7 @@ theorem exists_gauss_rank_normal_form
     [Fintype m] [DecidableEq m] [LinearOrder m]
     [Fintype n] [DecidableEq n] [LinearOrder n]
     (A : Matrix m n R) :
-    ∃ P : Matrix m m R, ∃ Q : Matrix n n R, ∃ G : Matrix m n R,
-      InvertibleMatrix P ∧
-      InvertibleMatrix Q ∧
-      IsGaussRankNormalForm G ∧
-      G = P * A * Q
-```
-
-Equivalent reconstruction statement:
-
-```lean
-A = P⁻¹ * G * Q⁻¹
+    HasGaussRankNormalForm A
 ```
 
 For commutative fields, add rank-identification corollaries:
@@ -64,8 +70,8 @@ structure GaussRankBlockData (G : Matrix m n R) where
   col : r → n
   row_injective : Function.Injective row
   col_injective : Function.Injective col
-  entry_eq :
-    ∀ i j, G i j = ∑ k : r, if row k = i ∧ col k = j then 1 else 0
+  entry_one : ∀ k, G (row k) (col k) = 1
+  entry_zero : ∀ i j, (∀ k, row k ≠ i ∨ col k ≠ j) → G i j = 0
 ```
 
 Later, once rank-index APIs are stable, add a prettier `Fin rank` upper-left
@@ -119,8 +125,10 @@ Allowed transformations are two-sided invertible row and column operations:
 B = P * A * Q
 ```
 
-where `P` and `Q` are products of swaps, scalings, and shear/addition elementary
-matrices.
+where `P` and `Q` are explicitly invertible matrices. The current API uses
+`GaussInvertibleMatrix P := ∃ Pinv, Pinv * P = 1 ∧ P * Pinv = 1`; the intended
+oracle implementation will provide these matrices as products of swaps,
+scalings, and shear/addition elementary matrices.
 
 ### Readiness
 
@@ -156,21 +164,21 @@ If the active matrix is nonzero, choose a nonzero entry, move it to the head/hea
 position by row and column swaps, scale it to `1`, then use elementary row and
 column operations to clear the rest of the head column and head row.
 
-Initially isolate this as an oracle:
+This is currently isolated as an oracle:
 
 ```lean
 structure GaussRankStepOracle
-    (R m n : Type*) [DivisionRing R]
+    (R m n : Type*) [Semiring R]
     [Fintype m] [DecidableEq m] [LinearOrder m] [Nonempty m]
     [Fintype n] [DecidableEq n] [LinearOrder n] [Nonempty n] where
   P : Matrix m n R → Matrix m m R
   Q : Matrix m n R → Matrix n n R
-  invertible_P : ∀ A, InvertibleMatrix (P A)
-  invertible_Q : ∀ A, InvertibleMatrix (Q A)
-  ready : ∀ A, GaussRankDescentReady ((P A) * A * (Q A))
+  invertible_P : ∀ A, GaussInvertibleMatrix (P A)
+  invertible_Q : ∀ A, GaussInvertibleMatrix (Q A)
+  ready : ∀ A, GaussRankDescentReady (P A * A * Q A)
 ```
 
-Then discharge the oracle by concrete elementary transformations.
+The oracle is discharged by `gaussRankStepOracle` over `[DivisionRing R]`.
 
 ### Transport
 
@@ -241,6 +249,7 @@ MatDecompFormal/Instances/Gauss.lean
 MatDecompFormal/Instances/Gauss/Details.lean
 MatDecompFormal/Instances/Gauss/Strategy.lean
 MatDecompFormal/Instances/Gauss/Direct.lean
+MatDecompFormal/Instances/Gauss/Elementary.lean
 MatDecompFormal/Instances/Gauss/Existence.lean
 ```
 
@@ -250,12 +259,25 @@ MatDecompFormal/Instances/Gauss/Existence.lean
 2. Prove zero/empty base cases.
 3. Define two-sided invertible transformation data.
 4. Define `GaussRankDescentReady`.
-5. Build the rectangular strategy core with `GaussRankStepOracle`.
-6. Prove two-sided invertible transport.
-7. Prove block lift for one isolated pivot plus tail rank normal form.
+5. Build the rectangular strategy core with `GaussRankStepOracle`. Done.
+6. Prove two-sided invertible transport. Done.
+7. Prove block lift for one isolated pivot plus tail rank normal form. Done.
 8. Discharge the step oracle using elementary row/column operations over a
-   division ring.
-9. Add field-specific rank corollaries.
+   division ring. Done:
+   - Done: in head-tail coordinates, when the head/head entry is nonzero,
+     `gaussPlainHeadLeft` and `gaussPlainHeadRight` are explicit invertible
+     factors whose two-sided action normalizes the head pivot to `1` and clears
+     the rest of the head column and head row.
+   - Done: for an arbitrary nonzero matrix, `gaussPivotRow`/`gaussPivotCol`
+     choose a nonzero entry, and `gaussSwapToHeadLeft`/`gaussSwapToHeadRight`
+     move it to the head/head position with explicit invertible swap factors.
+   - Done: the swap factors are composed with the head-pivot factors after
+     head-tail reindexing; `gaussConcreteStepP` and `gaussConcreteStepQ` are
+     explicitly invertible and their two-sided action satisfies
+     `GaussRankDescentReady`.
+   - Done: `gaussRankStepOracle` packages the concrete step as a
+     `GaussRankStepOracle` over `[DivisionRing R]`.
+9. Add field-specific rank corollaries. Remaining.
 
 ## Descent Template Contract
 

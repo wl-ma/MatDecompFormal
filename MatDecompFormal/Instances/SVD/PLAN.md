@@ -1,85 +1,46 @@
-# Singular Value Decomposition via the Descent Framework
+# SVD via the Rectangular Descent Framework
 
-This plan describes how to prove singular value decomposition using the project
-rectangular descent framework. SVD is inherently an inner-product theorem, so a
-unitary statement cannot be made over an arbitrary field. Still, the plan should
-avoid hardcoding `ℂ` into every layer: generic zero/diagonal/block machinery
-should be scalar-parametric, and the final analytic theorem should use the
-weakest practical inner-product scalar class.
+本目录用于推进奇异值分解（SVD）形式化：
 
-## 1. Target Theorem
+```lean
+A = U * S * Vᴴ
+```
 
-Primary theorem over `RCLike` scalars, with a specialized `ℂ` theorem as a
-corollary if needed:
+其中 `U`、`V` 是酉矩阵，`S` 是矩形对角且奇异值非负的矩阵。该目录已经存在于
+`MatDecompFormal/Instances/SVD`，因此本次不再创建第二个同名目录；本文件作为
+SVD 路线的落盘计划。
+
+## 1. Target
+
+优先完成复数版本：
 
 ```lean
 theorem exists_svd
-    {𝕜 m n : Type*} [RCLike 𝕜]
+    {m n : Type*}
     [Fintype m] [Fintype n]
     [DecidableEq m] [DecidableEq n]
     [LinearOrder m] [LinearOrder n]
-    (A : Matrix m n 𝕜) :
-    ∃ U : Matrix m m 𝕜, ∃ V : Matrix n n 𝕜, ∃ Σ : Matrix m n 𝕜,
-      IsUnitaryMatrix U ∧
-      IsUnitaryMatrix V ∧
-      IsRectangularDiagonalNonnegative Σ ∧
-      A = U * Σ * Vᴴ
+    (A : Matrix m n ℂ) :
+    HasSVD A
 ```
 
-If existing normal/Hermitian spectral lemmas are only available over `ℂ`, first
-prove:
+其中：
 
 ```lean
-theorem exists_svd_complex ... (A : Matrix m n ℂ) : HasSVD A
+def HasSVD (A : Matrix m n ℂ) : Prop :=
+  ∃ U : Matrix m m ℂ, ∃ V : Matrix n n ℂ, ∃ S : Matrix m n ℂ,
+    IsUnitaryMatrix U ∧
+    IsUnitaryMatrix V ∧
+    IsRectangularDiagonalNonnegative S ∧
+    A = U * S * Vᴴ
 ```
 
-but keep definitions and block lemmas generic enough to later generalize.
+`RCLike` 推广作为后续目标。若 mathlib 的 Hermitian/normal 谱定理支持足够弱的标量
+假设，再把复数版本中可复用的定义和引理推广。
 
-## 2. Predicate Layering
+## 2. Mandatory Framework Route
 
-Use scalar-parametric rectangular diagonal shape:
-
-```lean
-structure RectangularDiagonalData
-    {R m n : Type*} [Zero R]
-    [Fintype m] [DecidableEq m] [Fintype n] [DecidableEq n]
-    (S : Matrix m n R) where ...
-```
-
-Nonnegativity of singular values requires an ordered real-valued payload and
-therefore belongs to the `RCLike`/analytic layer:
-
-```lean
-def IsRectangularDiagonalNonnegative (S : Matrix m n 𝕜) : Prop := ...
-```
-
-## 3. Mathematical Route
-
-Preferred route via `Aᴴ * A`:
-
-1. Prove Hermitian/positive semidefinite facts in the weakest scalar setting
-   supported by mathlib, ideally `RCLike`.
-2. Use the normal/Hermitian spectral theorem. If that theorem is currently only
-   available over `ℂ`, isolate the dependency in an oracle/corollary.
-3. Build singular values, left singular vectors, complete bases, and the
-   rectangular diagonal matrix.
-
-## 4. Descent Shape
-
-The recursive shape stays rectangular and unitary:
-
-1. Find a right singular vector and singular value `σ ≥ 0`.
-2. Complete left/right vectors to unitary bases.
-3. Transform `B = U₁ᴴ * A * V₁`.
-4. Show the off-diagonal head row/column blocks vanish and the head scalar is
-   `(σ : 𝕜)`.
-5. Recurse on the lower-right block.
-6. Lift by block-diagonal unitary extension.
-7. Transport back.
-
-## 5. Framework Mapping
-
-Use the rectangular driver:
+最终公开定理必须通过项目的矩形递降模板推出，而不是只给直接归纳证明：
 
 ```lean
 RectStrategyData
@@ -87,153 +48,145 @@ mkRectSubtypeInductionInstanceFromStrategy
 RectSubtypeInductionInstance.prove_for_matrix
 ```
 
-Measure:
+公开定理链应形如：
+
+```lean
+exists_svd_framework
+exists_svd_framework_oracle
+exists_svd_framework_headBasisData
+exists_svd
+```
+
+在谱理论、奇异向量、正交基补全等步骤尚未完全消解前，公开 theorem 名称必须诚实暴露
+剩余 oracle/hook 条件。
+
+## 3. Descent Shape
+
+对非空行列索引的矩形矩阵 `A : Matrix m n ℂ`：
+
+1. 从右 Gram 矩阵 `Aᴴ * A` 取得右奇异向量和奇异值 `σ ≥ 0`。
+2. 构造右酉基 `V₁`，使选定右奇异向量成为 head column。
+3. 对 `A v` 的方向构造左 head vector，并补全为左酉基 `U₁`。
+4. 变换：
+
+   ```lean
+   B = U₁ᴴ * A * V₁
+   ```
+
+5. 证明 head-tail ready：
+
+   ```lean
+   B.toBlocks₁₁ = σ
+   B.toBlocks₁₂ = 0
+   B.toBlocks₂₁ = 0
+   ```
+
+6. 对 `B.toBlocks₂₂` 递归。
+7. 通过 block-diagonal 酉扩张 lift 回 `B`。
+8. 通过 two-sided unitary transport 回 `A`。
+
+递归 measure 使用矩形框架的正维递降，语义上对应：
 
 ```lean
 min (Fintype.card m) (Fintype.card n)
 ```
 
-Step oracle should be parameterized by the scalar class actually needed:
-
-```lean
-structure SVDSimilarityOracle
-    (𝕜 m n : Type*) [RCLike 𝕜]
-    [Fintype m] [DecidableEq m] [LinearOrder m] [Nonempty m]
-    [Fintype n] [DecidableEq n] [LinearOrder n] [Nonempty n] where
-  U : Matrix m n 𝕜 → Matrix m m 𝕜
-  V : Matrix m n 𝕜 → Matrix n n 𝕜
-  unitary_U : ∀ A, IsUnitaryMatrix (U A)
-  unitary_V : ∀ A, IsUnitaryMatrix (V A)
-  descentReady : ∀ A, SVDDescentReady ((U A)ᴴ * A * (V A))
-```
-
-## 6. Required Lemmas
-
-- Generic zero matrix and rectangular diagonal data lemmas over `[Zero R]`.
-- `RCLike` unitary transport.
-- `RCLike` block-diagonal unitary extension.
-- SVD block lift from a ready head-tail matrix and tail SVD.
-- Hermitian positive-semidefinite spectral step.
-- Orthonormal-basis matrix bridge, shared with Normal.
-
-## 7. File Layout
+## 4. File Layout
 
 ```text
 MatDecompFormal/Instances/SVD.lean
 MatDecompFormal/Instances/SVD/Details.lean
 MatDecompFormal/Instances/SVD/Strategy.lean
 MatDecompFormal/Instances/SVD/Direct.lean
+MatDecompFormal/Instances/SVD/Spectral.lean
 MatDecompFormal/Instances/SVD/Existence.lean
 MatDecompFormal/Instances/SVD/PLAN.md
 ```
 
-## 8. Implementation Order
+文件职责：
 
-1. Keep diagonal/zero/block infrastructure scalar-parametric where possible.
-2. Keep unitary and nonnegative singular-value statements in the `RCLike` layer.
-3. Route the conditional theorem through the rectangular framework.
-4. Prove transport and block lift concretely.
-5. Discharge the singular-vector oracle using spectral theory.
-6. Expose `exists_svd`; add `exists_svd_complex` only as a specialization.
+- `Details.lean`: `HasSVD`、矩形对角非负谓词、空行/空列 base case。
+- `Strategy.lean`: head-tail 索引、ready 谓词、two-sided unitary transform、slice。
+- `Direct.lean`: transport hook 与 block lift hook。
+- `Spectral.lean`: `Aᴴ * A` 谱理论、右奇异向量、左奇异向量、酉基补全。
+- `Existence.lean`: 装配 `RectStrategyData`，暴露 framework-routed theorem。
+- `SVD.lean`: 对外聚合 import。
 
-## 9. Algebra-Minimality Policy
+## 5. Predicate and Data Contracts
 
-- Do not use `ℂ` in definitions that only need `Zero`, `AddCommMonoid`, or
-  `Semiring`.
-- Use `RCLike` for conjugate transpose/unitary/inner-product facts where mathlib
-  supports it.
-- Use `ℂ` only where the available spectral theorem forces it, and isolate that
-  dependency in theorem names.
+矩形对角非负数据先用 data-oriented 表达，避免过早绑定行列索引之间的顺序关系：
 
+```lean
+structure RectangularDiagonalData (S : Matrix m n ℂ) where
+  r : Type
+  row : r → m
+  col : r → n
+  sigma : r → ℝ
+  sigma_nonneg : ∀ k, 0 ≤ sigma k
+  row_injective : Function.Injective row
+  col_injective : Function.Injective col
+  entry_eq :
+    ∀ i j,
+      S i j =
+        ∑ k : r, if row k = i ∧ col k = j then (sigma k : ℂ) else 0
+```
 
-## Descent Template Contract
+ready 谓词应表达 head-tail 变换后的 block 形状：
 
-This plan is required to use the project descent template. The implementation
-must explicitly instantiate these components rather than only giving a direct
-standalone proof:
+```lean
+def SVDBlockReady (A : Matrix m n ℂ) : Prop :=
+  let A' := Matrix.reindex (headTailEquiv (α := m)) (headTailEquiv (α := n)) A
+  ∃ σ : ℝ, 0 ≤ σ ∧
+    A'.toBlocks₁₁ = (fun _ _ : Unit => (σ : ℂ)) ∧
+    A'.toBlocks₁₂ = 0 ∧
+    A'.toBlocks₂₁ = 0
+```
 
-1. `Universe`: the object being recursively decomposed.
-2. `μ`: a natural-number or well-founded measure.
-3. `P`: the target predicate on the universe.
-4. `base`: proof for objects at the base measure.
-5. `transform`: an allowed equivalence/similarity/unitary/change-of-generators
-   step that moves an object to a ready form.
-6. `readiness`: the predicate saying the transformed object can be sliced.
-7. `slice`: the smaller recursive subproblem.
-8. `reach`: proof that every non-base object can reach a ready sliceable object.
-9. `transport`: proof that `P` moves backward across `transform`.
-10. `lift`: proof that `P (slice x)` implies `P x` for ready objects.
-11. `driver`: assembly through the relevant decomposition-driver instance or a
-    new algebraic driver with the same fields.
-12. `final theorem`: obtained from the driver, not from a direct-only proof.
+## 6. Oracle Boundary
 
-If the existing square/rectangular matrix drivers do not fit, add a reusable
-algebraic descent driver instead of bypassing the template.
+最小 one-step oracle：
 
-## 10. Verification
+```lean
+structure SVDSimilarityOracle
+    (m n : Type*) [Fintype m] [DecidableEq m] [LinearOrder m] [Nonempty m]
+    [Fintype n] [DecidableEq n] [LinearOrder n] [Nonempty n] where
+  U : Matrix m n ℂ → Matrix m m ℂ
+  V : Matrix m n ℂ → Matrix n n ℂ
+  unitary_U : ∀ A, IsUnitaryMatrix (U A)
+  unitary_V : ∀ A, IsUnitaryMatrix (V A)
+  descentReady : ∀ A, SVDDescentReady m n ((U A)ᴴ * A * (V A))
+```
+
+谱理论完成后，逐步将 oracle 消解为：
+
+1. right Gram spectral data；
+2. singular vector pair；
+3. head basis data；
+4. unconditional `exists_svd`。
+
+## 7. Implementation Order
+
+1. 固定 `Details.lean` 的目标谓词、矩形对角数据和空维 base case。
+2. 固定 `Strategy.lean` 的矩形递降 skeleton。
+3. 在 `Direct.lean` 证明 two-sided unitary transport。
+4. 在 `Direct.lean` 证明 block-ready matrix 的 tail-SVD lift。
+5. 在 `Existence.lean` 装配矩形框架，先得到 conditional theorem。
+6. 在 `Spectral.lean` 用 `Aᴴ * A` 谱理论消解 one-step oracle。
+7. 最后暴露无条件 `exists_svd`，并确认其证明路径经过矩形框架。
+
+## 8. Acceptance Checks
 
 ```bash
 lake build MatDecompFormal.Instances.SVD
 lake build MatDecompFormal.Instances
+printf 'import MatDecompFormal.Instances.SVD\n#check MatDecompFormal.Instances.exists_svd\n' | lake env lean --stdin
 rg -n "sorry|admit|axiom|unsafe|undefined" MatDecompFormal/Instances/SVD -S
+rg -n "prove_for_matrix|exists_svd_framework" MatDecompFormal/Instances/SVD -S
 ```
 
-## 11. Current Status
+## 9. Current Status Notes
 
-Completed framework-facing milestones:
-
-- Rectangular subtype driver support.
-- SVD target, zero/base cases, two-sided unitary transport.
-- Concrete head-tail block lift from tail SVD.
-- Framework-routed theorem chain:
-  `exists_svd_framework`, `exists_svd_framework_oracle`,
-  `exists_svd_framework_blockOracle`,
-  `exists_svd_framework_headSingularVectorData`,
-  `exists_svd_framework_headBasisData`.
-- Right Gram spectral layer for `Aᴴ * A`:
-  `svdRightGram`, Hermitian/positive-semidefinite facts, right eigenvalues,
-  singular values, right eigenbasis, and right unitary.
-- Basis-level matrix bridge:
-  `SVDHeadBasisData`, `svdHeadBasisData_entry`, and
-  `svdHeadSingularVectorDataOfHeadBasisData`.
-- Right-image inner-product bridge:
-  `image_star_dotProduct_image_eq_gram`,
-  `svdRightBasis_image_star_dotProduct_image`,
-  `star_dotProduct_orthonormalBasis_apply`,
-  `svdRightBasis_star_dotProduct`, and
-  `svdRightBasis_image_star_dotProduct_image_of_ne`.
-- Positive singular-pair head-vector bridge:
-  `svdRightBasis_image_star_dotProduct_image_self`,
-  `svdSingularValue_sq`, `svdSingularValue_mul_self_complex`,
-  `svdRightBasis_image_ne_zero_of_pos_eigenvalue`,
-  `svdLeftHeadVectorOfPositive`,
-  `svdLeftHeadVectorOfPositive_star_dotProduct_self`,
-  `svdRightBasis_image_eq_singularValue_smul_leftHead`,
-  `svdLeftHeadVectorOfPositive_head_row_zero`, and
-  `svdLeftHeadVectorOfPositive_head_entry`.
-- Positive-case left-basis extension bridge:
-  `svdLeftBasis_head_col_zero_of_head_eq_positive`,
-  `svdLeftHeadVectorOfPositive_singleton_orthonormal`,
-  `svdLeftBasisOfPositive`, `svdLeftBasisOfPositive_head`, and
-  `svdLeftBasisOfPositive_head_col_zero`.
-- Fixed-matrix witness layer:
-  `SVDHeadBasisWitness`, `svdHeadBasisWitnessOfPositiveHead`, and
-  `svdHeadBasisDataOfWitnessFamily`.
-- Zero-eigenvalue witness branch:
-  `matrix_eq_zero_of_svdRightEigenvalue_eq_zero`,
-  `svdHeadBasisWitnessOfZeroMatrix`, and
-  `svdHeadBasisWitnessOfZeroEigenvalues`.
-- Completed matrix-local spectral witness selection:
-  `svdHeadBasisWitnessOfPositiveIndex` moves any positive right singular
-  vector to head position by reindexing with `Equiv.swap`, while
-  `svdHeadBasisWitness` chooses the positive branch when it exists and the
-  zero-matrix branch otherwise.
-- Completed basis-data and final framework entry:
-  `svdHeadBasisData` supplies the one-step data family, and public
-  `exists_svd` is obtained through `exists_svd_framework_headBasisData`.
-
-Remaining mathematical step:
-
-- None for the complex SVD theorem currently exposed as `exists_svd`. The
-  broader `RCLike` generalization remains future work, dependent on matching
-  spectral theorem support.
+- 目录和最小文件结构已经存在。
+- 本计划要求 SVD 保持 rectangular descent route。
+- 若后续 Lean 文件已有进展，更新本节记录已完成 milestone；不要让 theorem 名称隐藏尚未消解的
+  oracle/hook 条件。
