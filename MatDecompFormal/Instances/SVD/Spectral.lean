@@ -250,6 +250,280 @@ lemma svdLeftHeadVectorOfPositive_head_entry [DecidableEq n]
   rw [svdLeftHeadVectorOfPositive_star_dotProduct_self A j hpos]
   simp
 
+lemma svdLeftBasis_head_col_zero_of_head_eq_positive
+    {m n : Type*} [Fintype m] [DecidableEq m] [Fintype n] [DecidableEq n]
+    (A : Matrix m n ℂ) (leftHead : m) (rightHead : n)
+    (b : OrthonormalBasis m ℂ (EuclideanSpace ℂ m))
+    (hhead : b leftHead = svdLeftHeadVectorOfPositive A rightHead)
+    (hpos : 0 < svdRightEigenvalue A rightHead)
+    (i : m) (hi : i ≠ leftHead) :
+    star ⇑(b i) ⬝ᵥ (A *ᵥ ⇑(svdRightBasis A rightHead)) = 0 := by
+  calc
+    star ⇑(b i) ⬝ᵥ (A *ᵥ ⇑(svdRightBasis A rightHead))
+        = star ⇑(b i) ⬝ᵥ
+            ((svdSingularValue A rightHead : ℂ) •
+              ⇑(svdLeftHeadVectorOfPositive A rightHead)) := by
+      rw [svdRightBasis_image_eq_singularValue_smul_leftHead A rightHead hpos]
+    _ = (svdSingularValue A rightHead : ℂ) *
+          (star ⇑(b i) ⬝ᵥ ⇑(svdLeftHeadVectorOfPositive A rightHead)) := by
+      simp
+    _ = (svdSingularValue A rightHead : ℂ) *
+          (star ⇑(b i) ⬝ᵥ ⇑(b leftHead)) := by
+      rw [← hhead]
+    _ = 0 := by
+      rw [star_dotProduct_orthonormalBasis_apply]
+      simp [hi]
+
+lemma svdLeftHeadVectorOfPositive_singleton_orthonormal
+    {m n : Type*} [Fintype m] [DecidableEq m] [Fintype n] [DecidableEq n]
+    (A : Matrix m n ℂ) (leftHead : m) (rightHead : n)
+    (hpos : 0 < svdRightEigenvalue A rightHead) :
+    Orthonormal ℂ
+      (({leftHead} : Set m).restrict
+        (fun _ : m => svdLeftHeadVectorOfPositive A rightHead)) := by
+  rw [orthonormal_iff_ite]
+  intro i j
+  have hij : i = j := Subtype.ext (i.2.trans j.2.symm)
+  rw [if_pos hij]
+  change
+    inner ℂ (svdLeftHeadVectorOfPositive A rightHead)
+      (svdLeftHeadVectorOfPositive A rightHead) = 1
+  rw [EuclideanSpace.inner_eq_star_dotProduct]
+  rw [dotProduct_comm]
+  exact svdLeftHeadVectorOfPositive_star_dotProduct_self A rightHead hpos
+
+noncomputable def svdLeftBasisOfPositive
+    {m n : Type*} [Fintype m] [DecidableEq m] [Fintype n] [DecidableEq n]
+    (A : Matrix m n ℂ) (leftHead : m) (rightHead : n)
+    (hpos : 0 < svdRightEigenvalue A rightHead) :
+    OrthonormalBasis m ℂ (EuclideanSpace ℂ m) :=
+  Classical.choose
+    (Orthonormal.exists_orthonormalBasis_extension_of_card_eq
+      (𝕜 := ℂ) (E := EuclideanSpace ℂ m) (ι := m)
+      (by simp)
+      (v := fun _ : m => svdLeftHeadVectorOfPositive A rightHead)
+      (s := {leftHead})
+      (svdLeftHeadVectorOfPositive_singleton_orthonormal A leftHead rightHead hpos))
+
+lemma svdLeftBasisOfPositive_head
+    {m n : Type*} [Fintype m] [DecidableEq m] [Fintype n] [DecidableEq n]
+    (A : Matrix m n ℂ) (leftHead : m) (rightHead : n)
+    (hpos : 0 < svdRightEigenvalue A rightHead) :
+    svdLeftBasisOfPositive A leftHead rightHead hpos leftHead =
+      svdLeftHeadVectorOfPositive A rightHead := by
+  have hspec :=
+    Classical.choose_spec
+      (Orthonormal.exists_orthonormalBasis_extension_of_card_eq
+        (𝕜 := ℂ) (E := EuclideanSpace ℂ m) (ι := m)
+        (by simp)
+        (v := fun _ : m => svdLeftHeadVectorOfPositive A rightHead)
+        (s := {leftHead})
+        (svdLeftHeadVectorOfPositive_singleton_orthonormal A leftHead rightHead hpos))
+  exact hspec leftHead (by simp)
+
+lemma svdLeftBasisOfPositive_head_col_zero
+    {m n : Type*} [Fintype m] [DecidableEq m] [Fintype n] [DecidableEq n]
+    (A : Matrix m n ℂ) (leftHead : m) (rightHead : n)
+    (hpos : 0 < svdRightEigenvalue A rightHead)
+    (i : m) (hi : i ≠ leftHead) :
+    star ⇑(svdLeftBasisOfPositive A leftHead rightHead hpos i) ⬝ᵥ
+        (A *ᵥ ⇑(svdRightBasis A rightHead)) = 0 := by
+  exact
+    svdLeftBasis_head_col_zero_of_head_eq_positive A leftHead rightHead
+      (svdLeftBasisOfPositive A leftHead rightHead hpos)
+      (svdLeftBasisOfPositive_head A leftHead rightHead hpos) hpos i hi
+
+/--
+Basis-level one-step SVD witness for a fixed matrix. This is the matrix-local
+form of `SVDHeadBasisData`; it is easier to construct first because the
+positive and zero singular-value cases are selected per matrix.
+-/
+structure SVDHeadBasisWitness
+    (m n : Type*) [Fintype m] [DecidableEq m] [LinearOrder m] [Nonempty m]
+    [Fintype n] [DecidableEq n] [LinearOrder n] [Nonempty n]
+    (A : Matrix m n ℂ) where
+  leftBasis : OrthonormalBasis m ℂ (EuclideanSpace ℂ m)
+  rightBasis : OrthonormalBasis n ℂ (EuclideanSpace ℂ n)
+  sigma : ℝ
+  sigma_nonneg : 0 ≤ sigma
+  head_image :
+    A *ᵥ ⇑(rightBasis (headElem (α := n))) =
+      (sigma : ℂ) • ⇑(leftBasis (headElem (α := m)))
+  head_entry :
+    star ⇑(leftBasis (headElem (α := m))) ⬝ᵥ
+      (A *ᵥ ⇑(rightBasis (headElem (α := n)))) = (sigma : ℂ)
+  head_row_zero :
+    ∀ j : n, j ≠ headElem (α := n) →
+      star ⇑(leftBasis (headElem (α := m))) ⬝ᵥ
+        (A *ᵥ ⇑(rightBasis j)) = 0
+  head_col_zero :
+    ∀ i : m, i ≠ headElem (α := m) →
+      star ⇑(leftBasis i) ⬝ᵥ
+        (A *ᵥ ⇑(rightBasis (headElem (α := n)))) = 0
+
+noncomputable def svdHeadBasisWitnessOfPositiveHead
+    {m n : Type*} [Fintype m] [DecidableEq m] [LinearOrder m] [Nonempty m]
+    [Fintype n] [DecidableEq n] [LinearOrder n] [Nonempty n]
+    (A : Matrix m n ℂ)
+    (hpos : 0 < svdRightEigenvalue A (headElem (α := n))) :
+    SVDHeadBasisWitness m n A where
+  leftBasis :=
+    svdLeftBasisOfPositive A (headElem (α := m)) (headElem (α := n)) hpos
+  rightBasis := svdRightBasis A
+  sigma := svdSingularValue A (headElem (α := n))
+  sigma_nonneg := svdSingularValue_nonneg A (headElem (α := n))
+  head_image := by
+    rw [svdRightBasis_image_eq_singularValue_smul_leftHead A (headElem (α := n)) hpos]
+    rw [← svdLeftBasisOfPositive_head A (headElem (α := m)) (headElem (α := n)) hpos]
+  head_entry := by
+    have hhead_fun :
+        ⇑(svdLeftBasisOfPositive A (headElem (α := m)) (headElem (α := n)) hpos
+            (headElem (α := m))) =
+          ⇑(svdLeftHeadVectorOfPositive A (headElem (α := n))) :=
+      congrArg (fun v : EuclideanSpace ℂ m => ⇑v)
+        (svdLeftBasisOfPositive_head A (headElem (α := m)) (headElem (α := n)) hpos)
+    rw [hhead_fun]
+    exact svdLeftHeadVectorOfPositive_head_entry A (headElem (α := n)) hpos
+  head_row_zero := by
+    intro j hj
+    have hhead_fun :
+        ⇑(svdLeftBasisOfPositive A (headElem (α := m)) (headElem (α := n)) hpos
+            (headElem (α := m))) =
+          ⇑(svdLeftHeadVectorOfPositive A (headElem (α := n))) :=
+      congrArg (fun v : EuclideanSpace ℂ m => ⇑v)
+        (svdLeftBasisOfPositive_head A (headElem (α := m)) (headElem (α := n)) hpos)
+    rw [hhead_fun]
+    exact svdLeftHeadVectorOfPositive_head_row_zero A (headElem (α := n)) j (Ne.symm hj)
+  head_col_zero := by
+    intro i hi
+    exact svdLeftBasisOfPositive_head_col_zero A
+      (headElem (α := m)) (headElem (α := n)) hpos i hi
+
+lemma swap_apply_ne_right_of_ne_left
+    {α : Type*} [DecidableEq α] (a b j : α) (hj : j ≠ a) :
+    Equiv.swap a b j ≠ b := by
+  intro h
+  have h' : j = Equiv.swap a b b := by
+    simpa only [Equiv.swap_apply_eq_iff] using h
+  exact hj (by simpa using h')
+
+lemma swap_symm_apply
+    {α : Type*} [DecidableEq α] (a b j : α) :
+    (Equiv.swap a b).symm j = Equiv.swap a b j := by
+  simp [Equiv.symm_swap]
+
+noncomputable def svdHeadBasisWitnessOfPositiveIndex
+    {m n : Type*} [Fintype m] [DecidableEq m] [LinearOrder m] [Nonempty m]
+    [Fintype n] [DecidableEq n] [LinearOrder n] [Nonempty n]
+    (A : Matrix m n ℂ) (k : n) (hpos : 0 < svdRightEigenvalue A k) :
+    SVDHeadBasisWitness m n A where
+  leftBasis :=
+    svdLeftBasisOfPositive A (headElem (α := m)) k hpos
+  rightBasis :=
+    (svdRightBasis A).reindex (Equiv.swap (headElem (α := n)) k)
+  sigma := svdSingularValue A k
+  sigma_nonneg := svdSingularValue_nonneg A k
+  head_image := by
+    rw [OrthonormalBasis.reindex_apply]
+    rw [swap_symm_apply, Equiv.swap_apply_left]
+    rw [svdRightBasis_image_eq_singularValue_smul_leftHead A k hpos]
+    rw [← svdLeftBasisOfPositive_head A (headElem (α := m)) k hpos]
+  head_entry := by
+    rw [OrthonormalBasis.reindex_apply]
+    rw [swap_symm_apply, Equiv.swap_apply_left]
+    have hhead_fun :
+        ⇑(svdLeftBasisOfPositive A (headElem (α := m)) k hpos
+            (headElem (α := m))) =
+          ⇑(svdLeftHeadVectorOfPositive A k) :=
+      congrArg (fun v : EuclideanSpace ℂ m => ⇑v)
+        (svdLeftBasisOfPositive_head A (headElem (α := m)) k hpos)
+    rw [hhead_fun]
+    exact svdLeftHeadVectorOfPositive_head_entry A k hpos
+  head_row_zero := by
+    intro j hj
+    rw [OrthonormalBasis.reindex_apply]
+    rw [swap_symm_apply]
+    have hhead_fun :
+        ⇑(svdLeftBasisOfPositive A (headElem (α := m)) k hpos
+            (headElem (α := m))) =
+          ⇑(svdLeftHeadVectorOfPositive A k) :=
+      congrArg (fun v : EuclideanSpace ℂ m => ⇑v)
+        (svdLeftBasisOfPositive_head A (headElem (α := m)) k hpos)
+    rw [hhead_fun]
+    exact svdLeftHeadVectorOfPositive_head_row_zero A k
+      (Equiv.swap (headElem (α := n)) k j)
+      (Ne.symm (swap_apply_ne_right_of_ne_left (headElem (α := n)) k j hj))
+  head_col_zero := by
+    intro i hi
+    rw [OrthonormalBasis.reindex_apply]
+    rw [swap_symm_apply, Equiv.swap_apply_left]
+    exact svdLeftBasisOfPositive_head_col_zero A
+      (headElem (α := m)) k hpos i hi
+
+lemma matrix_eq_zero_of_svdRightEigenvalue_eq_zero
+    {m n : Type*} [Fintype m] [Fintype n] [DecidableEq n]
+    (A : Matrix m n ℂ)
+    (hzero : ∀ j : n, svdRightEigenvalue A j = 0) :
+    A = 0 := by
+  have hgram_zero : svdRightGram A = 0 := by
+    have heigs : (svdRightGram_isHermitian A).eigenvalues = 0 := by
+      ext j
+      exact hzero j
+    simpa using (svdRightGram_isHermitian A).eigenvalues_eq_zero_iff.mp heigs
+  exact Matrix.conjTranspose_mul_self_eq_zero.mp (by simpa [svdRightGram] using hgram_zero)
+
+noncomputable def svdHeadBasisWitnessOfZeroMatrix
+    {m n : Type*} [Fintype m] [DecidableEq m] [LinearOrder m] [Nonempty m]
+    [Fintype n] [DecidableEq n] [LinearOrder n] [Nonempty n]
+    (A : Matrix m n ℂ) (hA : A = 0) :
+    SVDHeadBasisWitness m n A where
+  leftBasis := EuclideanSpace.basisFun m ℂ
+  rightBasis := EuclideanSpace.basisFun n ℂ
+  sigma := 0
+  sigma_nonneg := le_rfl
+  head_image := by
+    rw [hA]
+    ext i
+    simp
+  head_entry := by
+    rw [hA]
+    simp
+  head_row_zero := by
+    intro j hj
+    rw [hA]
+    simp
+  head_col_zero := by
+    intro i hi
+    rw [hA]
+    simp
+
+noncomputable def svdHeadBasisWitnessOfZeroEigenvalues
+    {m n : Type*} [Fintype m] [DecidableEq m] [LinearOrder m] [Nonempty m]
+    [Fintype n] [DecidableEq n] [LinearOrder n] [Nonempty n]
+    (A : Matrix m n ℂ)
+    (hzero : ∀ j : n, svdRightEigenvalue A j = 0) :
+    SVDHeadBasisWitness m n A :=
+  svdHeadBasisWitnessOfZeroMatrix A
+    (matrix_eq_zero_of_svdRightEigenvalue_eq_zero A hzero)
+
+noncomputable def svdHeadBasisWitness
+    {m n : Type*} [Fintype m] [DecidableEq m] [LinearOrder m] [Nonempty m]
+    [Fintype n] [DecidableEq n] [LinearOrder n] [Nonempty n]
+    (A : Matrix m n ℂ) :
+    SVDHeadBasisWitness m n A := by
+  classical
+  by_cases hpos_exists : ∃ k : n, 0 < svdRightEigenvalue A k
+  · let k := Classical.choose hpos_exists
+    exact svdHeadBasisWitnessOfPositiveIndex A k (Classical.choose_spec hpos_exists)
+  · have hzero : ∀ j : n, svdRightEigenvalue A j = 0 := by
+      intro j
+      have hnonneg : 0 ≤ svdRightEigenvalue A j := svdRightEigenvalue_nonneg A j
+      have hnotpos : ¬ 0 < svdRightEigenvalue A j := by
+        intro hj
+        exact hpos_exists ⟨j, hj⟩
+      exact le_antisymm (not_lt.mp hnotpos) hnonneg
+    exact svdHeadBasisWitnessOfZeroEigenvalues A hzero
+
 lemma star_dotProduct_mulVec_eq_entry
     {m n : Type*} [Fintype m] [Fintype n]
     (A : Matrix m n ℂ) (u : m → ℂ) (v : n → ℂ) :
@@ -286,6 +560,26 @@ structure SVDHeadBasisData
     ∀ A (i : m), i ≠ headElem (α := m) →
       star ⇑(leftBasis A i) ⬝ᵥ
         (A *ᵥ ⇑(rightBasis A (headElem (α := n)))) = 0
+
+noncomputable def svdHeadBasisDataOfWitnessFamily
+    {m n : Type*} [Fintype m] [DecidableEq m] [LinearOrder m] [Nonempty m]
+    [Fintype n] [DecidableEq n] [LinearOrder n] [Nonempty n]
+    (witness : (A : Matrix m n ℂ) → SVDHeadBasisWitness m n A) :
+    SVDHeadBasisData m n where
+  leftBasis := fun A => (witness A).leftBasis
+  rightBasis := fun A => (witness A).rightBasis
+  sigma := fun A => (witness A).sigma
+  sigma_nonneg := fun A => (witness A).sigma_nonneg
+  head_image := fun A => (witness A).head_image
+  head_entry := fun A => (witness A).head_entry
+  head_row_zero := fun A => (witness A).head_row_zero
+  head_col_zero := fun A => (witness A).head_col_zero
+
+noncomputable def svdHeadBasisData
+    (m n : Type*) [Fintype m] [DecidableEq m] [LinearOrder m] [Nonempty m]
+    [Fintype n] [DecidableEq n] [LinearOrder n] [Nonempty n] :
+    SVDHeadBasisData m n :=
+  svdHeadBasisDataOfWitnessFamily (fun A => svdHeadBasisWitness A)
 
 noncomputable def SVDHeadBasisData.leftUnitary
     {m n : Type*} [Fintype m] [DecidableEq m] [LinearOrder m] [Nonempty m]

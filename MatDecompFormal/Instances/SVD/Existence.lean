@@ -167,4 +167,19 @@ theorem exists_svd_framework_headBasisData
         svdHeadSingularVectorDataOfHeadBasisData p q (basisData (p := p) (q := q))
   exact exists_svd_framework_headSingularVectorData headData A
 
+/--
+Unconditional complex singular value decomposition, assembled through the
+project's rectangular descent framework.
+-/
+theorem exists_svd
+    {m n : Type u} [Fintype m] [DecidableEq m] [LinearOrder m]
+    [Fintype n] [DecidableEq n] [LinearOrder n]
+    (A : Matrix m n ℂ) :
+    HasSVD A := by
+  exact exists_svd_framework_headBasisData
+    (fun {p q} [Fintype p] [DecidableEq p] [LinearOrder p] [Nonempty p]
+      [Fintype q] [DecidableEq q] [LinearOrder q] [Nonempty q] =>
+        svdHeadBasisData p q)
+    A
+
 end MatDecompFormal.Instances

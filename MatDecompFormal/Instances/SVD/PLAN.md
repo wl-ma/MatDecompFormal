@@ -211,10 +211,29 @@ Completed framework-facing milestones:
   `svdRightBasis_image_eq_singularValue_smul_leftHead`,
   `svdLeftHeadVectorOfPositive_head_row_zero`, and
   `svdLeftHeadVectorOfPositive_head_entry`.
+- Positive-case left-basis extension bridge:
+  `svdLeftBasis_head_col_zero_of_head_eq_positive`,
+  `svdLeftHeadVectorOfPositive_singleton_orthonormal`,
+  `svdLeftBasisOfPositive`, `svdLeftBasisOfPositive_head`, and
+  `svdLeftBasisOfPositive_head_col_zero`.
+- Fixed-matrix witness layer:
+  `SVDHeadBasisWitness`, `svdHeadBasisWitnessOfPositiveHead`, and
+  `svdHeadBasisDataOfWitnessFamily`.
+- Zero-eigenvalue witness branch:
+  `matrix_eq_zero_of_svdRightEigenvalue_eq_zero`,
+  `svdHeadBasisWitnessOfZeroMatrix`, and
+  `svdHeadBasisWitnessOfZeroEigenvalues`.
+- Completed matrix-local spectral witness selection:
+  `svdHeadBasisWitnessOfPositiveIndex` moves any positive right singular
+  vector to head position by reindexing with `Equiv.swap`, while
+  `svdHeadBasisWitness` chooses the positive branch when it exists and the
+  zero-matrix branch otherwise.
+- Completed basis-data and final framework entry:
+  `svdHeadBasisData` supplies the one-step data family, and public
+  `exists_svd` is obtained through `exists_svd_framework_headBasisData`.
 
 Remaining mathematical step:
 
-- Construct `SVDHeadBasisData` from the right Gram spectral data by selecting
-  a head right singular vector, finishing the zero singular-value case,
-  extending the positive-case left head vector to an orthonormal basis, and
-  wiring the completed bases into the framework-routed theorem.
+- None for the complex SVD theorem currently exposed as `exists_svd`. The
+  broader `RCLike` generalization remains future work, dependent on matching
+  spectral theorem support.
