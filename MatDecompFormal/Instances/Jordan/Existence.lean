@@ -93,7 +93,7 @@ structure JordanBlockDriverOracle
 
 /-- Convert an explicit two-sided inverse into the public matrix invertibility predicate. -/
 lemma invertibleMatrix_of_hasMatrixInverse
-    {K : Type u} [Field K] {ι : Type u} [Fintype ι] [DecidableEq ι]
+    {K : Type u} [Field K] {ι : Type*} [Fintype ι] [DecidableEq ι]
     {P Pinv : Matrix ι ι K}
     (hInv : HasMatrixInverse P Pinv) :
     InvertibleMatrix P := by
@@ -114,6 +114,414 @@ structure JordanCompanionBlockBridge
       SingleCompanionBlockForm C p →
         p.Splits (RingHom.id K) →
           HasJordanMatrix C
+
+/--
+Degree-one companion blocks are already Jordan blocks up to the one-dimensional
+matrix API.  This is the leaf case for the split companion-block bridge.
+-/
+theorem singleCompanionBlockForm_hasJordan_of_natDegree_eq_one
+    {K : Type u} [Field K]
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {C : Matrix ι ι K} {p : K[X]}
+    (hC : SingleCompanionBlockForm C p)
+    (hdeg : p.natDegree = 1) :
+    HasJordanMatrix C := by
+  exact hasJordanMatrix_of_card_eq_one
+    (A := C)
+    (by
+      rw [singleCompanionBlockForm_card_eq_natDegree hC]
+      exact hdeg)
+
+/--
+Concrete split-factorization payload for a polynomial over `K`.
+
+This records the algebraic information needed by the higher-degree companion
+block bridge: a split monic polynomial is written as a finite product of powers
+of distinct linear factors.
+-/
+structure JordanSplitPolynomialFactorization
+    (K : Type u) [Field K] (p : K[X]) : Type (u + 1) where
+  rootIdx : Type u
+  [fintype_rootIdx : Fintype rootIdx]
+  [decEq_rootIdx : DecidableEq rootIdx]
+  eigenvalue : rootIdx → K
+  eigenvalue_injective : Function.Injective eigenvalue
+  exponent : rootIdx → Nat
+  exponent_pos : ∀ r, 0 < exponent r
+  factorization :
+    p = ∏ r : rootIdx,
+      (Polynomial.X - Polynomial.C (eigenvalue r)) ^ exponent r
+
+attribute [instance] JordanSplitPolynomialFactorization.fintype_rootIdx
+attribute [instance] JordanSplitPolynomialFactorization.decEq_rootIdx
+
+/--
+Bridge from the convenient split-polynomial hypothesis to explicit linear-power
+factorization data.
+
+This is proof infrastructure for `JordanCompanionBlockBridge`, not a public
+assumption of the final Jordan theorem.
+-/
+structure JordanSplitPolynomialFactorizationBridge
+    (K : Type u) [Field K] : Type (u + 1) where
+  factorization_of_splits :
+    ∀ {p : K[X]},
+      p.Monic →
+        0 < p.natDegree →
+          p.Splits (RingHom.id K) →
+            JordanSplitPolynomialFactorization K p
+
+/--
+Concrete split-polynomial factorization bridge over a field.
+
+The root index is the finset of roots of `p`; the exponent is the root
+multiplicity.  This is the user-facing split hypothesis converted into the
+distinct linear-power payload needed by the companion-block bridge.
+-/
+noncomputable def jordanSplitPolynomialFactorizationBridge
+    (K : Type u) [Field K] :
+    JordanSplitPolynomialFactorizationBridge K where
+  factorization_of_splits := by
+    intro p hp _hpos hsplit
+    classical
+    refine {
+      rootIdx := {a : K // a ∈ p.roots.toFinset}
+      eigenvalue := fun a => a.1
+      eigenvalue_injective := ?_
+      exponent := fun a => p.rootMultiplicity a.1
+      exponent_pos := ?_
+      factorization := ?_
+    }
+    · intro a b h
+      exact Subtype.ext h
+    · intro a
+      have hmemRoots : a.1 ∈ p.roots := by
+        exact Multiset.mem_toFinset.mp a.2
+      have hcount : 0 < p.roots.count a.1 := by
+        exact Multiset.count_pos.2 hmemRoots
+      simpa [Polynomial.count_roots] using hcount
+    · have hroots :
+          p = Polynomial.C p.leadingCoeff *
+            (p.roots.map fun a => Polynomial.X - Polynomial.C a).prod := by
+        exact Polynomial.eq_prod_roots_of_splits_id hsplit
+      have hmonicCoeff : Polynomial.C p.leadingCoeff = (1 : K[X]) := by
+        rw [hp.leadingCoeff]
+        simp
+      have hrootsMonic :
+          p = (p.roots.map fun a => Polynomial.X - Polynomial.C a).prod := by
+        simpa [hmonicCoeff] using hroots
+      have hfinset :
+          (p.roots.map fun a => Polynomial.X - Polynomial.C a).prod =
+            p.roots.toFinset.prod fun a =>
+              (Polynomial.X - Polynomial.C a) ^ p.rootMultiplicity a := by
+        exact Polynomial.prod_multiset_root_eq_finset_root (p := p)
+      calc
+        p = (p.roots.map fun a => Polynomial.X - Polynomial.C a).prod := hrootsMonic
+        _ = p.roots.toFinset.prod fun a =>
+              (Polynomial.X - Polynomial.C a) ^ p.rootMultiplicity a := hfinset
+        _ = ∏ r : {a : K // a ∈ p.roots.toFinset},
+              (Polynomial.X - Polynomial.C r.1) ^ p.rootMultiplicity r.1 := by
+          exact Finset.prod_subtype
+            (s := p.roots.toFinset)
+            (p := fun a => a ∈ p.roots.toFinset)
+            (by intro a; rfl)
+            (fun a => (Polynomial.X - Polynomial.C a) ^ p.rootMultiplicity a)
+
+/--
+Bridge from explicit split-factorization data for a companion polynomial to a
+Jordan form of the companion block.
+
+The remaining higher-degree mathematics lives here: powers of linear factors
+give Jordan-chain blocks, and coprime primary factors combine by block
+decomposition.
+-/
+structure JordanFactorizedCompanionBlockBridge
+    (K : Type u) [Field K] : Type (u + 1) where
+  companion_hasJordan_of_factorization :
+    ∀ {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+      {C : Matrix ι ι K} {p : K[X]},
+      SingleCompanionBlockForm C p →
+        JordanSplitPolynomialFactorization K p →
+          HasJordanMatrix C
+
+/--
+Jordan-chain obligation for a companion block whose polynomial is a single
+linear factor power.
+
+This is the local nilpotent/Jordan-chain theorem still needed inside the
+higher-degree companion-block proof.  It is kept separate from the public
+Jordan theorem and from the recursive driver.
+-/
+structure JordanLinearPowerCompanionBlockBridge
+    (K : Type u) [Field K] : Type (u + 1) where
+  companion_hasJordan_of_linear_power :
+    ∀ {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+      {C : Matrix ι ι K} (lam : K) (n : Nat),
+      0 < n →
+        SingleCompanionBlockForm C
+          ((Polynomial.X - Polynomial.C lam) ^ n) →
+          HasJordanMatrix C
+
+/--
+The chain-basis change matrix for the companion block of `(X - C lam)^n`.
+
+Column `j` records the coefficients in the power basis of
+`(X - C lam)^(n - 1 - j)`.  The explicit low-dimensional matrices below are
+instances of this binomial formula.
+-/
+def linearPowerCompanionChange
+    {K : Type u} [Field K] (lam : K) (n : Nat) :
+    Matrix (Fin n) (Fin n) K :=
+  fun i j =>
+    if (i : Nat) ≤ n - 1 - (j : Nat) then
+      (Nat.choose (n - 1 - (j : Nat)) (i : Nat) : K) *
+        (-lam) ^ (n - 1 - (j : Nat) - (i : Nat))
+    else
+      0
+
+/--
+The inverse chain-basis change matrix for `(X - C lam)^n`.
+
+This is the inverse binomial transform to `linearPowerCompanionChange`; row `r`
+extracts the coefficient of `(X - C lam)^(n - 1 - r)` from a power-basis vector.
+-/
+def linearPowerCompanionChangeInv
+    {K : Type u} [Field K] (lam : K) (n : Nat) :
+    Matrix (Fin n) (Fin n) K :=
+  fun r c =>
+    if n - 1 - (r : Nat) ≤ (c : Nat) then
+      (Nat.choose (c : Nat) (n - 1 - (r : Nat)) : K) *
+        lam ^ ((c : Nat) - (n - 1 - (r : Nat)))
+    else
+      0
+
+/--
+The entries of `linearPowerCompanionChange` are coefficients of the chain
+polynomials `(X - C lam)^(n - 1 - j)` in the power basis.
+-/
+theorem linearPowerCompanionChange_eq_coeff_X_sub_C_pow
+    {K : Type u} [Field K] (lam : K) {n : Nat} (i j : Fin n) :
+    linearPowerCompanionChange lam n i j =
+      (((Polynomial.X - Polynomial.C lam) ^
+        (n - 1 - (j : Nat)) : K[X]).coeff (i : Nat)) := by
+  rw [sub_eq_add_neg, ← Polynomial.C_neg, Polynomial.coeff_X_add_C_pow]
+  by_cases h : (i : Nat) ≤ n - 1 - (j : Nat)
+  · simp [linearPowerCompanionChange, h]
+    ring
+  · have hlt : n - 1 - (j : Nat) < (i : Nat) := Nat.lt_of_not_ge h
+    simp [linearPowerCompanionChange, h, Nat.choose_eq_zero_of_lt hlt]
+
+/--
+The entries of `linearPowerCompanionChangeInv` are coefficients of
+`X^c = ((X - C lam) + C lam)^c` in the shifted chain basis.
+-/
+theorem linearPowerCompanionChangeInv_eq_coeff_X_add_C_pow
+    {K : Type u} [Field K] (lam : K) {n : Nat} (r c : Fin n) :
+    linearPowerCompanionChangeInv lam n r c =
+      (((Polynomial.X + Polynomial.C lam) ^ (c : Nat) : K[X]).coeff
+        (n - 1 - (r : Nat))) := by
+  rw [Polynomial.coeff_X_add_C_pow]
+  by_cases h : n - 1 - (r : Nat) ≤ (c : Nat)
+  · simp [linearPowerCompanionChangeInv, h]
+    ring
+  · have hlt : (c : Nat) < n - 1 - (r : Nat) := Nat.lt_of_not_ge h
+    simp [linearPowerCompanionChangeInv, h, Nat.choose_eq_zero_of_lt hlt]
+
+/--
+Translating the chain polynomial `(X - C lam)^k` by `X + C lam` recovers the
+ordinary monomial `X^k`.
+-/
+theorem linearPowerCompanion_chain_comp_X_add_C
+    {K : Type u} [Field K] (lam : K) (k : Nat) :
+    (((Polynomial.X - Polynomial.C lam) ^ k : K[X]).comp
+      (Polynomial.X + Polynomial.C lam)) = Polynomial.X ^ k := by
+  rw [Polynomial.pow_comp, Polynomial.sub_comp, Polynomial.X_comp, Polynomial.C_comp]
+  simp
+
+/--
+Coefficient form of `linearPowerCompanion_chain_comp_X_add_C`.
+-/
+theorem linearPowerCompanion_chain_comp_X_add_C_coeff
+    {K : Type u} [Field K] (lam : K) (k m : Nat) :
+    ((((Polynomial.X - Polynomial.C lam) ^ k : K[X]).comp
+      (Polynomial.X + Polynomial.C lam)).coeff m) =
+      if m = k then 1 else 0 := by
+  rw [linearPowerCompanion_chain_comp_X_add_C]
+  exact Polynomial.coeff_X_pow k m
+
+/-- Entries above the chain-basis support of `linearPowerCompanionChange` vanish. -/
+theorem linearPowerCompanionChange_eq_zero_of_lt
+    {K : Type u} [Field K] (lam : K) {n : Nat} (i j : Fin n)
+    (h : n - 1 - (j : Nat) < (i : Nat)) :
+    linearPowerCompanionChange lam n i j = 0 := by
+  simp [linearPowerCompanionChange, Nat.not_le_of_gt h]
+
+/-- Entries below the support of the inverse binomial change matrix vanish. -/
+theorem linearPowerCompanionChangeInv_eq_zero_of_lt
+    {K : Type u} [Field K] (lam : K) {n : Nat} (r c : Fin n)
+    (h : (c : Nat) < n - 1 - (r : Nat)) :
+    linearPowerCompanionChangeInv lam n r c = 0 := by
+  simp [linearPowerCompanionChangeInv, Nat.not_le_of_gt h]
+
+/--
+The anti-diagonal entries of the chain-basis change matrix are `1`.
+
+The row `n - 1 - j` is represented by an arbitrary `Fin n` value `i`; this
+form avoids constructing a dependent `Fin` term from subtraction.
+-/
+theorem linearPowerCompanionChange_antidiagonal
+    {K : Type u} [Field K] (lam : K) {n : Nat} (i j : Fin n)
+    (hij : (i : Nat) = n - 1 - (j : Nat)) :
+    linearPowerCompanionChange lam n i j = 1 := by
+  simp [linearPowerCompanionChange, hij]
+
+/--
+The anti-diagonal entries of the inverse binomial change matrix are `1`.
+-/
+theorem linearPowerCompanionChangeInv_antidiagonal
+    {K : Type u} [Field K] (lam : K) {n : Nat} (r c : Fin n)
+    (hrc : (c : Nat) = n - 1 - (r : Nat)) :
+    linearPowerCompanionChangeInv lam n r c = 1 := by
+  simp [linearPowerCompanionChangeInv, hrc]
+
+/--
+The exponent-one linear-power companion case is the already-proved
+one-dimensional companion leaf.
+-/
+theorem companion_hasJordan_of_linear_power_one
+    {K : Type u} [Field K]
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {C : Matrix ι ι K} (lam : K)
+    (hC : SingleCompanionBlockForm C
+      ((Polynomial.X - Polynomial.C lam) ^ (1 : Nat))) :
+    HasJordanMatrix C := by
+  exact singleCompanionBlockForm_hasJordan_of_natDegree_eq_one
+    hC
+    (by simp)
+
+/--
+A single-root split-factorization reduces the companion-block obligation to
+the linear-power companion bridge.
+-/
+theorem companion_hasJordan_of_single_root_factorization
+    {K : Type u} [Field K]
+    (bridge : JordanLinearPowerCompanionBlockBridge K)
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {C : Matrix ι ι K} {p : K[X]}
+    (hC : SingleCompanionBlockForm C p)
+    (factorization : JordanSplitPolynomialFactorization K p)
+    [Unique factorization.rootIdx] :
+    HasJordanMatrix C := by
+  classical
+  let r₀ : factorization.rootIdx := default
+  let q : K[X] :=
+    (Polynomial.X - Polynomial.C (factorization.eigenvalue r₀)) ^
+      factorization.exponent r₀
+  have hpq : p = q := by
+    have hprod :
+        (∏ r : factorization.rootIdx,
+            (Polynomial.X - Polynomial.C (factorization.eigenvalue r)) ^
+              factorization.exponent r) = q := by
+      simp [q, r₀]
+    exact factorization.factorization.trans hprod
+  have hCq :
+      SingleCompanionBlockForm C q := by
+    simpa [hpq] using hC
+  exact bridge.companion_hasJordan_of_linear_power
+    (factorization.eigenvalue r₀)
+    (factorization.exponent r₀)
+    (factorization.exponent_pos r₀)
+    hCq
+
+/--
+A single-root factorization with a known exponent rewrites the companion block
+to the corresponding linear-power companion block.
+-/
+theorem singleCompanionBlockForm_of_single_root_factorization_exponent_eq
+    {K : Type u} [Field K]
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {C : Matrix ι ι K} {p : K[X]}
+    (hC : SingleCompanionBlockForm C p)
+    (factorization : JordanSplitPolynomialFactorization K p)
+    [Unique factorization.rootIdx]
+    {n : Nat}
+    (hexp : factorization.exponent default = n) :
+    SingleCompanionBlockForm C
+      ((Polynomial.X - Polynomial.C (factorization.eigenvalue default)) ^ n) := by
+  classical
+  let r₀ : factorization.rootIdx := default
+  let q : K[X] :=
+    (Polynomial.X - Polynomial.C (factorization.eigenvalue r₀)) ^
+      factorization.exponent r₀
+  have hpq : p = q := by
+    have hprod :
+        (∏ r : factorization.rootIdx,
+            (Polynomial.X - Polynomial.C (factorization.eigenvalue r)) ^
+              factorization.exponent r) = q := by
+      simp [q, r₀]
+    exact factorization.factorization.trans hprod
+  have hq :
+      q =
+        (Polynomial.X - Polynomial.C (factorization.eigenvalue default)) ^ n := by
+    simp [q, r₀, hexp]
+  simpa [hpq, hq] using hC
+
+/--
+A single-root factorization with exponent one is completely discharged by the
+degree-one companion leaf.
+-/
+theorem companion_hasJordan_of_single_root_exponent_one_factorization
+    {K : Type u} [Field K]
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {C : Matrix ι ι K} {p : K[X]}
+    (hC : SingleCompanionBlockForm C p)
+    (factorization : JordanSplitPolynomialFactorization K p)
+    [Unique factorization.rootIdx]
+    (hexp : factorization.exponent default = 1) :
+    HasJordanMatrix C := by
+  classical
+  let r₀ : factorization.rootIdx := default
+  let q : K[X] :=
+    (Polynomial.X - Polynomial.C (factorization.eigenvalue r₀)) ^
+      factorization.exponent r₀
+  have hpq : p = q := by
+    have hprod :
+        (∏ r : factorization.rootIdx,
+            (Polynomial.X - Polynomial.C (factorization.eigenvalue r)) ^
+              factorization.exponent r) = q := by
+      simp [q, r₀]
+    exact factorization.factorization.trans hprod
+  have hq :
+      q = (Polynomial.X - Polynomial.C (factorization.eigenvalue r₀)) ^ (1 : Nat) := by
+    simp [q, r₀, hexp]
+  have hCq :
+      SingleCompanionBlockForm C
+        ((Polynomial.X - Polynomial.C (factorization.eigenvalue r₀)) ^ (1 : Nat)) := by
+    simpa [hpq, hq] using hC
+  exact companion_hasJordan_of_linear_power_one
+    (factorization.eigenvalue r₀)
+    hCq
+
+/--
+Split companion-block bridge decomposed into a polynomial-factorization bridge
+and a factorized-companion-to-Jordan bridge.
+-/
+structure JordanSplitCompanionBlockBridge
+    (K : Type u) [Field K] : Type (u + 1) where
+  factorizationBridge : JordanSplitPolynomialFactorizationBridge K
+  factorizedCompanionBridge : JordanFactorizedCompanionBlockBridge K
+
+/-- The decomposed split companion-block bridge supplies `JordanCompanionBlockBridge`. -/
+noncomputable def JordanSplitCompanionBlockBridge.toCompanionBlockBridge
+    {K : Type u} [Field K]
+    (bridge : JordanSplitCompanionBlockBridge K) :
+    JordanCompanionBlockBridge K where
+  companion_hasJordan_of_splits := by
+    intro ι _ _ _ C p hC hsplit
+    exact bridge.factorizedCompanionBridge.companion_hasJordan_of_factorization
+      hC
+      (bridge.factorizationBridge.factorization_of_splits
+        hC.1 hC.2.1 hsplit)
 
 /--
 Split-aware RCF bridge for the Jordan block driver.
@@ -229,6 +637,23 @@ structure JordanRCFCompanionCharpolyBridge
       let step := rationalCanonicalBlockStep rcfOracle x_sub
       step.head.charpoly = step.cyclic_annihilator
   companionBridge : JordanCompanionBlockBridge K
+
+/--
+The companion-head characteristic-polynomial bridge follows from the concrete
+RCF block payload: the selected head is a verified single companion block for
+the selected cyclic annihilator.
+-/
+noncomputable def JordanRCFCompanionCharpolyBridge.ofCompanionBridge
+    {K : Type u} [Field K]
+    (rcfOracle : RationalCanonicalBlockStepOracle.{u, u} K)
+    (companionBridge : JordanCompanionBlockBridge K) :
+    JordanRCFCompanionCharpolyBridge K where
+  rcfOracle := rcfOracle
+  companion_head_charpoly := by
+    intro x_sub
+    let step := rationalCanonicalBlockStep rcfOracle x_sub
+    exact singleCompanionBlockForm_charpoly step.head_companion
+  companionBridge := companionBridge
 
 /-- The companion-head charpoly bridge supplies selected-annihilator divisibility. -/
 noncomputable def JordanRCFCompanionCharpolyBridge.toAnnihilatorDivisibilityBridge
@@ -469,6 +894,41 @@ theorem exists_jordan_matrix_framework_rcf_divisibility_bridge
   exists_jordan_matrix_framework_rcf_split_bridge
     bridge.toSplitBlockBridge A hsplit
 
+/--
+Framework-routed Jordan theorem from an RCF companion-head charpoly bridge.
+
+The companion-head charpoly equality is now a concrete consequence of
+`SingleCompanionBlockForm`; the remaining algebraic input is the companion block
+Jordan bridge itself.
+-/
+theorem exists_jordan_matrix_framework_rcf_companion_charpoly_bridge
+    {K : Type u} [Field K]
+    (bridge : JordanRCFCompanionCharpolyBridge K)
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι K)
+    (hsplit : A.charpoly.Splits (RingHom.id K)) :
+    HasJordanMatrix A :=
+  exists_jordan_matrix_framework_rcf_divisibility_bridge
+    bridge.toAnnihilatorDivisibilityBridge A hsplit
+
+/--
+Framework-routed Jordan theorem from a concrete RCF oracle and the companion
+block Jordan bridge.  This discharges the companion-head characteristic
+polynomial part of the RCF route internally.
+-/
+theorem exists_jordan_matrix_framework_rcf_companion_bridge
+    {K : Type u} [Field K]
+    (rcfOracle : RationalCanonicalBlockStepOracle.{u, u} K)
+    (companionBridge : JordanCompanionBlockBridge K)
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι K)
+    (hsplit : A.charpoly.Splits (RingHom.id K)) :
+    HasJordanMatrix A :=
+  exists_jordan_matrix_framework_rcf_companion_charpoly_bridge
+    (JordanRCFCompanionCharpolyBridge.ofCompanionBridge
+      rcfOracle companionBridge)
+    A hsplit
+
 /-- Slice data for the dependent Jordan block driver. -/
 noncomputable def jordan_block_sliceData
     (K : Type u) [Field K] :
@@ -582,10 +1042,7 @@ theorem exists_jordan_matrix_framework
 
 /--
 Framework-routed Jordan theorem, conditional on the concrete one-step oracle.
-
-The unsuffixed `exists_jordan_matrix_of_splits` name is intentionally reserved
-for the later theorem where this oracle is discharged from rational canonical
-form, primary decomposition, or nilpotent Jordan chains.
+The public unsuffixed split theorem is provided in `SplitSpecialization`.
 -/
 theorem exists_jordan_matrix_framework_oracle
     {K : Type u} [Field K]

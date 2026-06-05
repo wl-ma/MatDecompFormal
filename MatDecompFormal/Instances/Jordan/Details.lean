@@ -2,7 +2,7 @@ import MatDecompFormal.Framework.UniverseDecompositionSquareSubtype
 import MatDecompFormal.Framework.HeadTail
 import MatDecompFormal.Instances.Schur.Direct
 
-universe u v
+universe u v w
 
 namespace MatDecompFormal.Instances
 
@@ -102,6 +102,63 @@ theorem isJordanMatrix_reindex
   · simpa [Fintype.card_congr e] using d.total_size
   · ext x y
     simpa [Matrix.reindex_apply] using congrFun (congrFun d.block_form x) y
+
+/--
+Jordan matrix data is invariant under index reindexing, allowing the source and
+target index types to live in different universes.
+-/
+theorem isJordanMatrix_reindex_universe
+    [Field K]
+    {κ : Type w} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    [Fintype κ] [DecidableEq κ] [LinearOrder κ]
+    (e : ι ≃ κ) {J : Matrix ι ι K}
+    (hJ : IsJordanMatrix J) :
+    IsJordanMatrix (Matrix.reindex e e J) := by
+  classical
+  rcases hJ with ⟨d⟩
+  let eBlock : d.block ≃ ULift.{w, 0} (Fin (Fintype.card d.block)) :=
+    (Fintype.equivFin d.block).trans Equiv.ulift.symm
+  let eSigma :
+      ((b : d.block) × Fin (d.blockSize b)) ≃
+        ((b : ULift.{w, 0} (Fin (Fintype.card d.block))) ×
+          Fin (d.blockSize (eBlock.symm b))) := {
+    toFun x := ⟨eBlock x.1, Equiv.cast (by simp [eBlock]) x.2⟩
+    invFun x := ⟨eBlock.symm x.1, x.2⟩
+    left_inv := by
+      intro x
+      rcases x with ⟨b, i⟩
+      simp [eBlock]
+    right_inv := by
+      intro x
+      rcases x with ⟨b, i⟩
+      simp [eBlock]
+  }
+  refine ⟨{
+    block := ULift.{w, 0} (Fin (Fintype.card d.block))
+    eigenvalue := fun b => d.eigenvalue (eBlock.symm b)
+    blockSize := fun b => d.blockSize (eBlock.symm b)
+    blockSize_pos := fun b => d.blockSize_pos (eBlock.symm b)
+    total_size := ?_
+    blockIndexEquiv :=
+      e.symm.trans <|
+        d.blockIndexEquiv.trans eSigma
+    block_form := ?_
+  }⟩
+  · have hsum :
+        (∑ b : ULift.{w, 0} (Fin (Fintype.card d.block)),
+            d.blockSize (eBlock.symm b)) =
+          ∑ b : d.block, d.blockSize b := by
+      exact Fintype.sum_equiv eBlock.symm
+        (fun b => d.blockSize (eBlock.symm b))
+        (fun b => d.blockSize b)
+        (fun b => rfl)
+    simpa [hsum, Fintype.card_congr e] using d.total_size
+  · ext x y
+    rcases x with ⟨bx, ix⟩
+    rcases y with ⟨bY, iy⟩
+    have hentry :=
+      congrFun (congrFun d.block_form ⟨eBlock.symm bx, ix⟩) ⟨eBlock.symm bY, iy⟩
+    simpa [Matrix.reindex_apply, Matrix.blockDiagonal', eBlock, eSigma] using hentry
 
 /-- Block-diagonal matrix on the lexicographic sum index used by head-tail descent. -/
 noncomputable def jordanBlockDiagLex
@@ -268,6 +325,202 @@ theorem isJordanMatrix_unit
         subst iy
         simp [jordanBlock, Matrix.reindex_apply, Matrix.blockDiagonal']
 
+/-- A standard Jordan block is a Jordan matrix. -/
+theorem isJordanMatrix_jordanBlock
+    [Field K] (lam : K) (n : Nat) (hpos : 0 < n) :
+    IsJordanMatrix (jordanBlock lam n) := by
+  classical
+  refine ⟨{
+    block := PUnit
+    eigenvalue := fun _ => lam
+    blockSize := fun _ => n
+    blockSize_pos := fun _ => hpos
+    total_size := ?_
+    blockIndexEquiv := (Equiv.uniqueSigma (fun _ : PUnit => Fin n)).symm
+    block_form := ?_
+  }⟩
+  · simp
+  · ext x y
+    cases x with
+    | mk bx ix =>
+      cases y with
+      | mk bY iy =>
+        cases bx
+        cases bY
+        simp [Matrix.reindex_apply, Matrix.blockDiagonal', Equiv.uniqueSigma_apply]
+
+/-- A standard Jordan block has a trivial Jordan similarity witness. -/
+theorem hasJordanMatrix_jordanBlock
+    [Field K] (lam : K) (n : Nat) (hpos : 0 < n) :
+    HasJordanMatrix (jordanBlock lam n) := by
+  refine ⟨1, jordanBlock lam n, invertibleMatrix_one, ?_, ?_⟩
+  · exact isJordanMatrix_jordanBlock lam n hpos
+  · simp
+
+/--
+A reindexed standard Jordan block is a Jordan matrix, with the block type
+chosen in the target index universe.
+-/
+theorem isJordanMatrix_reindex_jordanBlock
+    [Field K] [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (lam : K) (n : Nat) (hpos : 0 < n) (e : ι ≃ Fin n) :
+    IsJordanMatrix
+      ((Matrix.reindex e.symm e.symm (jordanBlock (K := K) lam n)) :
+        Matrix ι ι K) := by
+  classical
+  refine ⟨{
+    block := PUnit
+    eigenvalue := fun _ => lam
+    blockSize := fun _ => n
+    blockSize_pos := fun _ => hpos
+    total_size := ?_
+    blockIndexEquiv := e.trans (Equiv.uniqueSigma (fun _ : PUnit => Fin n)).symm
+    block_form := ?_
+  }⟩
+  · simpa [Fintype.card_congr e]
+  · ext x y
+    cases x with
+    | mk bx ix =>
+      cases y with
+      | mk bY iy =>
+        cases bx
+        cases bY
+        simp [Matrix.reindex_apply, Matrix.blockDiagonal', Equiv.uniqueSigma_apply]
+
+/--
+A matrix reindexed from a standard Jordan block has a trivial Jordan
+similarity witness on the target index type.
+-/
+theorem hasJordanMatrix_reindex_jordanBlock
+    [Field K] [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (lam : K) (n : Nat) (hpos : 0 < n) (e : ι ≃ Fin n) :
+    HasJordanMatrix
+      ((Matrix.reindex e.symm e.symm (jordanBlock (K := K) lam n)) :
+        Matrix ι ι K) := by
+  refine ⟨1, ((Matrix.reindex e.symm e.symm (jordanBlock (K := K) lam n)) :
+      Matrix ι ι K),
+    invertibleMatrix_one, ?_, ?_⟩
+  · exact isJordanMatrix_reindex_jordanBlock lam n hpos e
+  · simp
+
+/--
+Jordan matrix data over `Fin n` can be transported to any equivalent target
+index type.  This is the universe-changing transport needed by companion-block
+leaves, where the concrete model is naturally indexed by `Fin n`.
+-/
+theorem isJordanMatrix_reindex_fin
+    [Field K] [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {n : Nat} (e : ι ≃ Fin n) {J : Matrix (Fin n) (Fin n) K}
+    (hJ : IsJordanMatrix J) :
+    IsJordanMatrix
+      ((Matrix.reindex e.symm e.symm J) : Matrix ι ι K) := by
+  classical
+  rcases hJ with ⟨d⟩
+  refine ⟨{
+    block := ULift.{u, 0} d.block
+    eigenvalue := fun b => d.eigenvalue b.down
+    blockSize := fun b => d.blockSize b.down
+    blockSize_pos := fun b => d.blockSize_pos b.down
+    total_size := ?_
+    blockIndexEquiv :=
+      e.trans <|
+        d.blockIndexEquiv.trans <|
+          Equiv.sigmaCongr Equiv.ulift.symm
+            (fun b => Equiv.cast (by rfl))
+    block_form := ?_
+  }⟩
+  · have hsum :
+        (∑ b : ULift.{u, 0} d.block, d.blockSize b.down) =
+          ∑ b : d.block, d.blockSize b := by
+      exact Fintype.sum_equiv Equiv.ulift
+        (fun b => d.blockSize b.down)
+        (fun b => d.blockSize b)
+        (fun b => rfl)
+    simpa [hsum, Fintype.card_congr e] using d.total_size
+  · ext x y
+    rcases x with ⟨bx, ix⟩
+    rcases y with ⟨bY, iy⟩
+    have hentry :=
+      congrFun (congrFun d.block_form ⟨bx.down, ix⟩) ⟨bY.down, iy⟩
+    simpa [Matrix.reindex_apply, Matrix.blockDiagonal'] using hentry
+
+/--
+Jordan similarity witnesses over `Fin n` can be transported to any equivalent
+target index type.
+-/
+theorem hasJordanMatrix_reindex_fin
+    [Field K] [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {n : Nat} (e : ι ≃ Fin n) {A : Matrix (Fin n) (Fin n) K}
+    (hA : HasJordanMatrix A) :
+    HasJordanMatrix
+      ((Matrix.reindex e.symm e.symm A) : Matrix ι ι K) := by
+  rcases hA with ⟨P, J, hP, hJ, hEq⟩
+  refine ⟨Matrix.reindex e.symm e.symm P,
+    Matrix.reindex e.symm e.symm J, ?_, ?_, ?_⟩
+  · exact invertibleMatrix_reindex e.symm hP
+  · exact isJordanMatrix_reindex_fin e hJ
+  · have h := congrArg (Matrix.reindex e.symm e.symm) hEq
+    simpa [Matrix.submatrix_mul_equiv, Matrix.inv_reindex] using h
+
+/-- Any matrix indexed by a one-element type is a Jordan matrix. -/
+theorem isJordanMatrix_of_card_eq_one
+    [Field K] [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {A : Matrix ι ι K} (hcard : Fintype.card ι = 1) :
+    IsJordanMatrix A := by
+  classical
+  letI : Unique ι :=
+    Classical.choice (Fintype.card_eq_one_iff_nonempty_unique.mp hcard)
+  let e : ι ≃ (b : PUnit) × Fin 1 := {
+    toFun := fun _ => ⟨PUnit.unit, 0⟩
+    invFun := fun _ => default
+    left_inv := by
+      intro i
+      exact (Unique.eq_default i).symm
+    right_inv := by
+      intro x
+      rcases x with ⟨b, ix⟩
+      cases b
+      have hix : ix = 0 := by
+        apply Fin.ext
+        omega
+      subst ix
+      rfl
+  }
+  have hpos1 : ∀ _ : PUnit, 0 < (1 : Nat) := fun _ => by decide
+  refine ⟨{
+    block := PUnit
+    eigenvalue := fun _ => A default default
+    blockSize := fun _ => 1
+    blockSize_pos := hpos1
+    total_size := ?_
+    blockIndexEquiv := e
+    block_form := ?_
+  }⟩
+  · simpa [hcard]
+  · ext x y
+    rcases x with ⟨bx, ix⟩
+    rcases y with ⟨bY, iy⟩
+    cases bx
+    cases bY
+    have hix : ix = 0 := by
+      apply Fin.ext
+      omega
+    have hiy : iy = 0 := by
+      apply Fin.ext
+      omega
+    subst ix
+    subst iy
+    simp [e, jordanBlock, Matrix.reindex_apply, Matrix.blockDiagonal']
+
+/-- Any matrix indexed by a one-element type has Jordan form. -/
+theorem hasJordanMatrix_of_card_eq_one
+    [Field K] [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {A : Matrix ι ι K} (hcard : Fintype.card ι = 1) :
+    HasJordanMatrix A := by
+  refine ⟨1, A, invertibleMatrix_one, ?_, ?_⟩
+  · exact isJordanMatrix_of_card_eq_one (A := A) hcard
+  · simp
+
 /-- Empty matrices have empty Jordan block data. -/
 theorem isJordanMatrix_empty
     [Field K] [Fintype ι] [DecidableEq ι] [LinearOrder ι] [IsEmpty ι]
@@ -320,6 +573,24 @@ theorem hasJordanMatrix_reindex
   refine ⟨Matrix.reindex e e P, Matrix.reindex e e J, ?_, ?_, ?_⟩
   · exact invertibleMatrix_reindex e hP
   · exact isJordanMatrix_reindex e hJ
+  · have h := congrArg (Matrix.reindex e e) hEq
+    simpa [Matrix.submatrix_mul_equiv, Matrix.inv_reindex] using h
+
+/--
+Jordan similarity witnesses are invariant under index reindexing across
+universes.
+-/
+theorem hasJordanMatrix_reindex_universe
+    [Field K]
+    {κ : Type w} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    [Fintype κ] [DecidableEq κ] [LinearOrder κ]
+    (e : ι ≃ κ) {A : Matrix ι ι K}
+    (hA : HasJordanMatrix A) :
+    HasJordanMatrix (Matrix.reindex e e A) := by
+  rcases hA with ⟨P, J, hP, hJ, hEq⟩
+  refine ⟨Matrix.reindex e e P, Matrix.reindex e e J, ?_, ?_, ?_⟩
+  · exact invertibleMatrix_reindex e hP
+  · exact isJordanMatrix_reindex_universe e hJ
   · have h := congrArg (Matrix.reindex e e) hEq
     simpa [Matrix.submatrix_mul_equiv, Matrix.inv_reindex] using h
 

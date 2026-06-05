@@ -2,6 +2,7 @@ import MatDecompFormal.Framework.UniverseDecompositionSquareSubtype
 import MatDecompFormal.Framework.HeadTail
 import MatDecompFormal.Instances.Hessenberg.Details
 import Mathlib.Algebra.Polynomial.Basic
+import Mathlib.LinearAlgebra.Matrix.Charpoly.Minpoly
 import Mathlib.RingTheory.AdjoinRoot
 
 universe u v w u' v'
@@ -250,6 +251,49 @@ theorem singleCompanionBlockForm_adjoinRoot_leftMulMatrix_powerBasis_ulift
   · rcases hcomp with ⟨e, he⟩
     refine ⟨Equiv.ulift.trans e, ?_⟩
     simpa [Matrix.reindex, Function.comp_def] using he
+
+/-- The standard companion matrix has characteristic polynomial `p`. -/
+theorem companionMatrixFin_charpoly
+    [Field K] {p : K[X]} (hmonic : p.Monic) :
+    (companionMatrixFin p).charpoly = p := by
+  classical
+  let pb := AdjoinRoot.powerBasis' hmonic
+  let L : Matrix (Fin p.natDegree) (Fin p.natDegree) K :=
+    (Algebra.leftMulMatrix pb.basis) pb.gen
+  have hIsComp :
+      IsCompanionMatrix (K := K) (ι := Fin p.natDegree) L p := by
+    simpa [L, pb] using
+      isCompanionMatrix_adjoinRoot_leftMulMatrix_powerBasis (K := K) p hmonic
+  let e := Classical.choose hIsComp
+  have he : Matrix.reindex e e L = companionMatrixFin p :=
+    Classical.choose_spec hIsComp
+  have hcharComp : (companionMatrixFin p).charpoly = L.charpoly := by
+    have hcharReindex : (Matrix.reindex e e L).charpoly = L.charpoly :=
+      Matrix.charpoly_reindex e L
+    rwa [he] at hcharReindex
+  have hcharLeft : L.charpoly = minpoly K pb.gen := by
+    simpa [L, pb] using (charpoly_leftMulMatrix (R := K) pb)
+  have hmin : minpoly K pb.gen = p := by
+    have hminpolyGen : pb.minpolyGen = p := by
+      rw [PowerBasis.minpolyGen_eq]
+      rw [AdjoinRoot.powerBasis'_gen]
+      simpa [hmonic.leadingCoeff] using
+        (AdjoinRoot.minpoly_root hmonic.ne_zero)
+    simpa [pb] using hminpolyGen
+  exact hcharComp.trans (hcharLeft.trans hmin)
+
+/-- A verified single companion block has characteristic polynomial `p`. -/
+theorem singleCompanionBlockForm_charpoly
+    [Field K] [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {C : Matrix ι ι K} {p : K[X]}
+    (h : SingleCompanionBlockForm C p) :
+    C.charpoly = p := by
+  classical
+  rcases h.2.2.2 with ⟨e, he⟩
+  have hcharReindex : (Matrix.reindex e e C).charpoly = C.charpoly :=
+    Matrix.charpoly_reindex e C
+  rw [he] at hcharReindex
+  exact hcharReindex.symm.trans (companionMatrixFin_charpoly (K := K) h.1)
 
 /-- Single companion-block form is invariant under index reindexing. -/
 theorem singleCompanionBlockForm_reindex
