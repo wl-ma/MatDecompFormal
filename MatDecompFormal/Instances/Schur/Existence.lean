@@ -59,7 +59,7 @@ Conditional framework-routed Schur triangularization theorem.
 
 This theorem is already assembled through the square descent driver. The
 remaining mathematical work is to construct the one-step oracle and the
-transport/lift hooks listed in `PLAN.md`.
+transport/lift hooks supplied by the Schur direct/spectral modules.
 -/
 theorem exists_schur_framework
     {K : Type u} [Field K]

@@ -169,6 +169,19 @@ theorem exists_structure_of_presentation_pid
   hasPIDModuleStructure_of_smith
     (exists_smith_normal_form (R := R) A)
 
+/--
+Public PID matrix-level structure theorem for a finite presentation.
+
+This keeps the plan-level name available while `exists_structure_of_presentation_pid`
+remains as the explicit PID-suffixed compatibility name.
+-/
+theorem exists_structure_of_presentation
+    {rel gen : Type u} [Fintype rel] [DecidableEq rel] [LinearOrder rel]
+    [Fintype gen] [DecidableEq gen] [LinearOrder gen]
+    (A : Matrix rel gen R) :
+    HasPIDModuleStructure A :=
+  exists_structure_of_presentation_pid A
+
 end PublicPID
 
 section Field

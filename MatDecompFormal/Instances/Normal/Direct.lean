@@ -15,9 +15,10 @@ open MatDecompFormal.Framework
 This file packages the proof-side mathematical hooks that remain after the
 strategy-side unitary-similarity descent has been defined.
 
-The hooks are explicit parameters, not unsupported placeholders. The final unconditional spectral
-theorem will be obtained by constructing these hooks from the eigenvector,
-unitary-completion, block-diagonalization, and lift lemmas listed in `PLAN.md`.
+The hooks are explicit parameters, not unsupported placeholders. The final
+unconditional spectral theorem is obtained by constructing these hooks from the
+eigenvector, unitary-completion, block-diagonalization, and lift lemmas in the
+normal instance files.
 -/
 
 /--

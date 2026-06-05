@@ -43,6 +43,21 @@ theorem exists_triangular_equivalence_framework_oracle
   exact hasTriangularEquivalence_of_gauss
     (exists_gauss_rank_normal_form_oracle oracle A)
 
+/--
+Generic triangular equivalence over a division ring, routed through the
+rectangular Gauss descent framework and the concrete elementary-step oracle.
+-/
+theorem exists_triangular_equivalence
+    {R : Type u} [DivisionRing R]
+    {m n : Type u} [Fintype m] [DecidableEq m] [LinearOrder m]
+    [Fintype n] [DecidableEq n] [LinearOrder n]
+    (A : Matrix m n R) :
+    HasTriangularEquivalence A := by
+  exact exists_triangular_equivalence_framework_oracle
+    (R := R)
+    (fun {p q} _ _ _ _ _ _ _ _ => gaussRankStepOracle R p q)
+    A
+
 /-- Universe-level base case for the UTV target. -/
 theorem utv_base_univ (x : RectUniverse ℂ) :
     ((∀ (x_sub : PosRectUniverse ℂ), (x_sub : RectUniverse ℂ) ≠ x) ∨
