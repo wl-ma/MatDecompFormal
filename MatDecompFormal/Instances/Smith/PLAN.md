@@ -63,6 +63,47 @@ Equivalent statement:
 
 Use whichever is easier to compose with existing row/column operation lemmas.
 
+### Public API Invariant
+
+The public theorem name `exists_smith_normal_form` must never be a field-only
+theorem. Smith normal form is a PID theorem; `[Field R]` is only a special case
+used to discharge the descent framework through Gauss rank normal form.
+
+This is a hard correctness constraint, not a naming preference. A theorem with
+the shape
+
+```lean
+theorem exists_smith_normal_form
+    {R : Type u} [Field R] ...
+```
+
+is wrong for this project, even if it is provable. It would advertise Smith
+normal form as a field-only result and would hide the intended PID theorem
+behind a misleading public API. Fields may be used only to prove explicitly
+field-scoped auxiliary theorems, or as examples of rings satisfying stronger
+PID-like assumptions after the PID theorem is available.
+
+Hard requirements:
+
+- `exists_smith_normal_form` must expose PID-level assumptions, at least
+  `[CommRing R] [IsDomain R] [IsPrincipalIdealRing R]`.
+- Now that the full matrix bridge is proved, `exists_smith_normal_form` must not
+  expose `(bridge : PIDMatrixSmithBridge R)` as a public argument. The
+  conditional theorem remains available separately as
+  `exists_smith_normal_form_pid_bridge`.
+- The field theorem must stay under explicit field-specific names such as
+  `exists_smith_normal_form_field` and
+  `exists_smith_normal_form_field_alias`.
+- Do not rename a completed field theorem back to
+  `exists_smith_normal_form`; that is a false public API for Smith normal form.
+- Do not state an unconditional PID theorem unless the bridge/oracle dependency
+  has actually been discharged in Lean.
+- If `#check MatDecompFormal.Instances.exists_smith_normal_form` prints a
+  signature beginning with `[Field R]`, treat it as a regression to fix before
+  continuing. The acceptable public signature must begin with
+  `[CommRing R] [IsDomain R] [IsPrincipalIdealRing R]` and must not include a
+  bridge/oracle argument.
+
 ## 3. Smith Predicate
 
 For a rectangular diagonal matrix `D : Matrix m n R`, Smith normal form should
@@ -293,15 +334,24 @@ direct-only proof. The implementation-facing contract is:
 
 ```bash
 lake build MatDecompFormal.Instances.Smith
-lake build MatDecompFormal.Instances
 rg -n "sorry|admit|axiom|unsafe|undefined" MatDecompFormal/Instances/Smith --glob '!PLAN.md' -S
 ```
+
+The broader command
+
+```bash
+lake build MatDecompFormal.Instances
+```
+
+is useful as an integration check, but it is not a Smith-local completion gate:
+as of the current Smith verification it fails outside this directory in
+`MatDecompFormal/Instances/Tridiagonalization/Boundary.lean`.
 
 Before marking the implementation complete, also check:
 
 ```bash
-printf 'import MatDecompFormal.Instances.Smith\n#check MatDecompFormal.Instances.exists_smith_normal_form_framework_oracle\n#check MatDecompFormal.Instances.exists_smith_normal_form_framework_gauss_oracle\n#check MatDecompFormal.Instances.exists_smith_normal_form_rank_oracle\n#check MatDecompFormal.Instances.exists_smith_normal_form_field\n#check MatDecompFormal.Instances.exists_smith_normal_form\n#check MatDecompFormal.Instances.SmithStepOracle\n#check MatDecompFormal.Instances.smithStepOracleOfGauss\n' | lake env lean --stdin
-printf 'import MatDecompFormal.Instances.Smith\n#check MatDecompFormal.Instances.pidSubmoduleSmithNormalForm\n#check MatDecompFormal.Instances.exists_pid_submodule_smith_normal_form\n#check MatDecompFormal.Instances.PIDMatrixSmithBridge\n#check MatDecompFormal.Instances.exists_smith_normal_form_pid_bridge\n' | lake env lean --stdin
+printf 'import MatDecompFormal.Instances.Smith\n#check MatDecompFormal.Instances.exists_smith_normal_form_framework_oracle\n#check MatDecompFormal.Instances.exists_smith_normal_form_framework_gauss_oracle\n#check MatDecompFormal.Instances.exists_smith_normal_form_rank_oracle\n#check MatDecompFormal.Instances.exists_smith_normal_form_field\n#check MatDecompFormal.Instances.exists_smith_normal_form_field_alias\n#check MatDecompFormal.Instances.SmithStepOracle\n#check MatDecompFormal.Instances.smithStepOracleOfGauss\n' | lake env lean --stdin
+printf 'import MatDecompFormal.Instances.Smith\n#check MatDecompFormal.Instances.pidSubmoduleSmithNormalForm\n#check MatDecompFormal.Instances.exists_pid_submodule_smith_normal_form\n#check MatDecompFormal.Instances.PIDMatrixSmithBridge\n#check MatDecompFormal.Instances.PIDProjectionSplitBridge\n#check MatDecompFormal.Instances.pidMatrixSmithBridge_of_projectionSplitBridge\n#check MatDecompFormal.Instances.exists_smith_normal_form_pid_bridge\n#check MatDecompFormal.Instances.exists_smith_normal_form_projection_split_bridge\n#check MatDecompFormal.Instances.exists_smith_normal_form\n#check MatDecompFormal.Instances.hasSmithNormalForm_of_range_snf_and_splitBasis\n' | lake env lean --stdin
 printf 'import MatDecompFormal.Instances.Smith\n#check MatDecompFormal.Instances.gaussInvertibleMatrix_basis_toMatrix\n#check MatDecompFormal.Instances.basis_change_toMatrix_eq_mul\n#check MatDecompFormal.Instances.basis_change_toMatrix_eq_mul_standard\n' | lake env lean --stdin
 printf 'import MatDecompFormal.Instances.Smith\n#check MatDecompFormal.Instances.linearMap_eq_range_subtype_comp_rangeRestrict\n#check MatDecompFormal.Instances.linearMap_toMatrix_eq_range_subtype_mul_rangeRestrict\n#check MatDecompFormal.Instances.matrix_eq_range_subtype_mul_rangeRestrict\n' | lake env lean --stdin
 printf 'import MatDecompFormal.Instances.Smith\n#check MatDecompFormal.Instances.PIDSmithRankIdx\n#check MatDecompFormal.Instances.smithNormalFormData_of_basisSmithNormalForm\n#check MatDecompFormal.Instances.isSmithNormalForm_of_basisSmithNormalForm\n' | lake env lean --stdin
@@ -344,9 +394,10 @@ Completed implementation-facing milestones:
   `exists_smith_normal_form_field` uses the concrete elementary Gauss oracle
   and then runs through the Smith rectangular framework via
   `smithStepOracleOfGauss`.
-- The public theorem name `exists_smith_normal_form` is exposed for the
-  completed field case. Its `[Field R]` assumptions are intentionally explicit;
-  the PID-general theorem remains a future strengthening.
+- The field case is available under the explicit names
+  `exists_smith_normal_form_field` and
+  `exists_smith_normal_form_field_alias`; the public theorem name
+  `exists_smith_normal_form` is reserved for the PID-scope theorem.
 - The mathlib PID free-module Smith normal-form source is exposed through
   `pidSubmoduleSmithNormalForm` and
   `exists_pid_submodule_smith_normal_form`.
@@ -377,29 +428,82 @@ Completed implementation-facing milestones:
   inclusion map `N.subtype` as a full project-level `HasSmithNormalForm`
   witness, with arbitrary ambient row basis and the mathlib Smith basis on
   columns after universe lifting.
-- The remaining conversion from mathlib's submodule/basis SNF to this
-  project's explicit matrix theorem is named as `PIDMatrixSmithBridge`, with
-  the conditional theorem `exists_smith_normal_form_pid_bridge`.
-- The theorem name exposes the remaining mathematical dependency:
-  the Euclidean-domain/PID Smith one-step construction is still represented by
-  `SmithStepOracle`.
+- The column-side range-restriction bridge has been factored through
+  `SmithRangeSplitBasisData` and
+  `hasSmithNormalForm_of_range_snf_and_splitBasis`. This data now allows an
+  arbitrary invertible column basis change, not only a reindexed standard
+  basis; the proof transports back to the original standard matrix using
+  `gaussInvertibleMatrix_basis_toMatrix`.
+- The local projection-basis step is implemented:
+  `ProjectionBasisData` records a column basis whose first block maps to the
+  range basis and whose second block maps to zero, while
+  `toMatrix_projectionBasisData_eq_leftProjection` proves its matrix is exactly
+  `smithLeftProjection`. The constructor
+  `smithRangeSplitBasisData_of_projectionBasisData` packages this into
+  `SmithRangeSplitBasisData`.
+- The split-product interface is implemented:
+  `ProjectionSplitEquivData` records a linear equivalence from the original
+  column module to a product `P × K` together with basis-vector projection
+  equations, `projectionBasisData_of_splitEquivData` converts it to
+  `ProjectionBasisData`, and
+  `smithRangeSplitBasisData_of_projectionSplitEquivData` specializes the
+  conversion to `(Matrix.toLin' A).rangeRestrict`.
+- The section-to-split layer is implemented:
+  `kernelComplementMapOfRightInverse`,
+  `linearEquivProdKerOfRightInverse`,
+  `linearEquivProdKerOfRightInverse_fst_comp`,
+  `projectionSplitEquivData_of_fst_comp`, and
+  `projectionSplitEquivData_of_rightInverse` reduce the remaining
+  `ProjectionSplitEquivData` obligation to a right inverse for the range
+  restriction and a basis of its kernel. This avoids unfolding a full
+  `LinearEquiv` with broad `simp` in the final PID module-theory step.
+- The PID projection-split data itself is now constructed:
+  `rightInverseOfSurjectiveOfBasis` and
+  `rightInverseOfRangeRestrictOfBasis` use projectivity of a basis-indexed
+  codomain to split surjections, `kernelBasisOfRangeRestrictPid` obtains a
+  finite PID basis for the kernel of `(Matrix.toLin' A).rangeRestrict`, and
+  `projectionSplitEquivDataOfRangeRestrictPid` packages these into
+  `ProjectionSplitEquivData` for the range restriction. The kernel index is
+  universe-lifted with `PIDSmithRankIdx`/`pidSmithRankEquiv`, matching the
+  existing range-rank index discipline.
+- The verified range-SNF and column-split pieces are now composed by
+  `hasSmithNormalForm_of_basisSmithNormalForm_and_projectionSplit`: given
+  mathlib `Module.Basis.SmithNormalForm` for
+  `LinearMap.range (Matrix.toLin' A)` plus `ProjectionSplitEquivData` for
+  `(Matrix.toLin' A).rangeRestrict`, it returns `HasSmithNormalForm A`.
+- The finite column-index equivalence is implemented:
+  `indexEquivOfProjectionSplitEquivData` compares the standard column basis
+  with the split product basis using `Basis.indexEquiv`, and
+  `colEquivOfProjectionSplitEquivData` specializes it to matrix range
+  restrictions.
+- The final matrix-level bridge is implemented:
+  `PIDProjectionSplitBridge` asks for the projection-split data needed for each
+  matrix after applying `pidSubmoduleSmithNormalForm`,
+  `pidProjectionSplitBridge` constructs that data over a PID,
+  `pidMatrixSmithBridge_of_projectionSplitBridge` converts it into
+  `PIDMatrixSmithBridge`, and `pidMatrixSmithBridge` provides the constructed
+  matrix-level bridge.
+- The theorem `exists_smith_normal_form_projection_split_bridge` exposes the
+  PID-scope Smith theorem conditional on the refined
+  `PIDProjectionSplitBridge` data. The conditional theorem
+  `exists_smith_normal_form_pid_bridge` remains available for the explicit
+  `PIDMatrixSmithBridge` route.
+- The public theorem `exists_smith_normal_form` is now unconditional over the
+  PID assumptions `[CommRing R] [IsDomain R] [IsPrincipalIdealRing R]`; it no
+  longer accepts a bridge argument and it is not a field-only theorem.
 
-Remaining implementation work:
+Optional future implementation work:
 
-- Discharge `SmithStepOracle` over a Euclidean domain beyond fields.
-- Generalize the oracle discharge to PID assumptions once the required
-  divisibility and principal-ideal APIs are identified.
+- Discharge `SmithStepOracle` over a Euclidean domain beyond fields if a
+  constructive step-by-step Smith reduction is desired in addition to the
+  verified mathlib PID bridge.
+- Generalize the oracle discharge to PID assumptions if the project later wants
+  a fully constructive PID descent oracle rather than the current mathlib
+  submodule-SNF bridge.
 - Mathlib has PID Smith normal form for free-module submodules
   (`Mathlib.LinearAlgebra.FreeModule.PID`, e.g.
-  `Submodule.smithNormalForm`), but the remaining bridge is not a direct import:
-  it must turn the surjective factor
-  `(Matrix.toLin' A).rangeRestrict : (n → R) →ₗ[R] LinearMap.range (Matrix.toLin' A)`
-  into an allowed right multiplication by an invertible `n × n` matrix, typically
-  via a kernel complement or quotient/free-basis argument. The range inclusion
-  theorem already handles the local `IsSmithNormalForm` predicate, the ambient
-  basis-change matrix, and the equality for `N.subtype`; the range factorization
-  theorem now connects that inclusion to the original matrix up to this
-  remaining column-side surjection bridge.
+  `Submodule.smithNormalForm`) and the matrix bridge from that submodule theorem
+  to this project's explicit two-sided matrix theorem is now implemented.
 
 Roles:
 
@@ -414,18 +518,9 @@ Roles:
 
 ## 11. Next Implementation Order
 
-1. Build `PIDMatrixSmithBridge` by translating `A : Matrix m n R` to
-   `Matrix.toLin' A`, applying `Submodule.smithNormalForm` to the range/image
-   data, identifying the original matrix with the inclusion map through the
-   range basis and the image factorization, and then using
-   `basis_change_toMatrix_eq_mul_standard` plus
-   `gaussInvertibleMatrix_basis_toMatrix` to package the explicit
-   `P * A * Q` witness.
-2. Use that bridge to expose the PID-scope matrix theorem.
-3. Optionally instantiate `SmithStepOracle` separately for a Euclidean domain
+1. Optionally instantiate `SmithStepOracle` separately for a Euclidean domain
    if a constructive descent proof is preferred over the mathlib PID bridge.
-4. Expose an unconditional PID theorem only once the bridge/oracle is
-   discharged:
+2. Keep verifying the unconditional PID theorem signature:
 
    ```lean
 #check MatDecompFormal.Instances.exists_smith_normal_form
@@ -442,6 +537,12 @@ The implementation should avoid unnecessary scalar assumptions:
   it.
 - Use `[IsDomain R]`, PID, Bezout, or Euclidean assumptions only in the pivot
   existence step.
+- The public theorem `exists_smith_normal_form` is reserved for PID scope. It
+  must not have `[Field R]` in its public signature. A `[Field R]` theorem may
+  be kept only with an explicit field-specific suffix.
+- Conditional PID theorem names must expose their bridge/oracle dependencies;
+  hiding `PIDMatrixSmithBridge` or `SmithStepOracle` behind a public theorem
+  name is not allowed.
 - Keep theorem names layered:
 
   ```lean

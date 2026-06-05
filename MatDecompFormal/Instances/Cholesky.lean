@@ -16,10 +16,10 @@ open scoped ComplexOrder
 /-!
 # Cholesky-style decomposition via LDL
 
-This file now uses a genuine head-tail Schur-complement strategy core on the
-framework side. The current proof-side lift still delegates to mathlib's `LDL`
-result, but the base case is now handled internally by a trivial subsingleton
-witness rather than the direct theorem.
+This file uses a genuine head-tail Schur-complement strategy core.  The
+proof-side lift is the recursive Schur-complement reconstruction
+`choleskyHeadTailSchurLift`, while the base case is handled internally by a
+trivial subsingleton witness.
 
 The theorem `exists_cholesky_decomposition_direct` below is intentionally kept as
 a historical/direct LDL-based lemma and as a local comparison point. It is not the

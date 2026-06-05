@@ -1,0 +1,5 @@
+import MatDecompFormal.Instances.Bidiagonalization.Details
+import MatDecompFormal.Instances.Bidiagonalization.Direct
+import MatDecompFormal.Instances.Bidiagonalization.Existence
+import MatDecompFormal.Instances.Bidiagonalization.Spectral
+import MatDecompFormal.Instances.Bidiagonalization.Strategy

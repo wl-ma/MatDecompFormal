@@ -1,0 +1,6 @@
+import MatDecompFormal.Instances.RationalCanonical.Details
+import MatDecompFormal.Instances.RationalCanonical.Strategy
+import MatDecompFormal.Instances.RationalCanonical.Direct
+import MatDecompFormal.Instances.RationalCanonical.Existence
+import MatDecompFormal.Instances.RationalCanonical.ModuleBridge
+import MatDecompFormal.Instances.RationalCanonical.BlockStrategy

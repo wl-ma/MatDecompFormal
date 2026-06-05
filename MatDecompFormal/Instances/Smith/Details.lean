@@ -412,6 +412,13 @@ def smithAppendZeroCols (A : Matrix m n R) : Matrix m (n ⊕ κ) R :=
     | Sum.inl j' => A i j'
     | Sum.inr _ => 0
 
+/-- The rectangular projection matrix `[I 0]`. -/
+def smithLeftProjection : Matrix n (n ⊕ κ) R :=
+  fun i j =>
+    match j with
+    | Sum.inl j' => if i = j' then 1 else 0
+    | Sum.inr _ => 0
+
 @[simp] lemma smithAppendZeroCols_inl (A : Matrix m n R) (i : m) (j : n) :
     smithAppendZeroCols (κ := κ) A i (Sum.inl j) = A i j :=
   rfl
@@ -503,6 +510,16 @@ lemma appendZeroCols_mul_blockDiag_right
       simp [smithAppendZeroCols, Matrix.mul_apply, Matrix.fromBlocks]
   | inr jk =>
       simp [smithAppendZeroCols, Matrix.mul_apply, Matrix.fromBlocks]
+
+lemma matrix_mul_smithLeftProjection (A : Matrix m n R) :
+    A * smithLeftProjection (κ := κ) =
+      smithAppendZeroCols (κ := κ) A := by
+  ext i j
+  cases j with
+  | inl jn =>
+      simp [smithLeftProjection, smithAppendZeroCols, Matrix.mul_apply]
+  | inr jk =>
+      simp [smithLeftProjection, smithAppendZeroCols, Matrix.mul_apply]
 
 /-- Appending zero columns preserves the project-level Smith witness. -/
 theorem hasSmithNormalForm_appendZeroCols

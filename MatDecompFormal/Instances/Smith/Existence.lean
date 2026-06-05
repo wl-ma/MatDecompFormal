@@ -141,13 +141,13 @@ theorem exists_smith_normal_form_field
     A
 
 /--
-Public field-scope Smith normal form theorem.
+Field-scope Smith normal form theorem.
 
-The PID-general theorem remains future work; this theorem keeps the actual
-scalar assumptions explicit while using the requested public name for the
-completed field case.
+The public `exists_smith_normal_form` name is reserved for the PID-scope theorem
+in `Smith/PIDBridge.lean`; the field case remains available under this explicit
+name.
 -/
-theorem exists_smith_normal_form
+theorem exists_smith_normal_form_field_alias
     {m n : Type u} [Fintype m] [DecidableEq m] [LinearOrder m]
     [Fintype n] [DecidableEq n] [LinearOrder n]
     (A : Matrix m n R) :

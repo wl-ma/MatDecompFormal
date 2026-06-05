@@ -20,8 +20,9 @@ is assembled in later files.
 
 variable {ι : Type*}
 
-/-- Matrix-level unitary predicate used by the normal spectral target. -/
-def IsUnitaryMatrix [Fintype ι] [DecidableEq ι] (U : Matrix ι ι ℂ) : Prop :=
+/-- Matrix-level unitary predicate used by the unitary decomposition targets. -/
+def IsUnitaryMatrix {𝕜 : Type*} [RCLike 𝕜] [Fintype ι] [DecidableEq ι]
+    (U : Matrix ι ι 𝕜) : Prop :=
   Uᴴ * U = 1 ∧ U * Uᴴ = 1
 
 /-- Matrix-level normality predicate. -/
@@ -152,12 +153,12 @@ def NormalSpectral_P_sub (x_sub : PosSquareUniverse ℂ) : Prop :=
     NormalSpectral_P_sub x_sub ↔ NormalSpectral_P (x_sub : SquareUniverse ℂ) :=
   Iff.rfl
 
-lemma isUnitaryMatrix_one [Fintype ι] [DecidableEq ι] :
-    IsUnitaryMatrix (1 : Matrix ι ι ℂ) := by
+lemma isUnitaryMatrix_one {𝕜 : Type*} [RCLike 𝕜] [Fintype ι] [DecidableEq ι] :
+    IsUnitaryMatrix (1 : Matrix ι ι 𝕜) := by
   simp [IsUnitaryMatrix]
 
-lemma isUnitaryMatrix_mul [Fintype ι] [DecidableEq ι]
-    {U V : Matrix ι ι ℂ}
+lemma isUnitaryMatrix_mul {𝕜 : Type*} [RCLike 𝕜] [Fintype ι] [DecidableEq ι]
+    {U V : Matrix ι ι 𝕜}
     (hU : IsUnitaryMatrix U) (hV : IsUnitaryMatrix V) :
     IsUnitaryMatrix (U * V) := by
   constructor
@@ -177,8 +178,9 @@ lemma isUnitaryMatrix_mul [Fintype ι] [DecidableEq ι]
         simp [hU.2, hV.2]
 
 lemma isUnitaryMatrix_reindex
+    {𝕜 : Type*} [RCLike 𝕜]
     {α β : Type*} [Fintype α] [DecidableEq α] [Fintype β] [DecidableEq β]
-    (e : α ≃ β) {U : Matrix α α ℂ} (hU : IsUnitaryMatrix U) :
+    (e : α ≃ β) {U : Matrix α α 𝕜} (hU : IsUnitaryMatrix U) :
     IsUnitaryMatrix (Matrix.reindex e e U) := by
   constructor
   · have h := congrArg (Matrix.reindex e e) hU.1
@@ -281,27 +283,28 @@ section BlockLift
 variable {β : Type*} [Fintype β] [DecidableEq β]
 
 lemma isUnitaryMatrix_blockDiag_one
-    {U : Matrix β β ℂ} (hU : IsUnitaryMatrix U) :
+    {𝕜 : Type*} [RCLike 𝕜]
+    {U : Matrix β β 𝕜} (hU : IsUnitaryMatrix U) :
     IsUnitaryMatrix
-      (fromBlocks (1 : Matrix Unit Unit ℂ) 0 0 U :
-        Matrix (Unit ⊕ β) (Unit ⊕ β) ℂ) := by
+      (fromBlocks (1 : Matrix Unit Unit 𝕜) 0 0 U :
+        Matrix (Unit ⊕ β) (Unit ⊕ β) 𝕜) := by
   constructor
   · calc
-      (fromBlocks (1 : Matrix Unit Unit ℂ) 0 0 U :
-          Matrix (Unit ⊕ β) (Unit ⊕ β) ℂ)ᴴ *
-          (fromBlocks (1 : Matrix Unit Unit ℂ) 0 0 U :
-            Matrix (Unit ⊕ β) (Unit ⊕ β) ℂ)
-          = fromBlocks (1 : Matrix Unit Unit ℂ) 0 0 (Uᴴ * U) := by
+      (fromBlocks (1 : Matrix Unit Unit 𝕜) 0 0 U :
+          Matrix (Unit ⊕ β) (Unit ⊕ β) 𝕜)ᴴ *
+          (fromBlocks (1 : Matrix Unit Unit 𝕜) 0 0 U :
+            Matrix (Unit ⊕ β) (Unit ⊕ β) 𝕜)
+          = fromBlocks (1 : Matrix Unit Unit 𝕜) 0 0 (Uᴴ * U) := by
         simp [Matrix.fromBlocks_conjTranspose, fromBlocks_multiply]
       _ = 1 := by
         rw [hU.1]
         exact Matrix.fromBlocks_one
   · calc
-      (fromBlocks (1 : Matrix Unit Unit ℂ) 0 0 U :
-          Matrix (Unit ⊕ β) (Unit ⊕ β) ℂ) *
-          (fromBlocks (1 : Matrix Unit Unit ℂ) 0 0 U :
-            Matrix (Unit ⊕ β) (Unit ⊕ β) ℂ)ᴴ
-          = fromBlocks (1 : Matrix Unit Unit ℂ) 0 0 (U * Uᴴ) := by
+      (fromBlocks (1 : Matrix Unit Unit 𝕜) 0 0 U :
+          Matrix (Unit ⊕ β) (Unit ⊕ β) 𝕜) *
+          (fromBlocks (1 : Matrix Unit Unit 𝕜) 0 0 U :
+            Matrix (Unit ⊕ β) (Unit ⊕ β) 𝕜)ᴴ
+          = fromBlocks (1 : Matrix Unit Unit 𝕜) 0 0 (U * Uᴴ) := by
         simp [Matrix.fromBlocks_conjTranspose, fromBlocks_multiply]
       _ = 1 := by
         rw [hU.2]
