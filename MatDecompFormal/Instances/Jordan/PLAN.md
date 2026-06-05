@@ -451,3 +451,62 @@ lake build MatDecompFormal.Instances.Jordan
 lake build MatDecompFormal.Instances
 rg -n "sorry|admit|axiom|unsafe|undefined" MatDecompFormal/Instances/Jordan -S
 ```
+
+## 7. Current Lean Status
+
+Implemented:
+
+- `jordanBlock`
+- `JordanMatrixData`
+- `IsJordanMatrix`
+- `HasJordanMatrix`
+- `Jordan_P`
+- `Jordan_P_sub`
+- `jordan_P_compat`
+- `isJordanMatrix_reindex`
+- `isJordanMatrix_empty`
+- `base_jordan_empty`
+- `jordan_transport_similarity`
+- `jordan_similarity_charpoly`
+- `JordanTailIdx`
+- `jordanTailSlice`
+- `JordanLiftReady`
+- `JordanDescentReady`
+- `JordanStepOracle`
+- `jordanSimilarityTransform`
+- `jordanHeadTailReduction`
+- `jordan_strategy_core`
+- `jordan_transport_hook`
+- `jordan_lift_hook`
+- `jordan_strategy_proof`
+- `jordan_base_univ`
+- `jordan_strategy_data`
+- `jordan_framework_inst`
+- `exists_jordan_matrix_framework`
+- `exists_jordan_matrix_framework_oracle`
+
+The current Lean theorem is intentionally oracle-conditional:
+
+```lean
+theorem exists_jordan_matrix_framework_oracle
+    {K : Type u} [Field K]
+    (oracle :
+      ∀ {κ : Type u} [Fintype κ] [DecidableEq κ] [LinearOrder κ] [Nonempty κ],
+        JordanStepOracle K κ)
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι K)
+    (hsplit : A.charpoly.Splits (RingHom.id K)) :
+    HasJordanMatrix A
+```
+
+Remaining work before introducing the final unsuffixed public theorem
+`exists_jordan_matrix_of_splits`:
+
+1. Construct `JordanStepOracle` from rational canonical form plus splitting of
+   invariant factors, or from primary decomposition plus nilpotent Jordan-chain
+   descent.
+2. Prove the structured block lift that combines an isolated Jordan block or
+   chain extension with the recursive tail witness.
+3. Add algebraically closed and complex corollaries only as explicit-suffix
+   corollaries after the split-polynomial theorem is available.
+4. Add the linear-map/basis bridge theorem after the matrix theorem.

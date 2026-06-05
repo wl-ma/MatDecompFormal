@@ -52,7 +52,7 @@ noncomputable def jordan_framework_inst
 /--
 Framework-routed Jordan theorem, conditional on the one-step Jordan oracle.
 -/
-theorem exists_jordan_matrix_framework_oracle
+theorem exists_jordan_matrix_framework
     {K : Type u} [Field K]
     (oracle :
       ∀ {κ : Type u} [Fintype κ] [DecidableEq κ] [LinearOrder κ] [Nonempty κ],
@@ -66,5 +66,23 @@ theorem exists_jordan_matrix_framework_oracle
     SquareSubtypeInductionInstance.prove_for_matrix
       (inst := jordan_framework_inst K oracle) A
   exact hP hsplit
+
+/--
+Framework-routed Jordan theorem, conditional on the concrete one-step oracle.
+
+The unsuffixed `exists_jordan_matrix_of_splits` name is intentionally reserved
+for the later theorem where this oracle is discharged from rational canonical
+form, primary decomposition, or nilpotent Jordan chains.
+-/
+theorem exists_jordan_matrix_framework_oracle
+    {K : Type u} [Field K]
+    (oracle :
+      ∀ {κ : Type u} [Fintype κ] [DecidableEq κ] [LinearOrder κ] [Nonempty κ],
+        JordanStepOracle K κ)
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι K)
+    (hsplit : A.charpoly.Splits (RingHom.id K)) :
+    HasJordanMatrix A := by
+  exact exists_jordan_matrix_framework oracle A hsplit
 
 end MatDecompFormal.Instances
