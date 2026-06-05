@@ -23,10 +23,11 @@ theorem exists_jordan_matrix_of_splits
       A = P * J * P⁻¹
 ```
 
-This is the final public matrix target. The first Lean implementation target is
-the same theorem shape routed through an explicit one-step `JordanStepOracle`;
-the unsuffixed public theorem must not be used for an oracle-conditional result
-unless the oracle has already been discharged.
+This is the final public matrix target. Intermediate framework theorems may be
+conditional on explicit step data, but they must carry an explicit suffix such as
+`_oracle`, `_structured_oracle`, or `_block_oracle`. The unsuffixed public name
+`exists_jordan_matrix_of_splits` is reserved for the oracle-free theorem after
+the algebraic step data has been discharged.
 
 Primary public linear-map theorem:
 
@@ -88,6 +89,15 @@ theorem exists_jordan_form_complex
   `ℂ`.
 - Do not strengthen the main theorem to `[IsAlgClosed K]` unless there is also a
   split-polynomial theorem with the stronger public name above.
+- Do not state the main theorem over `[PID K]`. The scalar hypothesis is
+  `[Field K]`. If the proof route uses rational canonical form or module
+  structure, the PID object is the polynomial ring `K[X]`, available because
+  `K` is a field.
+- Do not expose internal readiness conditions as final theorem assumptions. If
+  an internal predicate is hard to use, prove a named equivalence or sufficient
+  bridge from the convenient public hypothesis
+  `A.charpoly.Splits (RingHom.id K)`, and state the final theorem using the
+  convenient hypothesis.
 
 ## 2. Algebraic Route
 
@@ -107,14 +117,69 @@ ModuleStructure -> RationalCanonical -> Jordan
 but the nilpotent chain descent can be developed directly if it better matches
 mathlib APIs.
 
+Algebraic-structure rule:
+
+- Jordan form itself is a theorem over a field plus a split characteristic
+  polynomial.
+- Rational canonical form and the finite-module structure theorem may use that
+  `K[X]` is a PID internally. This must not turn into a `[PID K]` assumption on
+  Jordan.
+- General module-structure results should be kept in the ModuleStructure
+  development with their natural PID hypotheses. Jordan imports the specialized
+  polynomial-module consequences over `K[X]`.
+
+The RCF route must expose the real algebraic bridge instead of hiding it behind
+an arbitrary one-step oracle. The intended bridge target is:
+
+```lean
+structure JordanCompanionBlockBridge
+    (K : Type*) [Field K] : Type _ where
+  companion_hasJordan_of_splits :
+    ∀ {ι : Type*} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+      {C : Matrix ι ι K} {p : K[X]},
+      SingleCompanionBlockForm C p →
+      p.Splits (RingHom.id K) →
+      HasJordanMatrix C
+```
+
+The cyclic-block RCF step must also expose why its selected invariant factor
+splits when the current matrix characteristic polynomial splits:
+
+```lean
+structure JordanRCFSplitBlockBridge
+    (K : Type*) [Field K] : Type _ where
+  rcfOracle : RationalCanonicalBlockStepOracle K
+  cyclic_annihilator_splits :
+    ∀ (x_sub : PosSquareUniverse K)
+      (hsplit : x_sub.1.A.charpoly.Splits (RingHom.id K)),
+      let step := rationalCanonicalBlockStep rcfOracle x_sub
+      step.cyclic_annihilator.Splits (RingHom.id K)
+  companionBridge : JordanCompanionBlockBridge K
+```
+
+This is the acceptable endpoint for the RCF-to-Jordan algebra: from the current
+recursive split hypothesis, derive splitness of the selected companion
+polynomial, convert the companion head to a Jordan matrix, and then use the
+block lift.
+
 Recommended implementation order:
 
-1. Matrix-level split theorem through a `JordanStepOracle`.
-2. Matrix-level algebraically closed and complex corollaries.
-3. Basis/linear-map theorem by transporting the matrix theorem through an
-   initial basis.
-4. Remove the explicit oracle by discharging it through rational canonical form
-   or primary decomposition.
+1. Keep the matrix-level split theorem available through explicitly suffixed
+   conditional framework theorems while the algebraic step data is still being
+   built.
+2. Strengthen the one-step dependency to structured step data. The currently
+   implemented direct-sum head-tail oracle is useful for block-diagonal lifts,
+   but the final Jordan proof also needs a chain/block oracle that can represent
+   nontrivial Jordan links.
+3. Discharge the chain/block data through rational canonical form plus the
+   companion-block bridge above, or through primary decomposition plus
+   nilpotent Jordan-chain descent.
+4. Introduce the unsuffixed split-polynomial theorem
+   `exists_jordan_matrix_of_splits` only after the oracle has been discharged.
+5. Add algebraically closed and complex corollaries only as explicit-suffix
+   corollaries of the split-polynomial theorem.
+6. Add the basis/linear-map theorem by transporting the matrix theorem through
+   an initial basis.
 
 ## 3. Strict Descent-Template Contract
 
@@ -263,7 +328,7 @@ def JordanLiftReady
 def JordanDescentReady ... := JordanLiftReady ...
 ```
 
-The concrete oracle should produce a stronger structured readiness object, for
+The concrete oracle must produce a stronger structured readiness object, for
 example:
 
 - one isolated Jordan block, generalized eigenspace component, or split
@@ -276,6 +341,63 @@ The current square driver removes one head index at a time. If the algebraic
 construction removes a whole Jordan block or primary component at once, add a
 block-indexed algebraic driver with the same template fields rather than hiding
 that change in an ad hoc induction.
+
+The framework-facing `JordanLiftReady` is allowed only as the final interface
+consumed by the descent driver. It must not be the algebraic endpoint of the
+implementation.
+
+A direct-sum head-tail structured object is already useful and should remain
+available:
+
+```lean
+structure JordanStructuredStepOracle
+    (K ι : Type*) [Field K]
+    [Fintype ι] [DecidableEq ι] [LinearOrder ι] [Nonempty ι] where
+  P : Matrix ι ι K → Matrix ι ι K
+  invertible_P : ∀ A, InvertibleMatrix (P A)
+  head_tail_ready :
+    ∀ A, JordanHeadTailBlockReady K ι ((P A)⁻¹ * A * (P A))
+
+def JordanStructuredStepOracle.toStepOracle
+    (oracle : JordanStructuredStepOracle K ι) :
+    JordanStepOracle K ι
+```
+
+This direct-sum oracle is not by itself the final algebraic endpoint for Jordan
+form: a nontrivial Jordan block has an off-diagonal `1` linking adjacent basis
+vectors. The remaining algebra must therefore introduce one of the following
+template-compatible payloads:
+
+- a chain-extension readiness object, where the head coordinate extends the
+  first Jordan chain in the recursive tail and records the required
+  superdiagonal `1`;
+- a block-step readiness object, where one whole Jordan block, split companion
+  block, or primary component is removed at once and the recursive index is its
+  complement. This payload is now represented by `JordanBlockStepReady`.
+
+For a fixed head-tail square strategy, the payload may convert to the
+framework-facing `JordanStepOracle`. For a matrix-dependent block strategy, the
+payload must instead feed the dependent block subtype-induction driver. In both
+cases the final public theorem must be routed through the appropriate recursive
+descent entry point:
+
+```text
+SquareStrategyData or SquareProofData
+-> mkSquareSubtypeInductionInstanceFromStrategy or mkSquareSubtypeInductionInstance
+-> SquareSubtypeInductionInstance.prove_for_matrix
+```
+
+Do not prove the public theorem from an arbitrary
+`∀ A, JordanDescentReady ...` hypothesis.
+
+Important framework constraint: the current `SquareStrategyCore.SliceIdx`
+depends on the ambient index type, not on the input matrix. Therefore a
+variable-size removed Jordan block cannot be hidden inside the existing
+head-tail square strategy unless the oracle first normalizes the chosen block to
+a fixed slice family for that ambient type. If the block size genuinely depends
+on the matrix, add a dependent/block subtype-induction driver with the same
+fields as the template: transform, slice, progress, transport, lift, strategy
+data, induction instance, and `prove_for_matrix` entry point.
 
 ### 3.7 Slice
 
@@ -310,6 +432,8 @@ structure JordanStepOracle
 This oracle is a real mathematical dependency, not a cosmetic wrapper. The
 oracle-free theorem is allowed only after constructing this oracle from
 rational canonical form, primary decomposition, or nilpotent Jordan chains.
+For public-facing progress, prefer discharging or exposing the structured
+oracle above, then converting it to `JordanStepOracle` internally.
 
 The conditional theorem must be named with an explicit suffix:
 
@@ -389,18 +513,15 @@ noncomputable def jordan_strategy_core
     (oracle : ...) : SquareStrategyCore K
 
 noncomputable def jordan_strategy_data
-    (oracle : ...)
-    (hooks : JordanDescentHooks oracle) :
+    (oracle : ...) :
     SquareStrategyData K Jordan_P
 
 noncomputable def jordan_framework_inst
-    (oracle : ...)
-    (hooks : JordanDescentHooks oracle) :
+    (oracle : ...) :
     SquareSubtypeInductionInstance K
 
 theorem exists_jordan_matrix_framework
     (oracle : ...)
-    (hooks : JordanDescentHooks oracle)
     (A : Matrix ι ι K)
     (hsplit : A.charpoly.Splits (RingHom.id K)) :
     HasJordanMatrix A
@@ -412,7 +533,8 @@ theorem exists_jordan_matrix_framework_oracle
     HasJordanMatrix A
 ```
 
-Only after the oracle is discharged may the final public theorem be introduced:
+Only after the oracle/bridge data is discharged may the final public theorem be
+introduced:
 
 ```lean
 theorem exists_jordan_matrix_of_splits
@@ -423,6 +545,30 @@ theorem exists_jordan_matrix_of_splits
 
 This theorem must call the framework theorem; it must not be proved by a
 separate direct induction.
+
+### 3.12 User-Facing Condition Bridge
+
+Any internal readiness predicate used by the recursive driver must have a
+human-usable public bridge. The final theorem should never ask users to supply a
+condition like `LURecursivePivotReady`, `JordanBlockDriverOracle`, or a global
+subproblem split assumption.
+
+For Jordan, the public bridge is:
+
+```lean
+theorem jordan_ready_of_charpoly_splits
+    {K ι : Type*} [Field K]
+    [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι K)
+    (hsplit : A.charpoly.Splits (RingHom.id K)) :
+    -- the concrete structured readiness/driver payload required by the
+    -- recursive descent step
+    ...
+```
+
+This theorem may be factored into companion-block, invariant-factor, primary
+component, and nilpotent-chain lemmas, but the final public API must consume
+only `hsplit`.
 
 ## 4. Required Lemmas
 
@@ -464,15 +610,34 @@ Implemented:
 - `Jordan_P_sub`
 - `jordan_P_compat`
 - `isJordanMatrix_reindex`
+- `jordanBlockDiagLex`
+- `invertibleMatrix_blockDiag_plain`
+- `invertibleMatrix_blockDiag_lex`
+- `isJordanMatrix_blockDiag_lex`
+- `isJordanMatrix_unit`
 - `isJordanMatrix_empty`
 - `base_jordan_empty`
+- `hasJordanMatrix_of_isJordanMatrix`
+- `hasJordanMatrix_reindex`
+- `hasJordanMatrix_blockDiag_lex`
 - `jordan_transport_similarity`
 - `jordan_similarity_charpoly`
 - `JordanTailIdx`
+- `jordan_tail_card_lt`
 - `jordanTailSlice`
 - `JordanLiftReady`
 - `JordanDescentReady`
+- `jordanBlockSlice`
+- `JordanBlockStepReady`
+- `jordan_block_tail_splits_of_blockStepReady`
+- `jordanLiftReady_of_blockStepReady`
+- `jordan_block_slice_card_lt`
+- `jordan_tail_splits_of_headTailBlockEq`
+- `JordanHeadTailBlockReady`
+- `jordanLiftReady_of_headTailBlockReady`
 - `JordanStepOracle`
+- `JordanStructuredStepOracle`
+- `JordanStructuredStepOracle.toStepOracle`
 - `jordanSimilarityTransform`
 - `jordanHeadTailReduction`
 - `jordan_strategy_core`
@@ -480,10 +645,34 @@ Implemented:
 - `jordan_lift_hook`
 - `jordan_strategy_proof`
 - `jordan_base_univ`
+- `JordanBlockSliceWitness`
+- `JordanBlockSliceWitness.slice`
+- `JordanBlockDriverStepData`
+- `JordanBlockDriverStepData.target`
+- `JordanBlockDriverOracle`
+- `invertibleMatrix_of_hasMatrixInverse`
+- `JordanCompanionBlockBridge`
+- `JordanRCFSplitBlockBridge`
+- `JordanRCFAnnihilatorDivisibilityBridge`
+- `JordanRCFAnnihilatorDivisibilityBridge.toSplitBlockBridge`
+- `rationalCanonicalBlockStep_head_charpoly_dvd_charpoly`
+- `JordanRCFCompanionCharpolyBridge`
+- `JordanRCFCompanionCharpolyBridge.toAnnihilatorDivisibilityBridge`
+- `JordanRCFSplitBlockBridge.blockSliceWitness`
+- `jordan_rcf_split_block_proofData`
+- `jordan_rcf_split_block_framework_inst`
+- `jordan_block_sliceData`
+- `jordan_block_reach`
+- `jordan_block_proofData`
+- `jordan_block_framework_inst`
 - `jordan_strategy_data`
 - `jordan_framework_inst`
 - `exists_jordan_matrix_framework`
 - `exists_jordan_matrix_framework_oracle`
+- `exists_jordan_matrix_framework_rcf_split_bridge`
+- `exists_jordan_matrix_framework_rcf_divisibility_bridge`
+- `exists_jordan_matrix_framework_structured_oracle`
+- `exists_jordan_matrix_framework_block_oracle`
 
 The current Lean theorem is intentionally oracle-conditional:
 
@@ -502,11 +691,22 @@ theorem exists_jordan_matrix_framework_oracle
 Remaining work before introducing the final unsuffixed public theorem
 `exists_jordan_matrix_of_splits`:
 
-1. Construct `JordanStepOracle` from rational canonical form plus splitting of
-   invariant factors, or from primary decomposition plus nilpotent Jordan-chain
-   descent.
-2. Prove the structured block lift that combines an isolated Jordan block or
-   chain extension with the recursive tail witness.
-3. Add algebraically closed and complex corollaries only as explicit-suffix
+1. Prove the structured companion-block bridge:
+   `SingleCompanionBlockForm C p -> p.Splits (RingHom.id K) ->
+   HasJordanMatrix C`.  The bridge API exists as `JordanCompanionBlockBridge`;
+   its mathematical content is still to be discharged.
+2. Prove the companion-head characteristic-polynomial bridge:
+   `step.head.charpoly = step.cyclic_annihilator`.  The API exists as
+   `JordanRCFCompanionCharpolyBridge`; together with the already-proved
+   `rationalCanonicalBlockStep_head_charpoly_dvd_charpoly`, it mechanically
+   supplies `JordanRCFAnnihilatorDivisibilityBridge`.
+3. Instantiate `JordanRCFCompanionCharpolyBridge` from the concrete RCF block
+   oracle, the companion-head charpoly proof, and the companion-block Jordan
+   proof.
+4. Route the instantiated bridge through
+   `exists_jordan_matrix_framework_rcf_divisibility_bridge` and introduce
+   `exists_jordan_matrix_of_splits` with only `[Field K]` plus
+   `A.charpoly.Splits (RingHom.id K)`.
+5. Add algebraically closed and complex corollaries only as explicit-suffix
    corollaries after the split-polynomial theorem is available.
-4. Add the linear-map/basis bridge theorem after the matrix theorem.
+6. Add the linear-map/basis bridge theorem after the matrix theorem.

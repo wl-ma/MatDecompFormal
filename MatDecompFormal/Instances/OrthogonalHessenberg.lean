@@ -4,3 +4,5 @@ import MatDecompFormal.Instances.OrthogonalHessenberg.Direct
 import MatDecompFormal.Instances.OrthogonalHessenberg.Existence
 import MatDecompFormal.Instances.OrthogonalHessenberg.Concrete
 import MatDecompFormal.Instances.OrthogonalHessenberg.Real
+import MatDecompFormal.Instances.OrthogonalHessenberg.Givens
+import MatDecompFormal.Instances.OrthogonalHessenberg.Householder

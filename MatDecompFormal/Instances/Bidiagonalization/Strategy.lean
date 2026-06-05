@@ -87,10 +87,38 @@ def BidiagonalizationDescentReady
     (A : Matrix m n 𝕜) : Prop :=
   BidiagonalizationReady m n A
 
+/--
+Boundary-aware readiness for the classical bidiagonal recursion: below the
+head column is zero, while the head row is allowed to keep only the first tail
+column.
+-/
+def BidiagonalizationBoundaryReady
+    (m n : Type u) [Fintype m] [LinearOrder m] [Nonempty m]
+    [DecidableEq m] [Fintype n] [DecidableEq n] [LinearOrder n] [Nonempty n]
+    (A : Matrix m n 𝕜) : Prop :=
+  let A' := Matrix.reindex (headTailLexEquiv (α := m)) (headTailLexEquiv (α := n)) A
+  (∀ i : BidiagonalRowTail m, A'.toBlocks₂₁ i () = 0) ∧
+    ∀ j : BidiagonalColTail n,
+      0 < finiteOrderRank (BidiagonalColTail n) j → A'.toBlocks₁₂ () j = 0
+
+def BidiagonalizationBoundaryDescentReady
+    (m n : Type u) [Fintype m] [LinearOrder m] [Nonempty m]
+    [DecidableEq m] [Fintype n] [DecidableEq n] [LinearOrder n] [Nonempty n]
+    (A : Matrix m n 𝕜) : Prop :=
+  BidiagonalizationBoundaryReady m n A
+
 noncomputable instance bidiagonalizationDescentReadyDecidable
     (m n : Type u) [Fintype m] [DecidableEq m] [LinearOrder m] [Nonempty m]
     [Fintype n] [DecidableEq n] [LinearOrder n] [Nonempty n] :
     DecidablePred (fun A : Matrix m n 𝕜 => BidiagonalizationDescentReady m n A) := by
+  classical
+  intro A
+  exact inferInstance
+
+noncomputable instance bidiagonalizationBoundaryDescentReadyDecidable
+    (m n : Type u) [Fintype m] [DecidableEq m] [LinearOrder m] [Nonempty m]
+    [Fintype n] [DecidableEq n] [LinearOrder n] [Nonempty n] :
+    DecidablePred (fun A : Matrix m n 𝕜 => BidiagonalizationBoundaryDescentReady m n A) := by
   classical
   intro A
   exact inferInstance
@@ -105,6 +133,23 @@ structure BidiagonalizationStepOracle
   unitary_U : ∀ A, IsUnitaryMatrix (U A)
   unitary_V : ∀ A, IsUnitaryMatrix (V A)
   ready : ∀ A, BidiagonalizationReady m n ((U A)ᴴ * A * (V A))
+
+/--
+One-step oracle for the boundary-aware fixed-right-head driver. The right
+factor must fix the ambient head coordinate so the fixed-right-head invariant
+is preserved by transport.
+-/
+structure BidiagonalizationBoundaryStepOracle
+    (𝕜 : Type v) [RCLike 𝕜]
+    (m n : Type u) [Fintype m] [DecidableEq m] [LinearOrder m] [Nonempty m]
+    [Fintype n] [DecidableEq n] [LinearOrder n] [Nonempty n] where
+  U : Matrix m n 𝕜 → Matrix m m 𝕜
+  V : Matrix m n 𝕜 → Matrix n n 𝕜
+  unitary_U : ∀ A, IsUnitaryMatrix (U A)
+  unitary_V : ∀ A, IsUnitaryMatrix (V A)
+  fixed_V_head :
+    ∀ A j, V A (headElem (α := n)) j = if j = headElem (α := n) then 1 else 0
+  ready : ∀ A, BidiagonalizationBoundaryReady m n ((U A)ᴴ * A * (V A))
 
 /-- Two-sided unitary transformation driven by the one-step oracle. -/
 noncomputable def bidiagonalizationTwoSidedUnitaryTransform
@@ -124,6 +169,27 @@ noncomputable def bidiagonalizationTwoSidedUnitaryTransform
     intro A _h
     exact oracle.ready A
 
+/-- Two-sided transform for the boundary-aware driver, carrying head-fix data. -/
+noncomputable def bidiagonalizationBoundaryTwoSidedUnitaryTransform
+    (𝕜 : Type v) [RCLike 𝕜]
+    (m n : Type u) [Fintype m] [DecidableEq m] [LinearOrder m] [Nonempty m]
+    [Fintype n] [DecidableEq n] [LinearOrder n] [Nonempty n]
+    (oracle : BidiagonalizationBoundaryStepOracle 𝕜 m n) :
+    Transformation (Matrix m n 𝕜) where
+  T :=
+    { UV : Matrix m m 𝕜 × Matrix n n 𝕜 //
+      IsUnitaryMatrix UV.1 ∧ IsUnitaryMatrix UV.2 ∧
+        (∀ j : n, UV.2 (headElem (α := n)) j =
+          if j = headElem (α := n) then 1 else 0) }
+  Goal := BidiagonalizationBoundaryDescentReady m n
+  apply := fun UV A => UV.1.1ᴴ * A * UV.1.2
+  find := fun A _h =>
+    ⟨(oracle.U A, oracle.V A), oracle.unitary_U A, oracle.unitary_V A,
+      oracle.fixed_V_head A⟩
+  find_spec := by
+    intro A _h
+    exact oracle.ready A
+
 /-- Head-tail lower-right-block reduction for a ready bidiagonalization state. -/
 noncomputable def bidiagonalizationHeadTailReduction
     (𝕜 : Type v) [RCLike 𝕜]
@@ -134,6 +200,17 @@ noncomputable def bidiagonalizationHeadTailReduction
     (headTailLexEquiv (α := m))
     (headTailLexEquiv (α := n))
     (BidiagonalizationDescentReady m n)
+
+/-- Head-tail lower-right-block reduction for a boundary-ready state. -/
+noncomputable def bidiagonalizationBoundaryHeadTailReduction
+    (𝕜 : Type v) [RCLike 𝕜]
+    (m n : Type u) [Fintype m] [LinearOrder m] [Nonempty m]
+    [DecidableEq m] [Fintype n] [DecidableEq n] [LinearOrder n] [Nonempty n] :
+    ReductionMethod m n (BidiagonalRowTail m) (BidiagonalColTail n) 𝕜 :=
+  SubmatrixMethod
+    (headTailLexEquiv (α := m))
+    (headTailLexEquiv (α := n))
+    (BidiagonalizationBoundaryDescentReady m n)
 
 /-- Rectangular descent strategy core for bidiagonalization. -/
 noncomputable def bidiagonalization_strategy_core
@@ -170,6 +247,61 @@ noncomputable def bidiagonalization_strategy_core
           bidiagonalizationTwoSidedUnitaryTransform 𝕜 m n
             (oracle (m := m) (n := n))
         reduction := bidiagonalizationHeadTailReduction 𝕜 m n
+        goal_is_sliceable := rfl
+        μ := fun _ => Nat.min (Fintype.card m) (Fintype.card n)
+        μ_slice := fun _ =>
+          Nat.min (Fintype.card (BidiagonalRowTail m)) (Fintype.card (BidiagonalColTail n))
+        μ_mono := by
+          intro A t
+          simp
+        slice_progress := by
+          intro A hA
+          exact bidiagonal_tail_min_card_lt
+            (m := m) (n := n)
+            (by simpa using Fintype.card_pos_iff.mpr nm)
+            (by simpa using Fintype.card_pos_iff.mpr nn) }
+  μ_eq := by
+    intro m n fm dm om nm fn dn on nn A
+    rfl
+  μ_slice_eq := by
+    intro m n fm dm om nm fn dn on nn B
+    rfl
+
+/-- Boundary-aware rectangular descent strategy core for fixed-right-head recursion. -/
+noncomputable def bidiagonalization_boundary_strategy_core
+    (𝕜 : Type v) [RCLike 𝕜]
+    (oracle :
+      ∀ {m n : Type u} [Fintype m] [DecidableEq m] [LinearOrder m] [Nonempty m]
+        [Fintype n] [DecidableEq n] [LinearOrder n] [Nonempty n],
+        BidiagonalizationBoundaryStepOracle 𝕜 m n) :
+    RectStrategyCore 𝕜 where
+  RowSliceIdx := fun {m n} fm dm om nm _ _ _ _ => @BidiagonalRowTail m fm dm om nm
+  ColSliceIdx := fun {m n} _ _ _ _ fn dn on nn => @BidiagonalColTail n fn dn on nn
+  rowSliceFintype := by
+    intro m n fm dm om nm fn dn on nn
+    infer_instance
+  rowSliceDecEq := by
+    intro m n fm dm om nm fn dn on nn
+    infer_instance
+  rowSliceLinearOrder := by
+    intro m n fm dm om nm fn dn on nn
+    infer_instance
+  colSliceFintype := by
+    intro m n fm dm om nm fn dn on nn
+    infer_instance
+  colSliceDecEq := by
+    intro m n fm dm om nm fn dn on nn
+    infer_instance
+  colSliceLinearOrder := by
+    intro m n fm dm om nm fn dn on nn
+    infer_instance
+  strategy := by
+    intro m n fm dm om nm fn dn on nn
+    exact
+      { transform :=
+          bidiagonalizationBoundaryTwoSidedUnitaryTransform 𝕜 m n
+            (oracle (m := m) (n := n))
+        reduction := bidiagonalizationBoundaryHeadTailReduction 𝕜 m n
         goal_is_sliceable := rfl
         μ := fun _ => Nat.min (Fintype.card m) (Fintype.card n)
         μ_slice := fun _ =>

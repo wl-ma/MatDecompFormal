@@ -24,23 +24,26 @@ theorem exists_orthogonal_bidiagonalization
       A = U * B * Vᵀ
 ```
 
-Unitary version:
+Complex unitary version:
 
 ```lean
 theorem exists_unitary_bidiagonalization
-    {𝕜 m n : Type*} [RCLike 𝕜]
-    [Fintype m] [DecidableEq m] [LinearOrder m]
+    {m n : Type*} [Fintype m] [DecidableEq m] [LinearOrder m]
     [Fintype n] [DecidableEq n] [LinearOrder n]
-    (A : Matrix m n 𝕜) :
-    ∃ U : Matrix m m 𝕜, ∃ V : Matrix n n 𝕜, ∃ B : Matrix m n 𝕜,
+    (A : Matrix m n ℂ) :
+    ∃ U : Matrix m m ℂ, ∃ V : Matrix n n ℂ, ∃ B : Matrix m n ℂ,
       IsUnitaryMatrix U ∧
       IsUnitaryMatrix V ∧
       IsUpperBidiagonal B ∧
       A = U * B * Vᴴ
 ```
 
-The unitary theorem should be the main theorem if the conjugate-transpose API is
-cleaner.  The real theorem can be a specialization.
+The generic `RCLike` theorem is available at the framework/oracle layer:
+`exists_unitary_bidiagonalization_framework`,
+`exists_unitary_bidiagonalization_oracle`, and the boundary-aware
+`exists_unitary_bidiagonalization_boundary_oracle`.  The unconditional concrete
+public theorem is stated over `ℂ`; the real public theorem is stated separately
+as `exists_orthogonal_bidiagonalization`.
 
 ## 2. Predicate Layer
 
@@ -171,12 +174,14 @@ theorem bidiagonalization_base_univ
 Base cases:
 
 1. zero rows;
-2. zero columns;
-3. one row;
-4. one column.
+2. zero columns.
 
-For one row or one column, every matrix is upper bidiagonal under the rank
-predicate.  Use `U = 1`, `V = 1`, `B = A`.
+One-row or one-column matrices are not base cases for the current
+finite-rank zero pattern: a one-row matrix may still have entries beyond the
+first superdiagonal, and a one-column matrix may still have entries below the
+diagonal.  They are handled by the ordinary positive rectangular step, whose
+head-tail slice then has an empty row or empty column type and falls into the
+base theorem above.
 
 ### 3.4 Transformation
 
@@ -323,8 +328,11 @@ The bidiagonal zero proof uses:
 
 ## 4. One-Step Oracle
 
-The strict template should first be implemented with an oracle, then discharged
-with Householder or Givens transformations.
+The strict template is implemented with an explicit one-step oracle.  The
+verified concrete discharge currently uses spectral singular-vector data:
+over `ℂ`, the SVD head block-ready oracle is bridged into
+`BidiagonalizationStepOracle`; over `ℝ`, a real right-Gram spectral construction
+provides `realBidiagonalizationStepOracle`.
 
 ```lean
 structure BidiagonalizationStepOracle (𝕜 : Type*) where
@@ -344,7 +352,8 @@ structure BidiagonalizationStepOracle (𝕜 : Type*) where
     ∀ A, BidiagonalizationReady ((U A)ᴴ * A * V A)
 ```
 
-Concrete step:
+Classical Householder or Givens transformations remain a valid alternative
+oracle discharge route:
 
 1. use a left Householder/Givens transformation to zero the first column below
    the first row;
@@ -355,7 +364,7 @@ Concrete step:
 The right transformation must leave the first column readiness intact; this is
 automatic because it acts on columns, but the block proof must state it.
 
-## 5. Householder Route
+## 5. Optional Householder Route
 
 Left reflector:
 
@@ -374,7 +383,7 @@ Right reflector:
 acts only on the column tail so the first row tail is mapped to a scalar
 multiple of its first coordinate.
 
-Required lemmas:
+Required lemmas for this optional route:
 
 ```lean
 theorem householder_unitary :
@@ -389,14 +398,14 @@ theorem blockDiag_one_householder_unitary :
 
 Degenerate vectors use identity reflectors.
 
-## 6. Givens Fallback
+## 6. Optional Givens Fallback
 
 Use finite products of Givens rotations:
 
 1. left rotations zero entries in the first column from bottom to top;
 2. right rotations zero entries in the first row tail from right to left.
 
-Required lemmas:
+Required lemmas for this optional route:
 
 ```lean
 theorem givens_unitary :
@@ -426,8 +435,9 @@ Files should be introduced in this order:
 3. `Direct.lean`: transport and lift hooks.
 4. `Existence.lean`: strict framework instantiation and oracle-routed public
    theorem.
-5. `Householder.lean` or `Givens.lean`: concrete oracle.
-6. `Bidiagonalization.lean`: aggregate imports.
+5. `Spectral.lean`: concrete spectral oracle bridges for `ℂ` and `ℝ`.
+6. Optional `Householder.lean` or `Givens.lean`: alternative concrete oracle.
+7. `Bidiagonalization.lean`: aggregate imports.
 
 The final public theorem must be routed as:
 
@@ -526,11 +536,12 @@ Completed framework milestones:
 
 - File skeleton is present:
   `Bidiagonalization.lean`, `Bidiagonalization/Details.lean`,
-  `Bidiagonalization/Strategy.lean`, `Bidiagonalization/Direct.lean`, and
-  `Bidiagonalization/Existence.lean`.
+  `Bidiagonalization/Strategy.lean`, `Bidiagonalization/Direct.lean`,
+  `Bidiagonalization/Existence.lean`, and `Bidiagonalization/Spectral.lean`.
 - Matrix-level target predicate is defined:
-  `IsUpperBidiagonal`, `HasUnitaryBidiagonalization`, and
-  universe-level `Bidiagonalization_P`.
+  `IsUpperBidiagonal`, `HasUnitaryBidiagonalization`,
+  `HasOrthogonalBidiagonalization`, and universe-level
+  `Bidiagonalization_P`.
 - Base cases are implemented for empty row and empty column types.
 - Strategy-side rectangular descent is implemented:
   `BidiagonalRowTail`, `BidiagonalColTail`,
@@ -538,6 +549,12 @@ Completed framework milestones:
   `bidiagonalizationTwoSidedUnitaryTransform`,
   `bidiagonalizationHeadTailReduction`, and
   `bidiagonalization_strategy_core`.
+- Boundary-aware strategy-side rectangular descent is implemented:
+  `BidiagonalizationBoundaryReady`,
+  `BidiagonalizationBoundaryStepOracle`,
+  `bidiagonalizationBoundaryTwoSidedUnitaryTransform`,
+  `bidiagonalizationBoundaryHeadTailReduction`, and
+  `bidiagonalization_boundary_strategy_core`.
 - The measure is `Nat.min (Fintype.card m) (Fintype.card n)`, and
   `bidiagonal_tail_min_card_lt` proves strict progress after removing both
   heads.
@@ -545,15 +562,38 @@ Completed framework milestones:
   `bidiagonalization_transport_hook`, `bidiagonalization_lift_hook`,
   `bidiagonalization_descent_hooks`, and
   `bidiagonalization_strategy_proof`.
+- Boundary-aware fixed-right-head transport and lift hooks are concrete:
+  `bidiagonalization_boundary_transport_hook`,
+  `bidiagonalization_boundary_lift_hook`,
+  `bidiagonalization_boundary_descent_hooks`, and
+  `bidiagonalization_boundary_strategy_proof`.
 - The framework theorem chain is routed through
   `RectSubtypeInductionInstance.prove_for_matrix`:
-  `exists_unitary_bidiagonalization_framework` and
-  `exists_unitary_bidiagonalization_oracle`.
+  `exists_unitary_bidiagonalization_framework`,
+  `exists_unitary_bidiagonalization_oracle`, and
+  `exists_orthogonal_bidiagonalization_oracle`.
 - A concrete complex theorem is available:
   `exists_unitary_bidiagonalization`, obtained by feeding the framework theorem
   the SVD spectral block-ready one-step bridge
   `bidiagonalizationStepOracleOfSVDBlockReady` /
   `bidiagonalizationStepOracle`.
+- A concrete real theorem is available:
+  `exists_orthogonal_bidiagonalization`, obtained by feeding the framework
+  theorem the real spectral one-step bridge
+  `realBidiagonalizationStepOracle`.
+- Boundary-aware support lemmas are now implemented in `Details.lean`:
+  `HasUnitaryBidiagonalizationFixedRightHead`,
+  `BidiagonalizationFixedRightHead_P`,
+  `bidiagonalization_P_of_fixedRightHead_P`,
+  `bidiagonalization_transport_equivalence_fixedRightHead`,
+  `bidiagonalizationFixedRightHead_reindex_strictMono`, and
+  `bidiagonalization_of_boundary_ready_blocks`.
+- The boundary-aware fixed-right-head framework theorem chain is routed through
+  `RectSubtypeInductionInstance.prove_for_matrix`:
+  `bidiagonalization_boundary_framework_inst`,
+  `exists_unitary_bidiagonalization_fixedRightHead_framework`,
+  `exists_unitary_bidiagonalization_boundary_framework`, and
+  `exists_unitary_bidiagonalization_boundary_oracle`.
 
 Current oracle scope:
 
@@ -561,6 +601,10 @@ Current oracle scope:
   after head-tail reindexing, both `toBlocks₂₁` and the full `toBlocks₁₂` are
   zero.  This is stronger than classical bidiagonal step readiness, but it is
   the invariant consumed by the verified block-diagonal lift.
+- The boundary-aware fixed-right-head driver is available and uses
+  `BidiagonalizationFixedRightHead_P`; its readiness allows the first tail
+  column in `toBlocks₁₂`, and its public boundary theorem projects through
+  `bidiagonalization_P_of_fixedRightHead_P`.
 - A standalone Householder or Givens bidiagonalization oracle has not yet been
   discharged.  The current concrete theorem uses the SVD spectral one-step
   block-ready construction instead.
@@ -579,12 +623,29 @@ printf 'import MatDecompFormal.Instances.Bidiagonalization
 #check MatDecompFormal.Instances.exists_unitary_bidiagonalization_framework
 #check MatDecompFormal.Instances.exists_unitary_bidiagonalization_oracle
 #check MatDecompFormal.Instances.exists_unitary_bidiagonalization
+#check MatDecompFormal.Instances.exists_orthogonal_bidiagonalization_oracle
+#check MatDecompFormal.Instances.exists_orthogonal_bidiagonalization
 #check MatDecompFormal.Instances.BidiagonalizationStepOracle
 #check MatDecompFormal.Instances.bidiagonalizationStepOracleOfSVDBlockReady
 #check MatDecompFormal.Instances.bidiagonalizationStepOracle
+#check MatDecompFormal.Instances.realBidiagonalizationStepOracle
 #check MatDecompFormal.Instances.bidiagonalization_framework_inst
+#check MatDecompFormal.Instances.HasUnitaryBidiagonalizationFixedRightHead
+#check MatDecompFormal.Instances.BidiagonalizationFixedRightHead_P
+#check MatDecompFormal.Instances.bidiagonalization_P_of_fixedRightHead_P
+#check MatDecompFormal.Instances.bidiagonalization_transport_equivalence_fixedRightHead
+#check MatDecompFormal.Instances.bidiagonalizationFixedRightHead_reindex_strictMono
+#check MatDecompFormal.Instances.bidiagonalization_of_boundary_ready_blocks
+#check MatDecompFormal.Instances.BidiagonalizationBoundaryReady
+#check MatDecompFormal.Instances.BidiagonalizationBoundaryStepOracle
+#check MatDecompFormal.Instances.bidiagonalization_boundary_strategy_core
+#check MatDecompFormal.Instances.bidiagonalization_boundary_descent_hooks
+#check MatDecompFormal.Instances.bidiagonalization_boundary_framework_inst
+#check MatDecompFormal.Instances.exists_unitary_bidiagonalization_fixedRightHead_framework
+#check MatDecompFormal.Instances.exists_unitary_bidiagonalization_boundary_framework
+#check MatDecompFormal.Instances.exists_unitary_bidiagonalization_boundary_oracle
 ' | lake env lean --stdin
-rg -n "prove_for_matrix|exists_unitary_bidiagonalization_framework|exists_unitary_bidiagonalization_oracle|exists_unitary_bidiagonalization|BidiagonalizationStepOracle|bidiagonalizationStepOracle" \
+rg -n "prove_for_matrix|exists_unitary_bidiagonalization_framework|exists_unitary_bidiagonalization_oracle|exists_unitary_bidiagonalization|exists_orthogonal_bidiagonalization_oracle|exists_orthogonal_bidiagonalization|BidiagonalizationStepOracle|BidiagonalizationBoundaryStepOracle|bidiagonalizationStepOracle|realBidiagonalizationStepOracle|FixedRightHead|boundary_ready_blocks|boundary_framework" \
   MatDecompFormal/Instances/Bidiagonalization \
   MatDecompFormal/Instances/Bidiagonalization.lean -S
 ```
