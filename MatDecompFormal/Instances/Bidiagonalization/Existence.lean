@@ -81,4 +81,17 @@ theorem exists_unitary_bidiagonalization_oracle
   exact exists_unitary_bidiagonalization_framework oracle
     (bidiagonalization_descent_hooks oracle) A
 
+/-- Framework-routed real orthogonal bidiagonalization conditional on a real one-step oracle. -/
+theorem exists_orthogonal_bidiagonalization_oracle
+    (oracle :
+      ∀ {p q : Type u} [Fintype p] [DecidableEq p] [LinearOrder p] [Nonempty p]
+        [Fintype q] [DecidableEq q] [LinearOrder q] [Nonempty q],
+        BidiagonalizationStepOracle ℝ p q)
+    {m n : Type u} [Fintype m] [DecidableEq m] [LinearOrder m]
+    [Fintype n] [DecidableEq n] [LinearOrder n]
+    (A : Matrix m n ℝ) :
+    HasOrthogonalBidiagonalization A := by
+  exact hasOrthogonalBidiagonalization_of_hasUnitary
+    (exists_unitary_bidiagonalization_oracle oracle A)
+
 end MatDecompFormal.Instances

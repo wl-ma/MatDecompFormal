@@ -1,5 +1,6 @@
 import MatDecompFormal.Instances.Hessenberg.Boundary
 import MatDecompFormal.Instances.Normal.Details
+import MatDecompFormal.Instances.QR.Details
 
 universe u
 
@@ -40,6 +41,29 @@ def HasUnitaryBidiagonalization
     IsUnitaryMatrix V ∧
     IsUpperBidiagonal B ∧
     A = U * B * Vᴴ
+
+/-- Real orthogonal two-sided upper-bidiagonalization target. -/
+def HasOrthogonalBidiagonalization
+    [Fintype m] [DecidableEq m] [LinearOrder m]
+    [Fintype n] [DecidableEq n] [LinearOrder n]
+    (A : Matrix m n ℝ) : Prop :=
+  ∃ U : Matrix m m ℝ, ∃ V : Matrix n n ℝ, ∃ B : Matrix m n ℝ,
+    IsOrthogonalMatrix U ∧
+    IsOrthogonalMatrix V ∧
+    IsUpperBidiagonal B ∧
+    A = U * B * Vᵀ
+
+theorem hasOrthogonalBidiagonalization_of_hasUnitary
+    [Fintype m] [DecidableEq m] [LinearOrder m]
+    [Fintype n] [DecidableEq n] [LinearOrder n]
+    {A : Matrix m n ℝ} :
+    HasUnitaryBidiagonalization A → HasOrthogonalBidiagonalization A := by
+  intro hA
+  rcases hA with ⟨U, V, B, hU, hV, hB, hEq⟩
+  refine ⟨U, V, B, ?_, ?_, hB, ?_⟩
+  · simpa [IsUnitaryMatrix, IsOrthogonalMatrix] using hU.1
+  · simpa [IsUnitaryMatrix, IsOrthogonalMatrix] using hV.1
+  · simpa using hEq
 
 /-- Universe-level bidiagonalization predicate used by the rectangular driver. -/
 def Bidiagonalization_P (𝕜 : Type*) [RCLike 𝕜] (x : RectUniverse 𝕜) : Prop :=
@@ -165,6 +189,28 @@ variable {m n : Type u}
 variable [Fintype m] [DecidableEq m] [LinearOrder m]
 variable [Fintype n] [DecidableEq n] [LinearOrder n]
 
+/--
+Unitary bidiagonalization witness whose right unitary factor does not mix the
+head column into later columns. This is the boundary-aware tail invariant needed
+by the classical upper-bidiagonal recursion.
+-/
+def HasUnitaryBidiagonalizationFixedRightHead
+    [Nonempty n]
+    (A : Matrix m n 𝕜) : Prop :=
+  ∃ U : Matrix m m 𝕜, ∃ V : Matrix n n 𝕜, ∃ B : Matrix m n 𝕜,
+    IsUnitaryMatrix U ∧
+    IsUnitaryMatrix V ∧
+    IsUpperBidiagonal B ∧
+    (∀ j : n, 0 < finiteOrderRank n j → V (headElem (α := n)) j = 0) ∧
+    A = U * B * Vᴴ
+
+theorem hasUnitaryBidiagonalization_of_fixedRightHead
+    [Nonempty n] {A : Matrix m n 𝕜}
+    (hA : HasUnitaryBidiagonalizationFixedRightHead A) :
+    HasUnitaryBidiagonalization A := by
+  rcases hA with ⟨U, V, B, hU, hV, hB, _hfix, hEq⟩
+  exact ⟨U, V, B, hU, hV, hB, hEq⟩
+
 /-- A one-head block matrix is upper bidiagonal from a ready boundary and tail shape. -/
 theorem isUpperBidiagonal_fromBlocks_ready
     (B₁₁ : Matrix Unit Unit 𝕜) (B₁₂ : Matrix Unit n 𝕜)
@@ -218,6 +264,89 @@ theorem isUpperBidiagonal_fromBlocks_ready
             omega
           simpa [Matrix.reindex_apply, sumToLexEquiv] using hTail ii jj hijTail
 
+/--
+A one-head block matrix is upper bidiagonal when the lower-left block is zero,
+the upper-right block is supported only at the head of the tail columns, and
+the lower-right block is upper bidiagonal.
+-/
+theorem isUpperBidiagonal_fromBlocks_boundary
+    (B₁₁ : Matrix Unit Unit 𝕜) (B₁₂ : Matrix Unit n 𝕜)
+    (B₂₁ : Matrix m Unit 𝕜) (B₂₂ : Matrix m n 𝕜)
+    (hcol : ∀ i : m, B₂₁ i () = 0)
+    (hrow : ∀ j : n, 0 < finiteOrderRank n j → B₁₂ () j = 0)
+    (hTail : IsUpperBidiagonal B₂₂) :
+    IsUpperBidiagonal
+      (Matrix.reindex (sumToLexEquiv Unit m) (sumToLexEquiv Unit n)
+        (fromBlocks B₁₁ B₁₂ B₂₁ B₂₂ : Matrix (Unit ⊕ m) (Unit ⊕ n) 𝕜)) := by
+  intro i j hij
+  cases hi : ofLex i with
+  | inl iu =>
+      cases iu
+      have i_eq : i = (Sum.inlₗ () : Unit ⊕ₗ m) := by
+        rw [← toLex_ofLex i, hi]
+      subst i
+      cases hj : ofLex j with
+      | inl ju =>
+          cases ju
+          have j_eq : j = (Sum.inlₗ () : Unit ⊕ₗ n) := by
+            rw [← toLex_ofLex j, hj]
+          subst j
+          have hbad : 0 < 0 ∨ 1 < 0 := by
+            simpa [finiteOrderRank_sumLex_inl_unit] using hij
+          rcases hbad with hbad | hbad
+          · exact (Nat.lt_irrefl 0 hbad).elim
+          · exact (Nat.not_lt_zero 1 hbad).elim
+      | inr jj =>
+          have j_eq : j = (Sum.inrₗ jj : Unit ⊕ₗ n) := by
+            rw [← toLex_ofLex j, hj]
+          subst j
+          have hjpos : 0 < finiteOrderRank n jj := by
+            rw [finiteOrderRank_sumLex_inl_unit, finiteOrderRank_sumLex_inr] at hij
+            omega
+          simpa [Matrix.reindex_apply, sumToLexEquiv] using hrow jj hjpos
+  | inr ii =>
+      have i_eq : i = (Sum.inrₗ ii : Unit ⊕ₗ m) := by
+        rw [← toLex_ofLex i, hi]
+      subst i
+      cases hj : ofLex j with
+      | inl ju =>
+          cases ju
+          rw [← toLex_ofLex j, hj]
+          simpa [Matrix.reindex_apply, sumToLexEquiv] using hcol ii
+      | inr jj =>
+          have j_eq : j = (Sum.inrₗ jj : Unit ⊕ₗ n) := by
+            rw [← toLex_ofLex j, hj]
+          subst j
+          have hijTail :
+              finiteOrderRank n jj < finiteOrderRank m ii ∨
+                finiteOrderRank m ii + 1 < finiteOrderRank n jj := by
+            rw [finiteOrderRank_sumLex_inr, finiteOrderRank_sumLex_inr] at hij
+            omega
+          simpa [Matrix.reindex_apply, sumToLexEquiv] using hTail ii jj hijTail
+
+lemma row_mul_fixedRightHead_zero
+    [Nonempty n]
+    (B₁₂ : Matrix Unit n 𝕜) (V : Matrix n n 𝕜)
+    (hrow : ∀ j : n, 0 < finiteOrderRank n j → B₁₂ () j = 0)
+    (hV : ∀ j : n, 0 < finiteOrderRank n j → V (headElem (α := n)) j = 0) :
+    ∀ j : n, 0 < finiteOrderRank n j → (B₁₂ * V) () j = 0 := by
+  intro j hj
+  rw [Matrix.mul_apply]
+  apply Finset.sum_eq_zero
+  intro k _hk
+  by_cases hkhead : k = headElem (α := n)
+  · subst k
+    simp [hV j hj]
+  · have hkpos : 0 < finiteOrderRank n k := by
+      have hhead_lt : headElem (α := n) < k :=
+        lt_of_le_of_ne (headElem_le (α := n) k) (by
+          intro h
+          exact hkhead h.symm)
+      unfold finiteOrderRank
+      rw [Fintype.card_pos_iff]
+      exact ⟨⟨headElem (α := n), hhead_lt⟩⟩
+    simp [hrow k hkpos]
+
 /-- Lift a tail bidiagonalization through a ready rectangular head-tail block. -/
 theorem bidiagonalization_of_ready_blocks
     (B₁₁ : Matrix Unit Unit 𝕜) (B₁₂ : Matrix Unit n 𝕜)
@@ -264,6 +393,65 @@ theorem bidiagonalization_of_ready_blocks
               ext i j <;> cases i <;> cases j <;>
                 simp [Matrix.fromBlocks_conjTranspose, fromBlocks_multiply,
                   Matrix.mul_assoc]
+            have hlex := congrArg
+              (Matrix.reindex (sumToLexEquiv Unit m) (sumToLexEquiv Unit n)) hraw
+            simpa [Ublk, Vblk, Cparent, Matrix.submatrix_mul_equiv,
+              Matrix.conjTranspose_reindex, Matrix.mul_assoc] using hlex
+
+/--
+Boundary-aware lift: the parent first row may keep its superdiagonal entry, and
+the recursive right unitary is required not to mix the tail head column into
+later columns.
+-/
+theorem bidiagonalization_of_boundary_ready_blocks
+    [Nonempty n]
+    (B₁₁ : Matrix Unit Unit 𝕜) (B₁₂ : Matrix Unit n 𝕜)
+    (B₂₁ : Matrix m Unit 𝕜) (B₂₂ : Matrix m n 𝕜)
+    (hcol : ∀ i : m, B₂₁ i () = 0)
+    (hrow : ∀ j : n, 0 < finiteOrderRank n j → B₁₂ () j = 0)
+    (hTail : HasUnitaryBidiagonalizationFixedRightHead B₂₂) :
+    HasUnitaryBidiagonalization
+      (Matrix.reindex (sumToLexEquiv Unit m) (sumToLexEquiv Unit n)
+        (fromBlocks B₁₁ B₁₂ B₂₁ B₂₂ : Matrix (Unit ⊕ m) (Unit ⊕ n) 𝕜)) := by
+  rcases hTail with ⟨U, V, C, hU, hV, hC, hVrow, hEq⟩
+  let Ublk : Matrix (Unit ⊕ₗ m) (Unit ⊕ₗ m) 𝕜 :=
+    fromBlocks (1 : Matrix Unit Unit 𝕜) 0 0 U
+  let Vblk : Matrix (Unit ⊕ₗ n) (Unit ⊕ₗ n) 𝕜 :=
+    fromBlocks (1 : Matrix Unit Unit 𝕜) 0 0 V
+  let Cparent : Matrix (Unit ⊕ₗ m) (Unit ⊕ₗ n) 𝕜 :=
+    Matrix.reindex (sumToLexEquiv Unit m) (sumToLexEquiv Unit n)
+      (fromBlocks B₁₁ (B₁₂ * V) 0 C : Matrix (Unit ⊕ m) (Unit ⊕ n) 𝕜)
+  refine ⟨Ublk, Vblk, Cparent, ?_, ?_, ?_, ?_⟩
+  · exact isUnitaryMatrix_blockDiag_one hU
+  · exact isUnitaryMatrix_blockDiag_one hV
+  · exact isUpperBidiagonal_fromBlocks_boundary B₁₁ (B₁₂ * V) 0 C
+      (by simp)
+      (row_mul_fixedRightHead_zero B₁₂ V hrow hVrow)
+      hC
+  · calc
+      Matrix.reindex (sumToLexEquiv Unit m) (sumToLexEquiv Unit n)
+          (fromBlocks B₁₁ B₁₂ B₂₁ B₂₂ : Matrix (Unit ⊕ m) (Unit ⊕ n) 𝕜)
+          = Matrix.reindex (sumToLexEquiv Unit m) (sumToLexEquiv Unit n)
+              (fromBlocks B₁₁ B₁₂ 0 B₂₂ : Matrix (Unit ⊕ m) (Unit ⊕ n) 𝕜) := by
+            congr 1
+            ext i j <;> cases i <;> cases j <;> simp [hcol]
+      _ = Matrix.reindex (sumToLexEquiv Unit m) (sumToLexEquiv Unit n)
+              (fromBlocks B₁₁ B₁₂ 0 (U * C * Vᴴ) :
+                Matrix (Unit ⊕ m) (Unit ⊕ n) 𝕜) := by
+            rw [hEq]
+      _ = Ublk * Cparent * Vblkᴴ := by
+            have hraw :
+                (fromBlocks B₁₁ B₁₂ 0 (U * C * Vᴴ) :
+                  Matrix (Unit ⊕ m) (Unit ⊕ n) 𝕜) =
+                    (fromBlocks (1 : Matrix Unit Unit 𝕜) 0 0 U :
+                      Matrix (Unit ⊕ m) (Unit ⊕ m) 𝕜) *
+                      (fromBlocks B₁₁ (B₁₂ * V) 0 C :
+                        Matrix (Unit ⊕ m) (Unit ⊕ n) 𝕜) *
+                      (fromBlocks (1 : Matrix Unit Unit 𝕜) 0 0 V :
+                        Matrix (Unit ⊕ n) (Unit ⊕ n) 𝕜)ᴴ := by
+              ext i j <;> cases i <;> cases j <;>
+                simp [Matrix.fromBlocks_conjTranspose, fromBlocks_multiply,
+                  Matrix.mul_assoc, hV.2]
             have hlex := congrArg
               (Matrix.reindex (sumToLexEquiv Unit m) (sumToLexEquiv Unit n)) hraw
             simpa [Ublk, Vblk, Cparent, Matrix.submatrix_mul_equiv,
