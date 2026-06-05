@@ -280,6 +280,34 @@ theorem generalizedJordanBlockData_model_charpoly
     (generalizedJordanBlock_charpoly (poly b) (exponent b)
       (hpoly_monic b) (hpoly_irred b).natDegree_pos)
 
+/--
+Characteristic polynomial recorded by generalized Jordan block data.
+
+This is the public bookkeeping theorem tying the diagonal generalized-Jordan
+block polynomials to the characteristic polynomial of the whole model matrix:
+the characteristic polynomial is the product of the recorded elementary factors
+`poly b ^ exponent b`.
+-/
+theorem generalizedJordanBlockData_charpoly
+    {K ι : Type u} [Field K]
+    [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {J : Matrix ι ι K}
+    (d : GeneralizedJordanBlockData J) :
+    J.charpoly = ∏ b : d.block, (d.poly b) ^ d.exponent b := by
+  classical
+  letI : LinearOrder d.block := d.linearOrder_block
+  have hcharReindex :
+      (Matrix.reindex d.blockIndexEquiv d.blockIndexEquiv J).charpoly =
+        J.charpoly :=
+    Matrix.charpoly_reindex d.blockIndexEquiv J
+  have hcharBlocks :
+      (Matrix.blockDiagonal' fun b =>
+        generalizedJordanBlock (d.poly b) (d.exponent b)).charpoly =
+        ∏ b : d.block, (d.poly b) ^ d.exponent b :=
+    generalizedJordanBlockData_model_charpoly
+      d.poly d.exponent d.poly_monic d.poly_irreducible
+  rw [← hcharReindex, d.block_form, hcharBlocks]
+
 /-- Cast-aware version of `generalizedJordanBlock_linear_reindex_jordanBlock`. -/
 theorem generalizedJordanBlock_linear_reindex_jordanBlock_of_eq
     {K : Type u} [Field K] {p : K[X]} (lam : K) (k : Nat)
@@ -399,19 +427,9 @@ theorem generalizedJordanBlockData_poly_dvd_charpoly
     d.poly b ∣ J.charpoly := by
   classical
   letI : LinearOrder d.block := d.linearOrder_block
-  have hcharReindex :
-      (Matrix.reindex d.blockIndexEquiv d.blockIndexEquiv J).charpoly =
-        J.charpoly :=
-    Matrix.charpoly_reindex d.blockIndexEquiv J
-  have hcharBlocks :
-      (Matrix.blockDiagonal' fun b =>
-        generalizedJordanBlock (d.poly b) (d.exponent b)).charpoly =
-        ∏ b : d.block, (d.poly b) ^ d.exponent b :=
-    generalizedJordanBlockData_model_charpoly
-      d.poly d.exponent d.poly_monic d.poly_irreducible
   have hchar :
-      J.charpoly = ∏ b : d.block, (d.poly b) ^ d.exponent b := by
-    rw [← hcharReindex, d.block_form, hcharBlocks]
+      J.charpoly = ∏ b : d.block, (d.poly b) ^ d.exponent b :=
+    generalizedJordanBlockData_charpoly d
   rw [hchar]
   have hpow : d.poly b ∣ (d.poly b) ^ d.exponent b :=
     dvd_pow_self (d.poly b) (d.exponent_pos b).ne'
