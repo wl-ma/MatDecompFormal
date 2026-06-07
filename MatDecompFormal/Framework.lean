@@ -1,4 +1,6 @@
-import MatDecompFormal.Framework.FinEnum
 import MatDecompFormal.Framework.Induction
+import MatDecompFormal.Framework.DecompositionDriver
+import MatDecompFormal.Framework.HeadTail
+import MatDecompFormal.Framework.Reindex
 import MatDecompFormal.Framework.Universe
-import MatDecompFormal.Framework.UniverseDecompositionFin
+import MatDecompFormal.Framework.UniverseDecomposition

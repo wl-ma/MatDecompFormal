@@ -1,4 +1,4 @@
-import Mathlib.LinearAlgebra.Matrix.GeneralLinearGroup.Defs
+import Mathlib.Data.Matrix.Basic
 
 namespace MatDecompFormal.Abstractions
 
@@ -14,10 +14,10 @@ lemmas and automation tactics.
 -/
 
 /--
-`MatrixGroup P` is a typeclass asserting that `n × n` matrices satisfying property `P`
+`MatrixGroup P` is a typeclass asserting that square matrices satisfying property `P`
 form a group under matrix multiplication.
 -/
-class MatrixGroup {n R} [CommRing R] (P : Matrix (Fin n) (Fin n) R → Prop) where
+class MatrixGroup {ι R} [Fintype ι] [DecidableEq ι] [Semiring R] (P : Matrix ι ι R → Prop) where
   /--
   Multiplicative closure: multiplying two matrices satisfying property P still
   yields a matrix satisfying P.
@@ -25,9 +25,9 @@ class MatrixGroup {n R} [CommRing R] (P : Matrix (Fin n) (Fin n) R → Prop) whe
   mul_closed : ∀ {A B}, P A → P B → P (A * B)
   /-- The identity element belongs to this set. -/
   one_mem : P 1
-  /-- Inverse closure: the inverse of a matrix satisfying property P also satisfies P. -/
-  inv_closed : ∀ {A}, P A → P A⁻¹
-  /-- Invertibility: matrices satisfying property P are invertible, i.e. units in the ring. -/
+  /-- Inverse closure by witness: every matrix satisfying P has a two-sided inverse satisfying P. -/
+  inv_closed : ∀ {A}, P A → ∃ B, P B ∧ A * B = 1 ∧ B * A = 1
+  /-- Invertibility: matrices satisfying P are invertible, i.e. units in the matrix monoid. -/
   invertible : ∀ {A}, P A → IsUnit A
 
 end MatDecompFormal.Abstractions

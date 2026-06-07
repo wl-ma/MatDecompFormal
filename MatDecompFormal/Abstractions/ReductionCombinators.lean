@@ -7,11 +7,11 @@ namespace MatDecompFormal.Abstractions
 -/
 
 /--
-`ReductionMethod.try_else` (Fin m n version)
+`ReductionMethod.try_else`
 -/
-noncomputable def ReductionMethod.try_else {m n slice_m slice_n : ℕ} {R : Type*} [CommRing R]
-    (M₁ M₂ : ReductionMethod m n slice_m slice_n R)
-    : ReductionMethod m n slice_m slice_n R where
+noncomputable def ReductionMethod.try_else {ι κ ιs κs : Type*} {R : Type*}
+    (M₁ M₂ : ReductionMethod ι κ ιs κs R) :
+    ReductionMethod ι κ ιs κs R where
 
   IsSliceable := fun A ↦ M₁.IsSliceable A ∨ M₂.IsSliceable A
 

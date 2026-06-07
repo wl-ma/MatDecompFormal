@@ -5,43 +5,59 @@ namespace MatDecompFormal.Framework
 /-!
 # Matrix Universe
 
-This file defines the framework’s universe types, using Σ types to uniformly organize
-matrices of different sizes so that cross-dimension reduction and induction can be
-expressed in one host type.
+This file defines the framework's universe types using only `Type*`,
+existing instances, and thin wrapper structures. The recursive framework
+should reason about index types directly.
 -/
 
-/--
-`FinRectFamily m n R` wraps a matrix of fixed dimension `m × n`.
--/
-structure FinRectFamily (m n : ℕ) (R : Type*) where
-  A : Matrix (Fin m) (Fin n) R
+/-- A rectangular matrix universe packaged directly as a structure. -/
+structure RectUniverse (R : Type*) where
+  ι : Type*
+  [fintype_ι : Fintype ι]
+  [decEq_ι : DecidableEq ι]
+  [linOrder_ι : LinearOrder ι]
+  κ : Type*
+  [fintype_κ : Fintype κ]
+  [decEq_κ : DecidableEq κ]
+  [linOrder_κ : LinearOrder κ]
+  A : Matrix ι κ R
 
-/--
-`FinRectUniverse R` is the collection of all `m × n` matrices, defined as a Σ type.
-An object `x` in the universe is a dependent pair `⟨⟨m, n⟩, fam⟩`, where `fam.A` is the matrix.
--/
-abbrev FinRectUniverse (R : Type*) := Σ (dims : ℕ × ℕ), FinRectFamily dims.1 dims.2 R
+attribute [instance] RectUniverse.fintype_ι RectUniverse.decEq_ι RectUniverse.linOrder_ι
+attribute [instance] RectUniverse.fintype_κ RectUniverse.decEq_κ RectUniverse.linOrder_κ
+namespace RectUniverse
 
-/--
-`PosFinRectUniverse R` is the subtype of matrices with dimensions `m > 0 ∧ n > 0`.
--/
-abbrev PosFinRectUniverse (R : Type*) := { x : FinRectUniverse R // x.1.1 > 0 ∧ x.1.2 > 0 }
+@[simp] def ofMatrix {R : Type*} {ι κ : Type*}
+    [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    [Fintype κ] [DecidableEq κ] [LinearOrder κ]
+    (A : Matrix ι κ R) : RectUniverse R :=
+  { ι := ι, κ := κ, A := A }
 
-@[simp] def FinRectUniverse.matrix {R} (x : FinRectUniverse R) : Matrix (Fin x.1.1) (Fin x.1.2) R :=
-  x.2.A
+end RectUniverse
 
-/-- `FinSqFamily n R` wraps a square matrix of fixed dimension `n × n`. -/
-structure FinSqFamily (n : ℕ) (R : Type*) where
-  A : Matrix (Fin n) (Fin n) R
+/-- Positive rectangular universe objects are those whose row/column cardinals are nonzero. -/
+abbrev PosRectUniverse (R : Type*) :=
+  { x : RectUniverse R // 0 < Fintype.card x.ι ∧ 0 < Fintype.card x.κ }
 
-/-- `FinSqUniverse R`: the universe of all `n × n` square matrices, as a Σ type. -/
-abbrev FinSqUniverse (R : Type*) := Σ (n : ℕ), FinSqFamily n R
+/-- A square matrix universe packaged directly as a structure. -/
+structure SquareUniverse (R : Type*) where
+  ι : Type*
+  [fintype_ι : Fintype ι]
+  [decEq_ι : DecidableEq ι]
+  [linOrder_ι : LinearOrder ι]
+  A : Matrix ι ι R
 
-/-- `PosFinSqUniverse R`: the subtype of square matrices with dimension `n > 0`. -/
-abbrev PosFinSqUniverse (R : Type*) := { x : FinSqUniverse R // x.1 > 0 }
+attribute [instance] SquareUniverse.fintype_ι SquareUniverse.decEq_ι SquareUniverse.linOrder_ι
 
-/-- Extract the matrix from a square-matrix universe object. -/
-@[simp] def FinSqUniverse.matrix {R} (x : FinSqUniverse R) : Matrix (Fin x.1) (Fin x.1) R :=
-  x.2.A
+namespace SquareUniverse
+
+@[simp] def ofMatrix {R : Type*} {ι : Type*} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι R) : SquareUniverse R :=
+  { ι := ι, A := A }
+
+end SquareUniverse
+
+/-- Positive-dimensional square universe objects. -/
+abbrev PosSquareUniverse (R : Type*) :=
+  { x : SquareUniverse R // 0 < Fintype.card x.ι }
 
 end MatDecompFormal.Framework

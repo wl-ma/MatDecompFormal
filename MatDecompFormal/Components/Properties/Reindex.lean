@@ -1,4 +1,3 @@
-import MatDecompFormal.Framework.FinEnum
 import MatDecompFormal.Components.Properties.Permutation
 import MatDecompFormal.Components.Properties.Triangular
 import Mathlib.LinearAlgebra.Matrix.Block
@@ -6,7 +5,7 @@ import Mathlib.Data.Matrix.Diagonal
 
 namespace MatDecompFormal.Components.Properties
 
-open Matrix FinEnum
+open Matrix
 
 /-!
 # Reindex and Matrix Properties
@@ -17,9 +16,6 @@ This file collects preservation lemmas for `Matrix.reindex`, including:
 * diagonals (`diag`)
 * upper triangular / lower triangular / unit lower triangular matrices
   (`IsUpperTriangular`, `IsLowerTriangular`, `IsUnitLowerTriangular`)
-
-In the `FinEnum` setting, it also relates `IsUpperTriangular` to the equivalent
-`BlockTriangular A (@equiv ι _)` formulation.
 -/
 
 
@@ -28,7 +24,7 @@ In the `FinEnum` setting, it also relates `IsUpperTriangular` to the equivalent
 
 section EquivBased
 
-variable {ι ι' R : Type*} [CommRing R] [DecidableEq ι] [DecidableEq ι']
+variable {ι ι' R : Type*} [Zero R] [One R] [DecidableEq ι] [DecidableEq ι']
 
 /--
 Reindexing the permutation matrix `(Equiv.toPEquiv σ).toMatrix` by `e e`
@@ -154,54 +150,5 @@ lemma isUnitLowerTriangular_reindex (e : ι ≃ ι') (h_mono : StrictMono e)
     simpa [diag_reindex, Function.comp] using h
 
 end OrderPropertyBased
-
-
-
-/-!
-## Upper-triangular compatibility in the FinEnum setting
-
-For a `FinEnum` index type, upper triangularity can be expressed either through
-the canonical enumeration `equiv : ι ≃ Fin (card ι)` or through the
-`LinearOrder` on the index type itself.
-
-The lemma below states that the two are equivalent in the `FinEnum` setting.
--/
-
-section FinEnumCompat
-
-variable {ι R : Type*} [FinEnum ι] [Zero R]
-
-/--
-In the `FinEnum` setting, `IsUpperTriangular` is equivalent to
-`BlockTriangular A (@equiv ι _)`, using `FinEnum.equiv` as the blocking function.
--/
-lemma isUpperTriangular_iff_blockTriangular_equiv (A : Matrix ι ι R) :
-    IsUpperTriangular A ↔ BlockTriangular A (@equiv ι _) := by
-  classical
-  -- e : ι ≃o Fin (card ι)
-  let e := MatDecompFormal.Framework.orderIsoOfFinEnum ι
-  -- IsUpperTriangular A = BlockTriangular A (fun i => i)
-  dsimp [IsUpperTriangular]
-  -- First prove that using id and using e give equivalent results
-  have h :
-      BlockTriangular A (fun i : ι => i) ↔
-        BlockTriangular A (fun i : ι => e i) := by
-    constructor
-    · intro hBT i j hlt
-      -- e.lt_iff_lt turns e j < e i into j < i
-      have hlt' : j < i := (e.lt_iff_lt).mp hlt
-      exact hBT hlt'
-    · intro hBT i j hlt
-      -- The reverse direction is analogous
-      have hlt' : e j < e i := (e.lt_iff_lt).mpr hlt
-      exact hBT hlt'
-  -- Then note that e.toEquiv = equiv, by the definition in Framework.FinEnum
-  have heq : (fun i : ι => e i) = (fun i : ι => (@equiv ι _) i) := by
-    funext i; rfl
-  -- Use heq to rewrite the BlockTriangular blocking function as (@equiv ι _)
-  simpa [heq] using h
-
-end FinEnumCompat
-
 
 end MatDecompFormal.Components.Properties
