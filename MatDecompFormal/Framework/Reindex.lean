@@ -60,7 +60,7 @@ variable {ι ι₁ ι₂ κ κ₁ κ₂ R : Type*}
     Matrix.reindex (sumToLexEquiv ι₁ ι₂) (sumToLexEquiv κ₁ κ₂)
       (fromBlocks A₁₁ A₁₂ A₂₁ A₂₂) =
     (fromBlocks A₁₁ A₁₂ A₂₁ A₂₂ : Matrix (ι₁ ⊕ₗ ι₂) (κ₁ ⊕ₗ κ₂) R) := by
-  ext i j <;> cases i <;> cases j <;> rfl
+  rfl
 
 end Equiv
 

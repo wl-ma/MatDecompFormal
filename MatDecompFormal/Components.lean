@@ -1,5 +1,6 @@
 import MatDecompFormal.Components.BlockAlgebra
 import MatDecompFormal.Components.Lifting.LowLevel
+import MatDecompFormal.Components.Properties.PositiveDiagonal
 import MatDecompFormal.Components.Properties.Triangular
 import MatDecompFormal.Components.Reductions.Submatrix
 import MatDecompFormal.Components.Reductions.ZeroColumn

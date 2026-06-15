@@ -73,6 +73,20 @@ lemma isUnitLowerTriangular_one [DecidableEq ι] : IsUnitLowerTriangular (1 : Ma
   · -- All diagonal entries are 1
     simp [Matrix.diag_one]
 
+/-- Unit lower triangular matrices are lower triangular. -/
+lemma isLowerTriangular_of_isUnitLowerTriangular
+    {A : Matrix ι ι R} (hA : IsUnitLowerTriangular A) :
+    IsLowerTriangular A :=
+  hA.1
+
+omit [One R] in
+/-- A diagonal matrix is lower triangular. -/
+lemma isLowerTriangular_diagonal [DecidableEq ι] (d : ι → R) :
+    IsLowerTriangular (Matrix.diagonal d) := by
+  dsimp [IsLowerTriangular, IsUpperTriangular, BlockTriangular]
+  intro i j hij
+  simpa [Matrix.transpose_apply] using Matrix.diagonal_apply_ne d (ne_of_lt hij)
+
 /--
 Any square matrix indexed by a subsingleton type, a type with only one element, is upper triangular.
 This result is vacuously true because the condition `j < i` can never be satisfied.
@@ -99,5 +113,29 @@ lemma isLowerTriangular_of_subsingleton {ι R} [Zero R] [Preorder ι] [Subsingle
   exact isUpperTriangular_of_subsingleton Aᵀ
 
 end Triangular
+
+section TriangularMultiplication
+
+variable {ι R : Type*} [Fintype ι] [LinearOrder ι] [NonUnitalNonAssocSemiring R]
+
+/-- The product of lower triangular matrices is lower triangular. -/
+lemma isLowerTriangular_mul
+    {A B : Matrix ι ι R} (hA : IsLowerTriangular A) (hB : IsLowerTriangular B) :
+    IsLowerTriangular (A * B) := by
+  dsimp [IsLowerTriangular, IsUpperTriangular] at hA hB ⊢
+  intro i j hij
+  simp [Matrix.transpose_apply, Matrix.mul_apply]
+  apply Finset.sum_eq_zero
+  intro k _
+  by_cases hjk : j < k
+  · have hzero : A j k = 0 := by
+      simpa [Matrix.transpose_apply] using hA (i := k) (j := j) hjk
+    simp [hzero]
+  · have hki : k < i := lt_of_le_of_lt (le_of_not_gt hjk) hij
+    have hzero : B k i = 0 := by
+      simpa [Matrix.transpose_apply] using hB (i := i) (j := k) hki
+    simp [hzero]
+
+end TriangularMultiplication
 
 end MatDecompFormal.Components.Properties

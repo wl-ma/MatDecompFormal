@@ -75,10 +75,12 @@ noncomputable def sumToLexEquiv (β γ : Type*) : β ⊕ γ ≃ β ⊕ₗ γ whe
   invFun := ofLex
   left_inv := by
     intro x
-    cases x <;> rfl
+    cases x
+    · rfl
+    · rfl
   right_inv := by
     intro x
-    cases x <;> rfl
+    rfl
 
 @[simp] theorem sumToLexEquiv_symm_apply_inl {β γ : Type*} (x : β) :
     (sumToLexEquiv β γ).symm (Sum.inlₗ x) = Sum.inl x := rfl

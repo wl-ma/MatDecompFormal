@@ -51,7 +51,7 @@ noncomputable def SubmatrixMethod
             (fun i => er.symm (Sum.inr i))
             (fun j => ec.symm (Sum.inr j)) =
           A'.toBlocks₂₂ := by
-      simpa [A'] using submatrix_inr_inr_eq_toBlocks₂₂ er ec A
+      simp [A', submatrix_inr_inr_eq_toBlocks₂₂ er ec A]
     rw [h_slice_eq_A₂₂]
     have h_reconstructed_eq_A' :
         fromBlocks A'.toBlocks₁₁ A'.toBlocks₁₂ A'.toBlocks₂₁ A'.toBlocks₂₂ = A' :=
