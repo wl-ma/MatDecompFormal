@@ -2,10 +2,14 @@ import MatDecompFormal.Instances.ModuleStructure.Details
 import MatDecompFormal.Instances.ModuleStructure.Strategy
 import MatDecompFormal.Instances.ModuleStructure.Direct
 import MatDecompFormal.Instances.ModuleStructure.Existence
+import MatDecompFormal.Instances.ModuleStructure.PIDBridge
 
 /-!
 # PID Module Structure
 
-This module re-exports the finite-presentation module-structure theorem routed
-through the rectangular descent framework.
+Archived/internal module-structure work.
+
+This module is intentionally not re-exported by `MatDecompFormal.Instances`.
+The Lean files are kept for later standalone review, but ModuleStructure is not
+part of the current main Instances surface or paper claim.
 -/

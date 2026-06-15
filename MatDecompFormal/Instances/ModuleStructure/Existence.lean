@@ -15,8 +15,8 @@ open MatDecompFormal.Framework
 This file assembles the finite-presentation module-structure target through the
 rectangular descent driver.  The main framework theorem is conditional on the
 same Smith one-step oracle used by Smith normal form.  The PID-scope theorem
-keeps the remaining PID Smith-step obligation named, instead of hiding it as a
-field-only theorem or as an anonymous higher-order parameter.
+uses the unconditional PID Smith normal-form theorem, so its public statement
+has only the usual algebraic hypotheses.
 -/
 
 variable {R : Type v} [CommSemiring R]
@@ -90,56 +90,6 @@ theorem exists_structure_of_presentation_oracle
   exists_structure_of_presentation_framework oracle
     (moduleStructure_descent_hooks R oracle) A
 
-section PID
-
-variable {R : Type v} [CommRing R] [IsDomain R] [IsPrincipalIdealRing R]
-
-/--
-PID Smith-step bridge for the module-structure descent.
-
-This is the remaining algebraic content needed for an unconditional PID module
-structure theorem through the descent template: every nonempty finite
-presentation matrix must have the one-step Smith pivot isolation used by the
-rectangular driver.
--/
-structure PIDModuleStructureStepBridge
-    (R : Type v) [CommRing R] [IsDomain R] [IsPrincipalIdealRing R] where
-  stepOracle :
-    ∀ {rel gen : Type u} [Fintype rel] [DecidableEq rel] [LinearOrder rel]
-      [Nonempty rel] [Fintype gen] [DecidableEq gen] [LinearOrder gen]
-      [Nonempty gen],
-      ModuleStructureStepOracle R rel gen
-
-/--
-Framework-routed PID finite-presentation module-structure theorem, conditional
-on the named PID Smith-step bridge.
-
-This is an internal descent-template entry point.  The public PID theorem below
-is stated through the Smith matrix bridge instead of exposing this one-step
-oracle directly.
--/
-theorem exists_presented_pid_module_structure_step_bridge
-    (bridge : PIDModuleStructureStepBridge.{u, v} R)
-    {rel gen : Type u} [Fintype rel] [DecidableEq rel] [LinearOrder rel]
-    [Fintype gen] [DecidableEq gen] [LinearOrder gen]
-    (A : Matrix rel gen R) :
-    HasPresentedPIDModuleStructure A := by
-  simpa [HasPresentedPIDModuleStructure] using
-    (exists_structure_of_presentation_oracle
-      (R := R) bridge.stepOracle A)
-
-/-- Matrix-level version of `exists_presented_pid_module_structure_step_bridge`. -/
-theorem exists_structure_of_presentation_pid_step_bridge
-    (bridge : PIDModuleStructureStepBridge.{u, v} R)
-    {rel gen : Type u} [Fintype rel] [DecidableEq rel] [LinearOrder rel]
-    [Fintype gen] [DecidableEq gen] [LinearOrder gen]
-    (A : Matrix rel gen R) :
-    HasPIDModuleStructure A := by
-  exact exists_structure_of_presentation_oracle
-    (R := R) bridge.stepOracle A
-
-end PID
-
 section PublicPID
 
 variable {R : Type u} [CommRing R] [IsDomain R] [IsPrincipalIdealRing R]
@@ -147,9 +97,10 @@ variable {R : Type u} [CommRing R] [IsDomain R] [IsPrincipalIdealRing R]
 /--
 PID finite-presentation module-structure theorem.
 
-This is the public PID-level theorem for presentation matrices.  It depends on
-the public PID Smith normal-form theorem; once the presentation matrix has
-Smith normal form, the module-structure payload is immediate.
+Once the presentation matrix has strengthened Smith normal form, the
+module-structure payload is immediate. The Smith theorem used here is the
+framework-routed public PID theorem, so this result is an indirect framework
+route without exposing the Smith bridge or oracle in its statement.
 -/
 theorem exists_presented_pid_module_structure
     {rel gen : Type u} [Fintype rel] [DecidableEq rel] [LinearOrder rel]
@@ -172,8 +123,9 @@ theorem exists_structure_of_presentation_pid
 /--
 Public PID matrix-level structure theorem for a finite presentation.
 
-This keeps the plan-level name available while `exists_structure_of_presentation_pid`
-remains as the explicit PID-suffixed compatibility name.
+This keeps the plan-level name available while
+`exists_structure_of_presentation_pid` remains as the explicit PID-suffixed
+compatibility name.
 -/
 theorem exists_structure_of_presentation
     {rel gen : Type u} [Fintype rel] [DecidableEq rel] [LinearOrder rel]
@@ -183,6 +135,24 @@ theorem exists_structure_of_presentation
   exists_structure_of_presentation_pid A
 
 end PublicPID
+
+/--
+Abstract finitely generated PID module structure theorem, conditional on the
+missing finite-presentation/cokernel bridge.
+
+The bridge carries the actual isomorphism
+`M ≃ₗ[R] R^freeRank × ∏ᵢ R/(dᵢ)`.  This statement is intentionally not the
+unconditional classification theorem yet; it isolates the remaining quotient
+module infrastructure needed to derive such a bridge from an arbitrary
+`[Module.Finite R M]`.
+-/
+theorem exists_pid_module_structure_of_bridge
+    {R M : Type u} [CommRing R] [IsDomain R] [IsPrincipalIdealRing R]
+    [AddCommGroup M] [Module R M] [Module.Finite R M]
+    (bridge : PIDModuleDecompositionBridge R M) :
+    ∃ freeRank torsionData,
+      PIDModuleDecomposition R M freeRank torsionData :=
+  bridge.exists_decomposition
 
 section Field
 

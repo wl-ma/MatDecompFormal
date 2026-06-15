@@ -1,3 +1,4 @@
+import Mathlib.RingTheory.Ideal.Quotient.Basic
 import MatDecompFormal.Instances.Smith.Details
 
 universe u v
@@ -37,11 +38,18 @@ structure PIDModuleStructureData
   smith_D : IsSmithNormalForm D
   equation : D = P * A * Q
 
-/-- Predicate for the finite-presentation module-structure theorem. -/
-def HasPIDModuleStructure
+/--
+Preferred name for the presentation-level normal-form data carried by a
+presentation matrix.
+
+This is not the abstract PID module classification theorem; it only records
+two-sided equivalence of a presentation matrix to strengthened Smith normal
+form.
+-/
+abbrev PresentedPIDModuleStructureData
     [Semiring R] [Fintype rel] [DecidableEq rel] [Fintype gen] [DecidableEq gen]
-    (A : Matrix rel gen R) : Prop :=
-  Nonempty (PIDModuleStructureData A)
+    (A : Matrix rel gen R) :=
+  PIDModuleStructureData A
 
 /--
 Finite-presentation module-structure predicate for the module presented by
@@ -51,13 +59,304 @@ is the public API corresponding to the plan's `PresentedModule A` route.
 def HasPresentedPIDModuleStructure
     [Semiring R] [Fintype rel] [DecidableEq rel] [Fintype gen] [DecidableEq gen]
     (A : Matrix rel gen R) : Prop :=
-  HasPIDModuleStructure A
+  Nonempty (PresentedPIDModuleStructureData A)
 
-@[simp] theorem hasPresentedPIDModuleStructure_iff
+/--
+Compatibility name for older descent code.
+
+Despite its historical name, this is still presentation-level data: a matrix is
+equivalent to a Smith normal-form presentation.  Use
+`HasPresentedPIDModuleStructure` in new public statements, and use
+`PIDModuleDecomposition` for the full abstract module decomposition target.
+-/
+def HasPIDModuleStructure
+    [Semiring R] [Fintype rel] [DecidableEq rel] [Fintype gen] [DecidableEq gen]
+    (A : Matrix rel gen R) : Prop :=
+  HasPresentedPIDModuleStructure A
+
+@[simp] theorem hasPIDModuleStructure_iff
+    [Semiring R] [Fintype rel] [DecidableEq rel] [Fintype gen] [DecidableEq gen]
+    {A : Matrix rel gen R} :
+    HasPIDModuleStructure A ↔ HasPresentedPIDModuleStructure A :=
+  Iff.rfl
+
+theorem hasPresentedPIDModuleStructure_iff
     [Semiring R] [Fintype rel] [DecidableEq rel] [Fintype gen] [DecidableEq gen]
     {A : Matrix rel gen R} :
     HasPresentedPIDModuleStructure A ↔ HasPIDModuleStructure A :=
   Iff.rfl
+
+/--
+Finite ordered invariant factors for a PID module decomposition.
+
+The `order` field gives the linear order used by the divisibility chain.  This
+mirrors the strengthened `SmithNormalFormData.divides_chain` payload instead of
+the older unordered diagonal predicate.
+-/
+structure PIDInvariantFactorData (R : Type v) [Semiring R] where
+  ι : Type u
+  fintype_ι : Fintype ι
+  order : Fin (Fintype.card ι) ≃ ι
+  invariantFactor : ι → R
+  divisibility_chain : ∀ k : Fin (Fintype.card ι),
+    (hnext : (k : Nat) + 1 < Fintype.card ι) →
+      invariantFactor (order k) ∣
+        invariantFactor (order ⟨(k : Nat) + 1, hnext⟩)
+
+attribute [instance] PIDInvariantFactorData.fintype_ι
+
+namespace PIDInvariantFactorData
+
+/-- Number of cyclic torsion summands encoded by the invariant-factor data. -/
+def length [Semiring R] (torsionData : PIDInvariantFactorData.{u, v} R) : Nat :=
+  Fintype.card torsionData.ι
+
+/-- The invariant factor at an ordered position. -/
+def orderedInvariantFactor [Semiring R]
+    (torsionData : PIDInvariantFactorData.{u, v} R)
+    (k : Fin torsionData.length) : R :=
+  torsionData.invariantFactor (torsionData.order k)
+
+/-- Forgetful accessor for the divisibility chain. -/
+theorem orderedInvariantFactor_divides_next [Semiring R]
+    (torsionData : PIDInvariantFactorData.{u, v} R)
+    (k : Fin torsionData.length)
+    (hnext : (k : Nat) + 1 < torsionData.length) :
+    torsionData.orderedInvariantFactor k ∣
+      torsionData.orderedInvariantFactor ⟨(k : Nat) + 1, hnext⟩ :=
+  torsionData.divisibility_chain k hnext
+
+/--
+Extract invariant factors from the strengthened Smith normal-form data.  This
+is the intended source of `torsionData` for presentation-level decompositions.
+-/
+noncomputable def ofSmithNormalFormData
+    [Semiring R] [Fintype rel] [DecidableEq rel] [Fintype gen] [DecidableEq gen]
+    {D : Matrix rel gen R} (data : SmithNormalFormData D) :
+    PIDInvariantFactorData R where
+  ι := data.r
+  fintype_ι := data.fintype_r
+  order := data.order
+  invariantFactor := data.diag
+  divisibility_chain := data.divides_chain
+
+/--
+Extract invariant factors from the strengthened Smith predicate.  This uses
+classical choice because `IsSmithNormalForm` is a proposition.
+-/
+noncomputable def ofSmithNormalForm
+    [Semiring R] [Fintype rel] [DecidableEq rel] [Fintype gen] [DecidableEq gen]
+    {D : Matrix rel gen R} (hD : IsSmithNormalForm D) :
+    PIDInvariantFactorData R :=
+  ofSmithNormalFormData (Classical.choice hD)
+
+/--
+Extend the ordered Smith invariant factors by a tail of zero factors.
+
+A zero cyclic summand is `R/(0)`, hence represents one free coordinate while
+keeping the target in the uniform product-of-cyclic-quotients shape.  This is
+the quotient-model shape used for cokernels of rectangular Smith matrices:
+diagonal invariant factors come first, followed by zero factors for generator
+coordinates not hit by a Smith pivot.
+-/
+noncomputable def ofSmithNormalFormDataWithZeroTail
+    [Semiring R] [Fintype rel] [DecidableEq rel] [Fintype gen] [DecidableEq gen]
+    {D : Matrix rel gen R} (data : SmithNormalFormData D) (zeroTail : Nat) :
+    PIDInvariantFactorData R where
+  ι := Fin (Fintype.card data.r + zeroTail)
+  fintype_ι := inferInstance
+  order := finCongr (Fintype.card_fin (Fintype.card data.r + zeroTail))
+  invariantFactor := fun i =>
+    if h : (i : Nat) < Fintype.card data.r then
+      data.diag (data.order ⟨i, h⟩)
+    else 0
+  divisibility_chain := by
+    intro k hnext
+    by_cases hknext : (k : Nat) + 1 < Fintype.card data.r
+    · have hk : (k : Nat) < Fintype.card data.r := Nat.lt_of_succ_lt hknext
+      simpa [finCongr, hk, hknext] using
+        data.divides_chain ⟨(k : Nat), hk⟩ hknext
+    · by_cases hk : (k : Nat) < Fintype.card data.r
+      · simp [finCongr, hk, hknext]
+      · simp [finCongr, hk, hknext]
+
+/--
+Choice-based version of `ofSmithNormalFormDataWithZeroTail` from the Smith
+normal-form predicate.
+-/
+noncomputable def ofSmithNormalFormWithZeroTail
+    [Semiring R] [Fintype rel] [DecidableEq rel] [Fintype gen] [DecidableEq gen]
+    {D : Matrix rel gen R} (hD : IsSmithNormalForm D) (zeroTail : Nat) :
+    PIDInvariantFactorData R :=
+  ofSmithNormalFormDataWithZeroTail (Classical.choice hD) zeroTail
+
+end PIDInvariantFactorData
+
+namespace SmithNormalFormData
+
+/--
+The coordinate submodule generated by the Smith diagonal factor in a generator
+column.  Non-pivot generator columns get `⊥`, corresponding to a free
+`R/(0)` quotient coordinate.
+-/
+noncomputable def columnSubmodule
+    [CommRing R] [Fintype rel] [DecidableEq rel] [Fintype gen] [DecidableEq gen]
+    {D : Matrix rel gen R} (data : SmithNormalFormData D) (j : gen) :
+    Submodule R R :=
+  if h : ∃ k : data.r, data.col k = j then
+    Ideal.span ({data.diag (Classical.choose h)} : Set R)
+  else ⊥
+
+@[simp] theorem columnSubmodule_col
+    [CommRing R] [Fintype rel] [DecidableEq rel] [Fintype gen] [DecidableEq gen]
+    {D : Matrix rel gen R} (data : SmithNormalFormData D) (k : data.r) :
+    data.columnSubmodule (data.col k) =
+      Ideal.span ({data.diag k} : Set R) := by
+  classical
+  rw [columnSubmodule]
+  have hExists : ∃ k' : data.r, data.col k' = data.col k := ⟨k, rfl⟩
+  simp only [hExists, ↓reduceDIte]
+  have hChoose :
+      Classical.choose hExists = k :=
+    data.col_injective (Classical.choose_spec hExists)
+  rw [hChoose]
+
+theorem columnSubmodule_eq_bot_of_not_col
+    [CommRing R] [Fintype rel] [DecidableEq rel] [Fintype gen] [DecidableEq gen]
+    {D : Matrix rel gen R} (data : SmithNormalFormData D) {j : gen}
+    (hj : ∀ k : data.r, data.col k ≠ j) :
+    data.columnSubmodule j = ⊥ := by
+  classical
+  rw [columnSubmodule]
+  have hnot : ¬∃ k : data.r, data.col k = j := by
+    rintro ⟨k, hk⟩
+    exact hj k hk
+  simp [hnot]
+
+end SmithNormalFormData
+
+/-- The cyclic summand `R / (d)` used in the PID module decomposition. -/
+abbrev PIDCyclicSummand (R : Type v) [CommRing R] (d : R) :=
+  R ⧸ Ideal.span ({d} : Set R)
+
+/-- Free part of rank `freeRank` in the decomposition model. -/
+abbrev PIDModuleFreePart (R : Type v) [CommRing R] (freeRank : Nat) :=
+  Fin freeRank → R
+
+/-- Finite product of cyclic torsion summands. -/
+abbrev PIDModuleTorsionPart (R : Type v) [CommRing R]
+    (torsionData : PIDInvariantFactorData.{u, v} R) :=
+  ∀ i : torsionData.ι, PIDCyclicSummand R (torsionData.invariantFactor i)
+
+/--
+The explicit module on the right-hand side of the PID structure theorem:
+`R^freeRank` times the finite torsion product `∏ᵢ R/(dᵢ)`.
+-/
+abbrev PIDModuleDecompositionModel (R : Type v) [CommRing R]
+    (freeRank : Nat) (torsionData : PIDInvariantFactorData.{u, v} R) :=
+  PIDModuleFreePart R freeRank × PIDModuleTorsionPart R torsionData
+
+/--
+Actual PID module decomposition witness data for an abstract module.
+
+This is the full module-level target: an isomorphism from `M` to a free part
+plus cyclic torsion summands whose invariant factors satisfy the strengthened
+Smith divisibility chain.
+-/
+structure PIDModuleDecompositionData (R : Type v) (M : Type u)
+    [CommRing R] [AddCommGroup M] [Module R M]
+    (freeRank : Nat) (torsionData : PIDInvariantFactorData.{u, v} R) where
+  decompositionIso :
+    M ≃ₗ[R] PIDModuleDecompositionModel R freeRank torsionData
+
+/--
+Actual PID module decomposition proposition for an abstract module.
+
+The proposition is intentionally a `Nonempty` wrapper around
+`PIDModuleDecompositionData`, so theorem statements can use the usual
+`∃ freeRank torsionData, PIDModuleDecomposition R M freeRank torsionData`
+shape while still carrying an isomorphism witness internally.
+-/
+def PIDModuleDecomposition (R : Type v) (M : Type u)
+    [CommRing R] [AddCommGroup M] [Module R M]
+    (freeRank : Nat) (torsionData : PIDInvariantFactorData.{u, v} R) : Prop :=
+  Nonempty (PIDModuleDecompositionData R M freeRank torsionData)
+
+namespace PIDModuleDecomposition
+
+variable [CommRing R] {M : Type u} [AddCommGroup M] [Module R M]
+variable {freeRank : Nat} {torsionData : PIDInvariantFactorData.{u, v} R}
+
+/-- Extract witness data from the decomposition proposition. -/
+noncomputable def data
+    (decomp : PIDModuleDecomposition R M freeRank torsionData) :
+    PIDModuleDecompositionData R M freeRank torsionData :=
+  Classical.choice decomp
+
+/-- Extract the linear equivalence carried by a decomposition proposition. -/
+noncomputable def decompositionIso
+    (decomp : PIDModuleDecomposition R M freeRank torsionData) :
+    M ≃ₗ[R] PIDModuleDecompositionModel R freeRank torsionData :=
+  decomp.data.decompositionIso
+
+/-- Forget the decomposition to its free rank. -/
+def freeRankOf
+    (_decomp : PIDModuleDecomposition R M freeRank torsionData) : Nat :=
+  freeRank
+
+/-- Forget the decomposition to its ordered invariant-factor data. -/
+def torsionDataOf
+    (_decomp : PIDModuleDecomposition R M freeRank torsionData) :
+    PIDInvariantFactorData R :=
+  torsionData
+
+/-- The invariant factor indexed by a torsion summand. -/
+def invariantFactor
+    (_decomp : PIDModuleDecomposition R M freeRank torsionData)
+    (i : torsionData.ι) : R :=
+  torsionData.invariantFactor i
+
+/-- The cyclic summand indexed by `i`. -/
+abbrev cyclicSummand
+    (_decomp : PIDModuleDecomposition R M freeRank torsionData)
+    (i : torsionData.ι) :=
+  PIDCyclicSummand R (torsionData.invariantFactor i)
+
+/-- The ordered invariant-factor divisibility chain carried by the decomposition. -/
+theorem invariantFactor_divides_next
+    (_decomp : PIDModuleDecomposition R M freeRank torsionData)
+    (k : Fin torsionData.length)
+    (hnext : (k : Nat) + 1 < torsionData.length) :
+    torsionData.orderedInvariantFactor k ∣
+      torsionData.orderedInvariantFactor ⟨(k : Nat) + 1, hnext⟩ :=
+  torsionData.orderedInvariantFactor_divides_next k hnext
+
+end PIDModuleDecomposition
+
+/--
+Bridge/oracle for the abstract finitely generated PID module theorem.
+
+The current project has the Smith normal-form side and presentation-level
+payload, but not yet the finite-presentation/cokernel bridge for arbitrary
+modules.  This structure isolates exactly that missing input.
+-/
+structure PIDModuleDecompositionBridge (R : Type v) (M : Type u)
+    [CommRing R] [AddCommGroup M] [Module R M] where
+  freeRank : Nat
+  torsionData : PIDInvariantFactorData.{u, v} R
+  decomposition : PIDModuleDecomposition R M freeRank torsionData
+
+namespace PIDModuleDecompositionBridge
+
+variable [CommRing R] {M : Type u} [AddCommGroup M] [Module R M]
+
+/-- A bridge immediately supplies the sigma-form existence statement. -/
+theorem exists_decomposition (bridge : PIDModuleDecompositionBridge R M) :
+    ∃ freeRank torsionData,
+      PIDModuleDecomposition R M freeRank torsionData :=
+  ⟨bridge.freeRank, bridge.torsionData, bridge.decomposition⟩
+
+end PIDModuleDecompositionBridge
 
 /-- Universe-level predicate used by the rectangular descent driver. -/
 def ModuleStructure_P [Semiring R] (x : RectUniverse R) : Prop :=
@@ -94,6 +393,28 @@ theorem smith_of_hasPIDModuleStructure
   rcases hA with ⟨data⟩
   exact ⟨data.P, data.Q, data.D, data.invertible_P, data.invertible_Q,
     data.smith_D, data.equation⟩
+
+/-- Presentation-level data exposes the invariant factors from its Smith payload. -/
+noncomputable def PIDModuleStructureData.torsionData
+    [Semiring R] [Fintype rel] [DecidableEq rel] [Fintype gen] [DecidableEq gen]
+    {A : Matrix rel gen R} (data : PIDModuleStructureData A) :
+    PIDInvariantFactorData R :=
+  PIDInvariantFactorData.ofSmithNormalForm data.smith_D
+
+/--
+Presentation-level invariant factors extended with zero factors for generator
+coordinates not represented by Smith diagonal pivots.
+
+The zero tail is the ingredient needed to model the full cokernel of a
+rectangular presentation matrix as a product of cyclic quotients.
+-/
+noncomputable def PIDModuleStructureData.torsionDataWithGeneratorZeroTail
+    [Semiring R] [Fintype rel] [DecidableEq rel] [Fintype gen] [DecidableEq gen]
+    {A : Matrix rel gen R} (data : PIDModuleStructureData A) :
+    PIDInvariantFactorData R :=
+  let smithData := Classical.choice data.smith_D
+  PIDInvariantFactorData.ofSmithNormalFormDataWithZeroTail smithData
+    (Fintype.card gen - Fintype.card smithData.r)
 
 /-- Zero presentation matrices have module-structure data. -/
 theorem hasPIDModuleStructure_zero
