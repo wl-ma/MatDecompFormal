@@ -82,14 +82,15 @@ state:
    - for a generic PID, avoid canonical associates unless a normalization API
      is supplied.
 
-Recommended first predicate:
+Required predicate shape:
 
 ```lean
-structure SmithDiagonalData
+structure SmithNormalFormData
     [Fintype m] [DecidableEq m] [Fintype n] [DecidableEq n]
     (D : Matrix m n R) where
   r : Type*
   fintype_r : Fintype r
+  order : Fin (Fintype.card r) ≃ r
   row : r → m
   col : r → n
   diag : r → R
@@ -97,12 +98,29 @@ structure SmithDiagonalData
   col_injective : Function.Injective col
   entry_eq :
     ∀ i j, D i j = ∑ k, if row k = i ∧ col k = j then diag k else 0
-  divides_next :
-    ∀ k l, diagonalSuccessor k l → diag k ∣ diag l
+  divides_chain :
+    ∀ k : Fin (Fintype.card r),
+      (hnext : (k : Nat) + 1 < Fintype.card r) →
+        diag (order k) ∣ diag (order ⟨(k : Nat) + 1, hnext⟩)
 ```
 
-Later, replace this data-oriented predicate with an order-indexed predicate
-after a stable row/column rank API exists.
+The primary diagonal support must stay data-oriented: `r` is an arbitrary finite
+index type, and `diag`, `row`, and `col` must remain indexed by that `r`. Do
+not redefine the support as a numeric length and then use `Fin r`, `Fin rank`,
+`Fin (Fintype.card r)`, a list, or a vector as the primary diagonal
+representation. In particular, do not change the data model to
+`r : Nat`/`rank : Nat` with fields such as `diag : Fin r -> R`. The only
+acceptable use of `Fin (Fintype.card r)` in the core data is as the complete
+enumeration witness
+
+```lean
+order : Fin (Fintype.card r) ≃ r
+```
+
+used to state adjacent divisibility through `order`. All actual diagonal
+payload remains data-oriented over `r`. This keeps the local Smith data
+compatible with the rest of the instances, while still ruling out the old
+vacuous successor-relation proof.
 
 ## 4. Descent Shape
 

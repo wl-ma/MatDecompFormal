@@ -1,13 +1,12 @@
 # Cholesky Audit Fix Plan
 
-This plan describes the code changes needed after the Instances decomposition
-audit. The current Lean implementation is in `MatDecompFormal/Instances/Cholesky.lean`;
-this new directory exists only to hold the repair plan and should not be treated
-as a replacement import path unless the implementation is later split.
+This plan records the Cholesky audit repair. The implementation is now split
+between `MatDecompFormal/Instances/LDL` and `MatDecompFormal/Instances/Cholesky`;
+the top-level `MatDecompFormal/Instances/Cholesky.lean` file is a re-export.
 
 ## Audit Finding
 
-The current `Cholesky_Schema` records factors `(L, D)` and only requires
+The old `Cholesky_Schema` recorded factors `(L, D)` and only required
 `D.IsDiag` with equation:
 
 ```lean
@@ -20,7 +19,8 @@ positive diagonal entries in `D`.
 
 ## Goal
 
-Choose and implement one of two explicit repair paths.
+Use two explicit public surfaces: a strengthened LDL theorem and a true
+Cholesky theorem derived from LDL.
 
 Preferred path for a true Cholesky claim:
 
@@ -50,7 +50,7 @@ only when the stronger factorization is proved.
 
 ## Required Changes
 
-1. Decide whether the public result should be true Cholesky or LDL.
+1. Expose LDL separately through `MatDecompFormal.Instances.LDL`.
 2. For LDL:
    - rename `Cholesky_Schema` or add `LDL_Schema`;
    - require lower/unit-lower triangularity of `L`;
@@ -60,8 +60,7 @@ only when the stronger factorization is proved.
    - derive square-root diagonal factors from positive `D`;
    - construct `C = L * sqrt(D)` or an equivalent triangular factor;
    - prove `A = C * Cᵀ` and triangular/positive-diagonal properties.
-4. Keep a compatibility theorem from the stronger statement to any old weak
-   wrapper only if downstream code depends on it.
+4. Do not keep the old weak Cholesky wrapper.
 5. Update comments so the theorem name and mathematical content match.
 
 ## Non-Goals
@@ -77,8 +76,8 @@ only when the stronger factorization is proved.
 ```bash
 lake build MatDecompFormal.Instances
 lake build MatDecompFormal
-rg -n "HasCholesky|Cholesky_Schema|LDL|PositiveDiagonal|IsUnitLowerTriangular|IsLowerTriangular" MatDecompFormal/Instances/Cholesky.lean -S
-rg -n "sorry|admit|axiom|unsafe|undefined" MatDecompFormal/Instances/Cholesky.lean -S
+rg -n "HasCholesky|Cholesky_Schema|LDL|PositiveDiagonal|IsUnitLowerTriangular|IsLowerTriangular" MatDecompFormal/Instances/Cholesky MatDecompFormal/Instances/LDL -g '*.lean' -S
+rg -n "s[o]rry|a[d]mit|a[x]iom|u[n]safe|u[n]defined" MatDecompFormal/Instances/Cholesky MatDecompFormal/Instances/LDL MatDecompFormal/Components/Properties -g '*.lean' -S
 ```
 
 Manual review criterion: the public theorem called Cholesky must no longer prove
