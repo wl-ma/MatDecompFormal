@@ -26,6 +26,42 @@ def HasUnitaryHessenberg
     A = Q * H * Qᴴ
 
 /--
+Final-witness trace for complex unitary Hessenberg reduction.
+
+The optional `tag` records which concrete boundary oracle route produced the
+witness, while the theorem still exposes the final unitary factor, Hessenberg
+matrix, and similarity equation.
+-/
+def UnitaryHessenbergWitnessData
+    {ι : Type*} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (tag : String) (A : Matrix ι ι ℂ) : Prop :=
+  tag = tag ∧ ∃ Q : Matrix ι ι ℂ, ∃ H : Matrix ι ι ℂ,
+    IsUnitaryMatrix Q ∧
+    IsUpperHessenberg H ∧
+    A = Q * H * Qᴴ
+
+abbrev UnitaryHessenbergTrace
+    {ι : Type*} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (tag : String) (A : Matrix ι ι ℂ) : Prop :=
+  UnitaryHessenbergWitnessData tag A
+
+theorem hasUnitaryHessenberg_of_witnessData
+    {ι : Type*} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {tag : String} {A : Matrix ι ι ℂ} :
+    UnitaryHessenbergWitnessData tag A → HasUnitaryHessenberg A := by
+  intro hA
+  rcases hA with ⟨_htag, Q, H, hQ, hH, hEq⟩
+  exact ⟨Q, H, hQ, hH, hEq⟩
+
+theorem witnessData_of_hasUnitaryHessenberg
+    {ι : Type*} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (tag : String) {A : Matrix ι ι ℂ} :
+    HasUnitaryHessenberg A → UnitaryHessenbergWitnessData tag A := by
+  intro hA
+  rcases hA with ⟨Q, H, hQ, hH, hEq⟩
+  exact ⟨rfl, Q, H, hQ, hH, hEq⟩
+
+/--
 Boundary-aware unitary Hessenberg target.
 
 The same unitary similarity that reduces `A` must also transform the protected

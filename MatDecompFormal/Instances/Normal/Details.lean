@@ -142,7 +142,9 @@ lemma normalHermitianPart_joint_eigenspaces_internal [Fintype ι] [DecidableEq �
     (normalImagHermitianPart_isSymmetric A)
     (normalHermitian_imag_toEuclideanLin_commute A hA)
 
-/-- Universe-level predicate used by the square-subtype induction framework. -/
+/-- Universe-level predicate used by the square-subtype induction framework.
+This is implication-shaped: it is vacuously true for non-normal matrices.
+The public theorem `exists_normal_spectral` inherits this shape. -/
 def NormalSpectral_P (x : SquareUniverse ℂ) : Prop :=
   IsNormalMatrix x.A → HasNormalSpectral x.A
 

@@ -1,4 +1,5 @@
 import MatDecompFormal.Instances.OrthogonalHessenberg.Concrete
+import MatDecompFormal.Instances.QR.Details
 import Mathlib.Analysis.InnerProductSpace.Projection.Reflection
 
 universe u
@@ -135,6 +136,27 @@ noncomputable def complexHouseholderBasis
     OrthonormalBasis ι ℂ (EuclideanSpace ℂ ι) :=
   (EuclideanSpace.basisFun ι ℂ).map (complexHouseholderReflection x)
 
+/--
+Concrete complex Householder matrix predicate.
+
+This records that the matrix is obtained from the phase-adjusted complex
+Householder reflection used by the boundary oracle, rather than merely being an
+arbitrary unitary matrix tagged as Householder.
+-/
+def IsComplexHouseholderMatrix
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι] [Nonempty ι]
+    (Q : Matrix ι ι ℂ) : Prop :=
+  ∃ x : EuclideanSpace ℂ ι,
+    Q = matrixOfOrthonormalBasis (complexHouseholderBasis x)
+
+theorem isUnitaryMatrix_of_isComplexHouseholderMatrix
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι] [Nonempty ι]
+    {Q : Matrix ι ι ℂ} :
+    IsComplexHouseholderMatrix Q → IsUnitaryMatrix Q := by
+  intro hQ
+  rcases hQ with ⟨x, rfl⟩
+  exact matrixOfOrthonormalBasis_unitary (complexHouseholderBasis x)
+
 lemma conjTranspose_matrixOfOrthonormalBasis_mulVec_apply'
     {ι : Type u} [Fintype ι] [DecidableEq ι]
     (b : OrthonormalBasis ι ℂ (EuclideanSpace ℂ ι))
@@ -180,6 +202,30 @@ theorem householder_boundary_step_unitary
   exact matrixOfOrthonormalBasis_unitary
     (complexHouseholderBasis (boundaryColumnVec x_sub.1.c))
 
+theorem householderBoundaryStepQ_isComplexHouseholderMatrix
+    (x_sub : PosHessenbergBoundaryUniverse.{u} ℂ) :
+    @IsComplexHouseholderMatrix x_sub.1.ι x_sub.1.fintype_ι
+      x_sub.1.decEq_ι x_sub.1.linOrder_ι
+      (posHessenbergBoundaryUniverse_nonempty x_sub)
+      (householderBoundaryStepQ x_sub) := by
+  letI : Nonempty x_sub.1.ι := posHessenbergBoundaryUniverse_nonempty x_sub
+  exact ⟨boundaryColumnVec x_sub.1.c, rfl⟩
+
+theorem householderBoundaryStepQ_isProductOfComplexHouseholderMatrix
+    (x_sub : PosHessenbergBoundaryUniverse.{u} ℂ) :
+    IsProductOf
+      (@IsComplexHouseholderMatrix x_sub.1.ι x_sub.1.fintype_ι
+        x_sub.1.decEq_ι x_sub.1.linOrder_ι
+        (posHessenbergBoundaryUniverse_nonempty x_sub))
+      (householderBoundaryStepQ x_sub) := by
+  refine ⟨[householderBoundaryStepQ x_sub], ?_, ?_⟩
+  · intro M hM
+    have hM' : M = householderBoundaryStepQ x_sub := by
+      simpa using hM
+    subst M
+    exact householderBoundaryStepQ_isComplexHouseholderMatrix x_sub
+  · simp [matrixProduct]
+
 theorem householder_boundary_step_ready
     (x_sub : PosHessenbergBoundaryUniverse.{u} ℂ) :
     HessenbergBoundaryReady
@@ -211,5 +257,80 @@ theorem exists_unitary_hessenberg_reduction_householder
     (A : Matrix ι ι ℂ) :
     HasUnitaryHessenberg A :=
   exists_unitary_hessenberg_reduction householderUnitaryBoundaryStepOracle A
+
+/--
+Concrete step-trace data for the complex Householder Hessenberg route.
+
+This records the actual Householder product supplied by every positive
+boundary step, together with the final framework decomposition.  It is a
+stronger route-specific API than the legacy route-tagged final witness trace.
+-/
+structure ComplexHouseholderHessenbergStepTrace
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι ℂ) : Prop where
+  decomposition : HasUnitaryHessenberg A
+  boundaryStepProduct :
+    ∀ x_sub : PosHessenbergBoundaryUniverse.{u} ℂ,
+      IsProductOf
+        (@IsComplexHouseholderMatrix x_sub.1.ι x_sub.1.fintype_ι
+          x_sub.1.decEq_ι x_sub.1.linOrder_ι
+          (posHessenbergBoundaryUniverse_nonempty x_sub))
+        (householderBoundaryStepQ x_sub)
+
+theorem hasUnitaryHessenberg_of_complexHouseholderHessenbergStepTrace
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {A : Matrix ι ι ℂ} :
+    ComplexHouseholderHessenbergStepTrace A → HasUnitaryHessenberg A :=
+  ComplexHouseholderHessenbergStepTrace.decomposition
+
+/--
+Complex Householder Hessenberg route with boundary-step product data.
+
+This records the boundary oracle products used by the framework route; it is
+not a full recursive embedded-step execution trace.
+-/
+theorem exists_unitary_hessenberg_reduction_householder_with_boundary_step_trace
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι ℂ) :
+    ComplexHouseholderHessenbergStepTrace A := by
+  exact
+    { decomposition := exists_unitary_hessenberg_reduction_householder A
+      boundaryStepProduct := fun x_sub =>
+        householderBoundaryStepQ_isProductOfComplexHouseholderMatrix x_sub }
+
+/--
+Compatibility name for the boundary-step trace.
+Prefer `exists_unitary_hessenberg_reduction_householder_with_boundary_step_trace`.
+-/
+theorem exists_unitary_hessenberg_reduction_householder_with_step_trace
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι ℂ) :
+    ComplexHouseholderHessenbergStepTrace A :=
+  exists_unitary_hessenberg_reduction_householder_with_boundary_step_trace A
+
+/--
+Compatibility witness trace for the Householder boundary route.
+
+This route-tagged witness records the final unitary Hessenberg decomposition,
+not the recursive boundary-step execution sequence.
+-/
+theorem exists_unitary_hessenberg_reduction_householder_with_witness_trace
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι ℂ) :
+    UnitaryHessenbergTrace "complex-householder-boundary" A :=
+  witnessData_of_hasUnitaryHessenberg
+    "complex-householder-boundary"
+    (hasUnitaryHessenberg_of_complexHouseholderHessenbergStepTrace
+      (exists_unitary_hessenberg_reduction_householder_with_boundary_step_trace A))
+
+/--
+Compatibility name for the route-tagged final witness trace.
+Prefer `exists_unitary_hessenberg_reduction_householder_with_witness_trace`.
+-/
+theorem exists_unitary_hessenberg_reduction_householder_with_trace
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι ℂ) :
+    UnitaryHessenbergTrace "complex-householder-boundary" A :=
+  exists_unitary_hessenberg_reduction_householder_with_witness_trace A
 
 end MatDecompFormal.Instances

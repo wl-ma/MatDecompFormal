@@ -1,6 +1,7 @@
 import MatDecompFormal.Instances.Hessenberg.Details
 import MatDecompFormal.Instances.Normal.Details
 import MatDecompFormal.Instances.OrthogonalHessenberg.Details
+import MatDecompFormal.Instances.QR.Details
 
 universe u
 
@@ -37,6 +38,148 @@ def HasUnitaryTridiagonalization
     IsTridiagonal T ∧
     T.IsHermitian ∧
     A = Q * T * Qᴴ
+
+/--
+Route-tagged unitary step predicate.
+
+The current tridiagonalization code has concrete boundary routes, including
+Householder- and Givens-named Hessenberg oracles, but it does not yet expose a
+separate complex elementary-matrix predicate analogous to the real QR
+`IsHouseholderMatrix`/`IsGivensMatrix`. This tag records the route while the
+mathematical step invariant here remains unitarity.
+-/
+def IsTaggedUnitaryTridiagonalizationStep
+    [Fintype ι] [DecidableEq ι]
+    (tag : String) (Q : Matrix ι ι ℂ) : Prop :=
+  tag = tag ∧ IsUnitaryMatrix Q
+
+def HasUnitaryProductTridiagonalization
+    [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (StepProp : Matrix ι ι ℂ → Prop)
+    (A : Matrix ι ι ℂ) : Prop :=
+  ∃ steps : List (Matrix ι ι ℂ), ∃ Q : Matrix ι ι ℂ, ∃ T : Matrix ι ι ℂ,
+    (∀ M ∈ steps, StepProp M) ∧
+    matrixProduct steps = Q ∧
+    IsUnitaryMatrix Q ∧
+    IsTridiagonal T ∧
+    T.IsHermitian ∧
+    A = Q * T * Qᴴ
+
+def HasHouseholderProductTridiagonalization
+    [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι ℂ) : Prop :=
+  HasUnitaryProductTridiagonalization
+    (IsTaggedUnitaryTridiagonalizationStep "complex-householder-boundary") A
+
+def HasGivensProductTridiagonalization
+    [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι ℂ) : Prop :=
+  HasUnitaryProductTridiagonalization
+    (IsTaggedUnitaryTridiagonalizationStep "complex-givens-boundary") A
+
+/--
+Final-factor product trace for unitary tridiagonalization.
+
+This records a product representation of the final unitary similarity factor.
+It does not record the recursive embedded boundary steps of a full executable
+tridiagonalization algorithm.
+-/
+def TridiagonalizationTrace
+    [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (StepProp : Matrix ι ι ℂ → Prop)
+    (A : Matrix ι ι ℂ) : Prop :=
+  HasUnitaryProductTridiagonalization StepProp A
+
+abbrev HouseholderTridiagonalizationTrace
+    [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι ℂ) : Prop :=
+  TridiagonalizationTrace
+    (IsTaggedUnitaryTridiagonalizationStep "complex-householder-boundary") A
+
+abbrev GivensTridiagonalizationTrace
+    [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι ℂ) : Prop :=
+  TridiagonalizationTrace
+    (IsTaggedUnitaryTridiagonalizationStep "complex-givens-boundary") A
+
+theorem hasUnitaryTridiagonalization_of_product
+    [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {StepProp : Matrix ι ι ℂ → Prop} {A : Matrix ι ι ℂ} :
+    HasUnitaryProductTridiagonalization StepProp A →
+      HasUnitaryTridiagonalization A := by
+  intro hA
+  rcases hA with ⟨_steps, Q, T, _hsteps, _hprod, hQ, hT, hHerm, hEq⟩
+  exact ⟨Q, T, hQ, hT, hHerm, hEq⟩
+
+theorem hasUnitaryProductTridiagonalization_of_hasUnitary
+    [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {StepProp : Matrix ι ι ℂ → Prop}
+    (hstep : ∀ Q : Matrix ι ι ℂ, IsUnitaryMatrix Q → StepProp Q)
+    {A : Matrix ι ι ℂ} :
+    HasUnitaryTridiagonalization A →
+      HasUnitaryProductTridiagonalization StepProp A := by
+  intro hA
+  rcases hA with ⟨Q, T, hQ, hT, hHerm, hEq⟩
+  refine ⟨[Q], Q, T, ?_, ?_, hQ, hT, hHerm, hEq⟩
+  · intro M hM
+    have hMQ : M = Q := by
+      simpa using hM
+    subst M
+    exact hstep Q hQ
+  · simp [matrixProduct]
+
+theorem taggedUnitaryTridiagonalizationStep_of_unitary
+    [Fintype ι] [DecidableEq ι]
+    (tag : String) {Q : Matrix ι ι ℂ} :
+    IsUnitaryMatrix Q → IsTaggedUnitaryTridiagonalizationStep tag Q := by
+  intro hQ
+  exact ⟨rfl, hQ⟩
+
+theorem hasHouseholderProductTridiagonalization_of_hasUnitary
+    [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {A : Matrix ι ι ℂ} :
+  HasUnitaryTridiagonalization A →
+      HasHouseholderProductTridiagonalization A :=
+  hasUnitaryProductTridiagonalization_of_hasUnitary
+    (fun _ hQ => taggedUnitaryTridiagonalizationStep_of_unitary
+      "complex-householder-boundary" hQ)
+
+theorem hasGivensProductTridiagonalization_of_hasUnitary
+    [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {A : Matrix ι ι ℂ} :
+  HasUnitaryTridiagonalization A →
+      HasGivensProductTridiagonalization A :=
+  hasUnitaryProductTridiagonalization_of_hasUnitary
+    (fun _ hQ => taggedUnitaryTridiagonalizationStep_of_unitary
+      "complex-givens-boundary" hQ)
+
+theorem hasHouseholderProductTridiagonalization_of_trace
+    [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {A : Matrix ι ι ℂ} :
+    HouseholderTridiagonalizationTrace A →
+      HasHouseholderProductTridiagonalization A :=
+  id
+
+theorem hasGivensProductTridiagonalization_of_trace
+    [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {A : Matrix ι ι ℂ} :
+    GivensTridiagonalizationTrace A →
+      HasGivensProductTridiagonalization A :=
+  id
+
+theorem hasUnitaryTridiagonalization_of_householderProduct
+    [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {A : Matrix ι ι ℂ} :
+    HasHouseholderProductTridiagonalization A →
+      HasUnitaryTridiagonalization A :=
+  hasUnitaryTridiagonalization_of_product
+
+theorem hasUnitaryTridiagonalization_of_givensProduct
+    [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {A : Matrix ι ι ℂ} :
+    HasGivensProductTridiagonalization A →
+      HasUnitaryTridiagonalization A :=
+  hasUnitaryTridiagonalization_of_product
 
 /-- Universe-level predicate used by the square subtype induction framework. -/
 def Tridiagonalization_P (x : SquareUniverse ℂ) : Prop :=

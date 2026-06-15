@@ -531,6 +531,21 @@ theorem exists_jordan_matrix_of_splits_generalized_bridge
     hsplit
 
 /--
+Bridge-routed split theorem with explicit final ordinary Jordan block data.
+The characteristic-polynomial splitting hypothesis remains a theorem argument.
+-/
+theorem jordanBlockData_of_splits_generalized_bridge
+    {K ι : Type u} [Field K]
+    [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (generalizedBridge : GeneralizedJordanBlockDriverBridge K)
+    (A : Matrix ι ι K)
+    (hsplit : A.charpoly.Splits (RingHom.id K)) :
+    JordanBlockData A :=
+  jordanBlockData_of_hasJordanMatrix
+    (exists_jordan_matrix_of_splits_generalized_bridge
+      generalizedBridge A hsplit)
+
+/--
 Same-universe split theorem through the concrete RCF prime-power generalized
 driver.  The public theorem below removes the framework's index-universe
 restriction by reindexing through `ULift (Fin _)`.
@@ -574,6 +589,20 @@ theorem exists_jordan_matrix_of_splits
   have hBack := hasJordanMatrix_reindex_universe (e := e.symm) hReindexed
   simpa [e, MatDecompFormal.Framework.reindex_reindex, Function.comp_def] using hBack
 
+/--
+Public split theorem with explicit final ordinary Jordan block data.
+The split hypothesis is visible, matching the mathematical requirement over a
+general field.
+-/
+theorem jordanBlockData_of_splits
+    {K : Type u} {ι : Type v} [Field K]
+    [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι K)
+    (hsplit : A.charpoly.Splits (RingHom.id K)) :
+    JordanBlockData A :=
+  jordanBlockData_of_hasJordanMatrix
+    (exists_jordan_matrix_of_splits A hsplit)
+
 /-- Jordan form exists for matrices over algebraically closed fields. -/
 theorem exists_jordan_matrix_algClosed
     {K : Type u} {ι : Type v} [Field K] [IsAlgClosed K]
@@ -582,12 +611,27 @@ theorem exists_jordan_matrix_algClosed
     HasJordanMatrix A :=
   exists_jordan_matrix_of_splits A (IsAlgClosed.splits A.charpoly)
 
+/-- Jordan block data exists for matrices over algebraically closed fields. -/
+theorem jordanBlockData_algClosed
+    {K : Type u} {ι : Type v} [Field K] [IsAlgClosed K]
+    [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι K) :
+    JordanBlockData A :=
+  jordanBlockData_of_splits A (IsAlgClosed.splits A.charpoly)
+
 /-- Jordan form exists for complex matrices. -/
 theorem exists_jordan_matrix_complex
     {ι : Type v} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
     (A : Matrix ι ι ℂ) :
     HasJordanMatrix A :=
   exists_jordan_matrix_algClosed A
+
+/-- Jordan block data exists for complex matrices. -/
+theorem jordanBlockData_complex
+    {ι : Type v} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι ℂ) :
+    JordanBlockData A :=
+  jordanBlockData_algClosed A
 
 /-- An invertible matrix over a field has unit determinant. -/
 lemma invertibleMatrix_det_isUnit

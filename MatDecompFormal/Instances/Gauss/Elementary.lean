@@ -214,19 +214,13 @@ lemma gaussSwapToHead_entry_ne_zero
       (gaussSwapToHeadLeft A * A)
         (headElem (α := m)) (gaussPivotCol A) =
         A (gaussPivotRow A) (gaussPivotCol A) := by
-    simpa [gaussSwapToHeadLeft] using
-      (Matrix.swap_mul_apply_left
-        (i := headElem (α := m)) (j := gaussPivotRow A)
-        (a := gaussPivotCol A) (g := A))
+    rw [gaussSwapToHeadLeft, Matrix.swap_mul_apply_left]
   have hcol :
       (gaussSwapToHeadLeft A * A * gaussSwapToHeadRight A)
         (headElem (α := m)) (headElem (α := n)) =
         (gaussSwapToHeadLeft A * A)
           (headElem (α := m)) (gaussPivotCol A) := by
-    simpa [gaussSwapToHeadRight] using
-      (Matrix.mul_swap_apply_left
-        (i := headElem (α := n)) (j := gaussPivotCol A)
-        (a := headElem (α := m)) (g := gaussSwapToHeadLeft A * A))
+    rw [gaussSwapToHeadRight, Matrix.mul_swap_apply_left]
   exact hcol.trans_ne (hrow.trans_ne (gaussPivot_entry_ne_zero A hA))
 
 end PivotChoice

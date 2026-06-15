@@ -1,3 +1,4 @@
+import MatDecompFormal.Instances.QR.Details
 import MatDecompFormal.Instances.QR.Driver
 import MatDecompFormal.Instances.QR.Strategy
 import MatDecompFormal.Components.Properties.Triangular
@@ -38,18 +39,42 @@ def IsHouseholderProduct
 abbrev HasHouseholderQR [LinearOrder ι] (A : Matrix ι ι ℝ) : Prop :=
   HasStructuredQR IsHouseholderProduct A
 
+abbrev HasHouseholderProductQR [LinearOrder ι] (A : Matrix ι ι ℝ) : Prop :=
+  HasHouseholderQR A
+
+abbrev HouseholderQRTrace [LinearOrder ι] (A : Matrix ι ι ℝ) : Prop :=
+  QRProductTrace IsHouseholderMatrix A
+
 lemma hasQR_of_hasHouseholderQR
     [LinearOrder ι]
     {A : Matrix ι ι ℝ} (hA : HasHouseholderQR A) :
     HasQR A := by
   exact hasQR_of_hasStructuredQR hA
 
+lemma householderQRTrace_of_hasHouseholderQR
+    [LinearOrder ι]
+    {A : Matrix ι ι ℝ} (hA : HasHouseholderQR A) :
+    HouseholderQRTrace A := by
+  exact qrProductTrace_of_hasStructuredQR hA
+
+lemma hasHouseholderQR_of_householderQRTrace
+    [LinearOrder ι]
+    {A : Matrix ι ι ℝ} (hA : HouseholderQRTrace A) :
+    HasHouseholderQR A := by
+  exact hasStructuredQR_of_qrProductTrace hA
+
+lemma hasQR_of_householderQRTrace
+    [LinearOrder ι]
+    {A : Matrix ι ι ℝ} (hA : HouseholderQRTrace A) :
+    HasQR A := by
+  exact hasQR_of_qrProductTrace hA
+
 lemma qrHeadOrthogonalStep_isHouseholderMatrix
     [LinearOrder ι] [Nonempty ι]
     (A : Matrix ι ι ℝ) (hA : ¬ QRReady ι A) :
     IsHouseholderMatrix (qrHeadOrthogonalStep ι A hA) := by
   refine ⟨qrHeadAxisVec ι - qrHeadUnitVec ι A hA, ?_⟩
-  simp [IsHouseholderMatrix, householderMatrix, qrHeadOrthogonalStep, qrHeadBasis,
+  simp [householderMatrix, qrHeadOrthogonalStep, qrHeadBasis,
     qrHeadReflector, qrHeadAxisVec]
 
 lemma qrHeadOrthogonalStep_isHouseholderProduct
@@ -242,7 +267,9 @@ lemma isHouseholderProduct_of_isOrthogonalMatrix
       inner ℝ (L x) (L y) = inner ℝ x (L.adjoint (L y)) := by
         simpa using (LinearMap.adjoint_inner_right L x (L y)).symm
       _ = inner ℝ x ((L.adjoint.comp L) y) := by rfl
-      _ = inner ℝ x y := by simpa [hcomp]
+      _ = inner ℝ x y := by
+            rw [hcomp]
+            rfl
   let li : EuclideanSpace ℝ ι →ₗᵢ[ℝ] EuclideanSpace ℝ ι := L.isometryOfInner hinner
   let φ : EuclideanSpace ℝ ι ≃ₗᵢ[ℝ] EuclideanSpace ℝ ι := li.toLinearIsometryEquiv rfl
   have hφL : φ.toLinearMap = L := by
@@ -257,19 +284,76 @@ lemma isHouseholderProduct_of_isOrthogonalMatrix
             L := by
               simp [householderStdMatrix, hφL]
       _ = Q := by
-            simpa [L, Matrix.toEuclideanLin_eq_toLin_orthonormal] using
-              (LinearMap.toMatrix_toLin
-                (v₁ := (EuclideanSpace.basisFun ι ℝ).toBasis)
-                (v₂ := (EuclideanSpace.basisFun ι ℝ).toBasis)
-                Q)
+            simp [L, Matrix.toEuclideanLin_eq_toLin_orthonormal]
   rcases LinearIsometryEquiv.reflections_generate_dim φ with ⟨l, _, hfac⟩
   refine ⟨l.map (fun u => householderMatrix ι u), ?_, ?_⟩
   · intro M hM
     rcases List.mem_map.mp hM with ⟨u, -, rfl⟩
     exact ⟨u, rfl⟩
   · rw [← hφQ, hfac, householderStdMatrix_prod]
-    simpa [List.map_map, Function.comp_def, matrixProduct_eq_prod] using
-      congrArg List.prod (List.map_congr rfl (fun u _ => householderStdMatrix_reflection u))
+    simp [List.map_map, Function.comp_def, matrixProduct_eq_prod]
+
+lemma isHouseholderMatrix_isOrthogonal
+    {Q : Matrix ι ι ℝ}
+    (hQ : IsHouseholderMatrix Q) :
+    IsOrthogonalMatrix Q := by
+  rcases hQ with ⟨u, rfl⟩
+  let b : OrthonormalBasis ι ℝ (EuclideanSpace ℝ ι) :=
+    (EuclideanSpace.basisFun ι ℝ).map (((ℝ ∙ u)ᗮ).reflection)
+  let Q : Matrix ι ι ℝ := (EuclideanSpace.basisFun ι ℝ).toBasis.toMatrix b
+  have hmem : Q ∈ Matrix.orthogonalGroup ι ℝ :=
+    (EuclideanSpace.basisFun ι ℝ).toMatrix_orthonormalBasis_mem_orthogonal b
+  have hQorth : IsOrthogonalMatrix Q :=
+    (Matrix.mem_orthogonalGroup_iff' (A := Q)).1 hmem
+  simpa [householderMatrix, b, Q] using isOrthogonalMatrix_transpose hQorth
+
+lemma isHouseholderProduct_reindex
+    {α β : Type*}
+    [Fintype α] [DecidableEq α]
+    [Fintype β] [DecidableEq β]
+    (e : α ≃ β)
+    {Q : Matrix α α ℝ}
+    (hQ : IsHouseholderProduct Q) :
+    IsHouseholderProduct (Matrix.reindex e e Q) := by
+  exact isProductOf_map_to_product
+    (fun M : Matrix α α ℝ => IsHouseholderMatrix M)
+    (fun M : Matrix β β ℝ => IsHouseholderMatrix M)
+    (f := fun M => Matrix.reindex e e M)
+    (by simp)
+    (by
+      intro A B
+      simp [Matrix.submatrix_mul_equiv])
+    (by
+      intro M hM
+      exact isHouseholderProduct_of_isOrthogonalMatrix
+        (Matrix.reindex e e M)
+        ((isOrthogonalMatrix_reindex (e := e) (Q := M)).1
+          (isHouseholderMatrix_isOrthogonal hM)))
+    hQ
+
+lemma isHouseholderProduct_blockDiag_one
+    {β : Type*} [Fintype β] [DecidableEq β]
+    {Q : Matrix β β ℝ}
+    (hQ : IsHouseholderProduct Q) :
+    IsHouseholderProduct
+      (fromBlocks (1 : Matrix Unit Unit ℝ) 0 0 Q : Matrix (Unit ⊕ₗ β) (Unit ⊕ₗ β) ℝ) := by
+  exact isProductOf_map_to_product
+    (fun M : Matrix β β ℝ => IsHouseholderMatrix M)
+    (fun M : Matrix (Unit ⊕ₗ β) (Unit ⊕ₗ β) ℝ => IsHouseholderMatrix M)
+    (f := fun M => fromBlocks (1 : Matrix Unit Unit ℝ) 0 0 M)
+    (by simp)
+    (by
+      intro A B
+      ext i j
+      · rcases i with (_ | i)
+        · rcases j with (_ | j) <;> simp [Matrix.mul_apply, Fintype.sum_sum_type]
+        · rcases j with (_ | j) <;> simp [Matrix.mul_apply, Fintype.sum_sum_type])
+    (by
+      intro M hM
+      exact isHouseholderProduct_of_isOrthogonalMatrix
+        (fromBlocks (1 : Matrix Unit Unit ℝ) 0 0 M)
+        (isOrthogonalMatrix_blockDiag_one (isHouseholderMatrix_isOrthogonal hM)))
+    hQ
 
 
 
@@ -356,15 +440,67 @@ theorem householderQRReady_headTailSubmatrixLift
           (fun i : QRTailIdx ι => (headTailEquiv (α := ι)).symm (Sum.inr i))
           (fun j : QRTailIdx ι => (headTailEquiv (α := ι)).symm (Sum.inr j)))) :
     HasHouseholderQR A := by
-  have hPqr :
-      HasQR
-        (A.submatrix
+  classical
+  let e : ι ≃ Unit ⊕ₗ QRTailIdx ι := headTailLexEquiv (α := ι)
+  let Ablk : Matrix (Unit ⊕ₗ QRTailIdx ι) (Unit ⊕ₗ QRTailIdx ι) ℝ :=
+    Matrix.reindex e e A
+  have hSlice :
+      A.submatrix
           (fun i : QRTailIdx ι => (headTailEquiv (α := ι)).symm (Sum.inr i))
-          (fun j : QRTailIdx ι => (headTailEquiv (α := ι)).symm (Sum.inr j))) :=
-    hasQR_of_hasHouseholderQR hP
-  rcases qrReady_headTailSubmatrixLift A hA hPqr with ⟨⟨Q, R'⟩, hprop, hEq⟩
-  rcases hprop with ⟨hQorth, hRtri⟩
-  exact ⟨Q, R', isHouseholderProduct_of_isOrthogonalMatrix Q hQorth, hQorth, hRtri, hEq⟩
+          (fun j : QRTailIdx ι => (headTailEquiv (α := ι)).symm (Sum.inr j)) =
+        Ablk.toBlocks₂₂ := by
+    simpa [Ablk, e] using qr_headTailSlice_eq_tailBlock A
+  have hA21 : Ablk.toBlocks₂₁ = 0 := by
+    simpa [QRReady, Ablk, e] using hA
+  rcases (show HasHouseholderQR Ablk.toBlocks₂₂ by rwa [hSlice] at hP) with
+    ⟨Q', R', hQprod', hQorth', hR', hEq'⟩
+  let Qblk : Matrix (Unit ⊕ₗ QRTailIdx ι) (Unit ⊕ₗ QRTailIdx ι) ℝ :=
+    fromBlocks (1 : Matrix Unit Unit ℝ) 0 0 Q'
+  let Rblk : Matrix (Unit ⊕ₗ QRTailIdx ι) (Unit ⊕ₗ QRTailIdx ι) ℝ :=
+    fromBlocks Ablk.toBlocks₁₁ Ablk.toBlocks₁₂ 0 R'
+  have hEqA :
+      A =
+        (Matrix.reindex e.symm e.symm Qblk) *
+        (Matrix.reindex e.symm e.symm Rblk) := by
+    simpa [Qblk, Rblk, Ablk, e] using
+      (MatDecompFormal.Components.lift_two_factor_from_zero_block21
+        (A := A)
+        (e := e)
+        (subF₁ := Q')
+        (subF₂ := R')
+        hA21 hEq')
+  refine
+    ⟨Matrix.reindex e.symm e.symm Qblk,
+      Matrix.reindex e.symm e.symm Rblk, ?_, ?_, ?_, hEqA⟩
+  · exact isHouseholderProduct_reindex (e := e.symm)
+      (isHouseholderProduct_blockDiag_one hQprod')
+  · exact
+      (isOrthogonalMatrix_reindex
+        (e := e)
+        (Q := Matrix.reindex e.symm e.symm Qblk)).2
+        (by simpa [Qblk] using isOrthogonalMatrix_blockDiag_one hQorth')
+  · have hRblk : IsUpperTriangular Rblk := by
+      rw [show Rblk = (fromBlocks Ablk.toBlocks₁₁ Ablk.toBlocks₁₂ 0 R' :
+        Matrix (Unit ⊕ₗ QRTailIdx ι) (Unit ⊕ₗ QRTailIdx ι) ℝ) by rfl]
+      have hUpper := hR'
+      dsimp [IsUpperTriangular, BlockTriangular] at hUpper ⊢
+      intro i j hij
+      rcases i with (_ | i)
+      · rcases j with (_ | j)
+        · simp at hij
+        · exfalso
+          exact Sum.Lex.not_inr_lt_inl hij
+      · rcases j with (_ | j)
+        · simp
+        · exact hUpper (Sum.Lex.inr_lt_inr_iff.mp hij)
+    have hRreindexed :
+        IsUpperTriangular ((Matrix.reindex e e) (Matrix.reindex e.symm e.symm Rblk)) := by
+      simpa using hRblk
+    exact
+      (isUpperTriangular_reindex
+        (e := e)
+        (h_mono := headTailLexEquiv_strictMono (α := ι))
+        (A := Matrix.reindex e.symm e.symm Rblk)).2 hRreindexed
 
 theorem householderQR_base_univ (x : SquareUniverse ℝ) :
     ((∀ (x_sub : PosSquareUniverse ℝ), (x_sub : SquareUniverse ℝ) ≠ x) ∨
@@ -387,7 +523,9 @@ noncomputable def qr_householder_strategy_proof_strong :
         hH.2.2.1 hH.1 hH.2.2.2 hP
   lift := by
     intro ι fι dι oι nι A hA hP
-    simpa [qrHeadTailSubmatrixReduction, MatDecompFormal.Components.Reductions.SubmatrixMethod] using
+    simpa [
+      qrHeadTailSubmatrixReduction,
+      MatDecompFormal.Components.Reductions.SubmatrixMethod] using
       (householderQRReady_headTailSubmatrixLift A hA hP)
 
 noncomputable def qr_householder_strategy_data_strong : SquareStrategyData ℝ HouseholderQR_P :=
@@ -409,6 +547,29 @@ theorem exists_qr_decomposition_householder [LinearOrder ι] (A : Matrix ι ι �
   by_cases h_sub : Subsingleton ι
   · exact base_householderQR_subsingleton A
   · exact SquareSubtypeInductionInstance.prove_for_matrix qr_householder_framework_inst_strong A
+
+theorem exists_householder_product_qr [LinearOrder ι] (A : Matrix ι ι ℝ) :
+    HasHouseholderProductQR A :=
+  exists_qr_decomposition_householder A
+
+/--
+Householder QR with a final-factor product trace.
+
+This records a product representation of the final orthogonal factor; it is not
+a recursive step-by-step execution trace of the QR algorithm.
+-/
+theorem exists_householder_qr_with_product_trace [LinearOrder ι] (A : Matrix ι ι ℝ) :
+    HouseholderQRTrace A :=
+  householderQRTrace_of_hasHouseholderQR
+    (exists_qr_decomposition_householder A)
+
+/--
+Compatibility name for the final-factor product trace.
+Prefer `exists_householder_qr_with_product_trace` in new code.
+-/
+theorem exists_householder_qr_with_trace [LinearOrder ι] (A : Matrix ι ι ℝ) :
+    HouseholderQRTrace A :=
+  exists_householder_qr_with_product_trace A
 
 theorem exists_qr_decomposition_householder_hasQR [LinearOrder ι] (A : Matrix ι ι ℝ) : HasQR A :=
   hasQR_of_hasHouseholderQR (exists_qr_decomposition_householder A)

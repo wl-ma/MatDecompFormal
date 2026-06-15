@@ -1951,6 +1951,25 @@ theorem exists_rational_canonical_matrix_module_bridge
   exact exists_rational_canonical_matrix_framework (K := K) (oracle := oracle) A
 
 /--
+Module-bridge theorem with explicit rational-canonical block witness data.
+
+Route:
+`RationalCanonicalModuleStructureBridge` →
+`RationalCanonicalStepOracle` →
+`exists_rational_canonical_matrix_framework` →
+`RationalCanonicalBlockData`.
+-/
+theorem rationalCanonicalBlockData_module_bridge
+    {K : Type v} [Field K]
+    (bridge : RationalCanonicalModuleStructureBridge.{u, v} K)
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι K) :
+    RationalCanonicalBridgeBlockData "module-structure-bridge" A :=
+  rationalCanonicalBridgeBlockData_of_blockData "module-structure-bridge"
+    (rationalCanonicalBlockData_of_hasRationalCanonical
+      (exists_rational_canonical_matrix_module_bridge bridge A))
+
+/--
 Matrix rational-canonical theorem from the concrete polynomial-module bridge.
 The proof still routes through the square descent framework after converting
 the bridge to `RationalCanonicalModuleStructureBridge`.
@@ -1963,6 +1982,21 @@ theorem exists_rational_canonical_matrix_polynomial_module_bridge
     HasRationalCanonical A :=
   exists_rational_canonical_matrix_module_bridge
     (rationalCanonicalModuleStructureBridgeOfPolynomialModuleBridge bridge) A
+
+/--
+Polynomial-module bridge theorem with explicit rational-canonical block witness
+data.  This is bridge-heavy algebraic data, not an executable canonical-form
+algorithm trace.
+-/
+theorem rationalCanonicalBlockData_polynomial_module_bridge
+    {K : Type v} [Field K]
+    (bridge : RationalCanonicalPolynomialModuleBridge.{u, v} K)
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι K) :
+    RationalCanonicalBridgeBlockData "polynomial-module-bridge" A :=
+  rationalCanonicalBridgeBlockData_of_blockData "polynomial-module-bridge"
+    (rationalCanonicalBlockData_of_hasRationalCanonical
+      (exists_rational_canonical_matrix_polynomial_module_bridge bridge A))
 
 /--
 Finite-dimensional linear-operator entry point, obtained by choosing a

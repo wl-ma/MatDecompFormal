@@ -33,7 +33,7 @@ def HasLU (A : Matrix ι ι R) : Prop :=
 
 end Presentation
 
-/-- Any square matrix on a subsingleton index type admits a trivial LU decomposition. -/
+/-- Any square matrix on a subsingleton index type has a trivial LU decomposition. -/
 lemma base_lu_subsingleton
     {ι R : Type*} [Fintype ι] [DecidableEq ι] [LinearOrder ι] [Semiring R]
     [Subsingleton ι] (A : Matrix ι ι R) :

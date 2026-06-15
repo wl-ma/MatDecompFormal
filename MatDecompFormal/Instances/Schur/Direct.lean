@@ -15,11 +15,11 @@ open MatDecompFormal.Abstractions
 open MatDecompFormal.Framework
 
 /-!
-# Schur Direct Hooks
+# Algebraic and Unitary Schur Direct Hooks
 
-This file packages the proof-side hooks for the Schur strategy. Similarity
-transport is concrete; the block lift hook is kept explicit while the block
-algebra is developed.
+This file packages the proof-side hooks for the Schur strategies.  The
+algebraic hooks use arbitrary invertible similarities; the unitary hooks are
+separate and preserve unitary witnesses throughout transport and block lift.
 -/
 
 /-- Transport a Schur witness backward across an invertible similarity. -/
@@ -44,6 +44,29 @@ theorem schur_transport_similarity
       _ = (P * S) * T * (P * S)⁻¹ := by
         rw [Matrix.mul_inv_rev]
         simp [Matrix.mul_assoc]
+
+/-- Transport a unitary Schur witness backward across a unitary similarity. -/
+theorem unitarySchur_transport_unitarySimilarity
+    {ι : Type*} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {Q A B : Matrix ι ι ℂ}
+    (hQ : IsUnitaryMatrix Q)
+    (hB : B = Qᴴ * A * Q)
+    (hSchurB : HasUnitarySchur B) :
+    HasUnitarySchur A := by
+  rcases hSchurB with ⟨U, T, hU, hT, hBT⟩
+  refine ⟨Q * U, T, isUnitaryMatrix_mul hQ hU, hT, ?_⟩
+  calc
+    A = (Q * Qᴴ) * A * (Q * Qᴴ) := by
+      simp [hQ.2]
+    _ = Q * (Qᴴ * A * Q) * Qᴴ := by
+      simp [Matrix.mul_assoc]
+    _ = Q * B * Qᴴ := by
+      rw [← hB]
+    _ = Q * (U * T * Uᴴ) * Qᴴ := by
+      rw [hBT]
+    _ = (Q * U) * T * (Q * U)ᴴ := by
+      rw [Matrix.conjTranspose_mul]
+      simp [Matrix.mul_assoc]
 
 lemma invertibleMatrix_reindex
     {K α β : Type*} [Field K]
@@ -76,6 +99,29 @@ lemma invertibleMatrix_blockDiag_one_plain
   have hmul' : Qblk * Pblk = 1 := by
     simp [Pblk, Qblk, Matrix.fromBlocks_multiply, Matrix.inv_mul_of_invertible]
   exact ⟨⟨Pblk, Qblk, hmul, hmul'⟩, rfl⟩
+
+lemma isUnitaryMatrix_blockDiag_one_lex
+    {β : Type*} [Fintype β] [DecidableEq β]
+    {Q : Matrix β β ℂ} (hQ : IsUnitaryMatrix Q) :
+    IsUnitaryMatrix
+      (fromBlocks (1 : Matrix Unit Unit ℂ) 0 0 Q :
+        Matrix (Unit ⊕ₗ β) (Unit ⊕ₗ β) ℂ) := by
+  let s : Unit ⊕ β ≃ Unit ⊕ₗ β := sumToLexEquiv Unit β
+  have hplain :
+      IsUnitaryMatrix
+        (fromBlocks (1 : Matrix Unit Unit ℂ) 0 0 Q :
+          Matrix (Unit ⊕ β) (Unit ⊕ β) ℂ) :=
+    isUnitaryMatrix_blockDiag_one hQ
+  have hreindex :
+      Matrix.reindex s s
+        (fromBlocks (1 : Matrix Unit Unit ℂ) 0 0 Q :
+          Matrix (Unit ⊕ β) (Unit ⊕ β) ℂ) =
+        (fromBlocks (1 : Matrix Unit Unit ℂ) 0 0 Q :
+          Matrix (Unit ⊕ₗ β) (Unit ⊕ₗ β) ℂ) := by
+    exact reindex_sumToLex_fromBlocks
+      (A₁₁ := (1 : Matrix Unit Unit ℂ)) (A₁₂ := 0) (A₂₁ := 0) (A₂₂ := Q)
+  rw [← hreindex]
+  exact isUnitaryMatrix_reindex s hplain
 
 lemma invertibleMatrix_blockDiag_one
     {K β : Type*} [Field K] [Fintype β] [DecidableEq β]
@@ -211,6 +257,100 @@ theorem schur_lift_from_ready
   · have hback := congrArg (Matrix.reindex e.symm e.symm) hAblkEq
     simpa [P, T, Ablk, Matrix.submatrix_mul_equiv, Matrix.inv_reindex, Matrix.mul_assoc] using hback
 
+/-- Lift a tail unitary Schur witness through a Schur-ready head-tail block. -/
+theorem unitarySchur_lift_from_ready
+    {ι : Type*}
+    [Fintype ι] [DecidableEq ι] [LinearOrder ι] [Nonempty ι]
+    (A : Matrix ι ι ℂ)
+    (hready : SchurDescentReady ℂ ι A)
+    (hTail : HasUnitarySchur
+      ((Matrix.reindex (headTailEquiv (α := ι)) (headTailEquiv (α := ι)) A).toBlocks₂₂)) :
+    HasUnitarySchur A := by
+  classical
+  let e0 : ι ≃ Unit ⊕ SchurTailIdx ι := headTailEquiv (α := ι)
+  let s : Unit ⊕ SchurTailIdx ι ≃ Unit ⊕ₗ SchurTailIdx ι :=
+    sumToLexEquiv Unit (SchurTailIdx ι)
+  let e : ι ≃ Unit ⊕ₗ SchurTailIdx ι := headTailLexEquiv (α := ι)
+  let Aplain : Matrix (Unit ⊕ SchurTailIdx ι) (Unit ⊕ SchurTailIdx ι) ℂ :=
+    Matrix.reindex e0 e0 A
+  let Ablk : Matrix (Unit ⊕ₗ SchurTailIdx ι) (Unit ⊕ₗ SchurTailIdx ι) ℂ :=
+    Matrix.reindex e e A
+  have hAblk : Matrix.reindex s s Aplain = Ablk := by
+    simpa [Aplain, Ablk, e0, e, s, headTailLexEquiv] using
+      (reindex_reindex e0 e0 s s A)
+  have hA21 : Ablk.toBlocks₂₁ = 0 := by
+    have hplain : Aplain.toBlocks₂₁ = 0 := by
+      simpa [SchurDescentReady, Aplain, e0] using hready
+    have hconv := congrArg Matrix.toBlocks₂₁ hAblk
+    rw [← hconv]
+    exact hplain
+  have hA22blk : Aplain.toBlocks₂₂ = Ablk.toBlocks₂₂ := by
+    simpa using congrArg Matrix.toBlocks₂₂ hAblk
+  rcases (show HasUnitarySchur Ablk.toBlocks₂₂ by
+      simpa [Aplain] using hA22blk ▸ hTail) with
+    ⟨Q', T', hQ', hT', hEq'⟩
+  let Qblk : Matrix (Unit ⊕ₗ SchurTailIdx ι) (Unit ⊕ₗ SchurTailIdx ι) ℂ :=
+    fromBlocks (1 : Matrix Unit Unit ℂ) 0 0 Q'
+  let Tblk : Matrix (Unit ⊕ₗ SchurTailIdx ι) (Unit ⊕ₗ SchurTailIdx ι) ℂ :=
+    fromBlocks Ablk.toBlocks₁₁ (Ablk.toBlocks₁₂ * Q') 0 T'
+  have hQblk : IsUnitaryMatrix Qblk := by
+    exact isUnitaryMatrix_blockDiag_one_lex (β := SchurTailIdx ι) hQ'
+  have hA22 : Ablk.toBlocks₂₂ = Q' * T' * Q'ᴴ := by
+    simpa using hEq'
+  have hAblkEq : Ablk = Qblk * Tblk * Qblkᴴ := by
+    have hfrom :
+        Ablk =
+          (fromBlocks Ablk.toBlocks₁₁ Ablk.toBlocks₁₂ 0 Ablk.toBlocks₂₂ :
+            Matrix (Unit ⊕ₗ SchurTailIdx ι) (Unit ⊕ₗ SchurTailIdx ι) ℂ) := by
+      calc
+        Ablk =
+            (fromBlocks Ablk.toBlocks₁₁ Ablk.toBlocks₁₂ Ablk.toBlocks₂₁ Ablk.toBlocks₂₂ :
+              Matrix (Unit ⊕ₗ SchurTailIdx ι) (Unit ⊕ₗ SchurTailIdx ι) ℂ) := by
+              exact (fromBlocks_toBlocks Ablk).symm
+        _ = (fromBlocks Ablk.toBlocks₁₁ Ablk.toBlocks₁₂ 0 Ablk.toBlocks₂₂ :
+              Matrix (Unit ⊕ₗ SchurTailIdx ι) (Unit ⊕ₗ SchurTailIdx ι) ℂ) := by
+              rw [hA21]
+    have htop : Ablk.toBlocks₁₂ * Q' * Q'ᴴ = Ablk.toBlocks₁₂ := by
+      calc
+        Ablk.toBlocks₁₂ * Q' * Q'ᴴ = Ablk.toBlocks₁₂ * (Q' * Q'ᴴ) := by
+          rw [Matrix.mul_assoc]
+        _ = Ablk.toBlocks₁₂ := by
+          simp [hQ'.2]
+    have hQblk_conj :
+        Qblkᴴ =
+          (fromBlocks (1 : Matrix Unit Unit ℂ) 0 0 Q'ᴴ :
+            Matrix (Unit ⊕ₗ SchurTailIdx ι) (Unit ⊕ₗ SchurTailIdx ι) ℂ) := by
+      ext i j
+      rcases i with (_ | i)
+      · rcases j with (_ | j) <;> simp [Qblk, Matrix.conjTranspose_apply]
+      · rcases j with (_ | j) <;> simp [Qblk, Matrix.conjTranspose_apply]
+    rw [hfrom, hA22, hQblk_conj]
+    simp [Qblk, Tblk, htop, Matrix.fromBlocks_multiply, Matrix.mul_assoc]
+  let Q : Matrix ι ι ℂ := Matrix.reindex e.symm e.symm Qblk
+  let T : Matrix ι ι ℂ := Matrix.reindex e.symm e.symm Tblk
+  refine ⟨Q, T, ?_, ?_, ?_⟩
+  · exact isUnitaryMatrix_reindex e.symm hQblk
+  · have hTblk : IsUpperTriangular Tblk := by
+      dsimp [IsUpperTriangular, BlockTriangular, Tblk] at hT' ⊢
+      intro i j hij
+      rcases i with (_ | i)
+      · rcases j with (_ | j)
+        · simpa using hij
+        · exfalso
+          exact Sum.Lex.not_inr_lt_inl hij
+      · rcases j with (_ | j)
+        · simp
+        · exact hT' (Sum.Lex.inr_lt_inr_iff.mp hij)
+    exact
+      (isUpperTriangular_reindex
+        (e := e)
+        (h_mono := headTailLexEquiv_strictMono (α := ι))
+        (A := T)).2
+        (by simpa [T] using hTblk)
+  · have hback := congrArg (Matrix.reindex e.symm e.symm) hAblkEq
+    simpa [Q, T, Ablk, Matrix.submatrix_mul_equiv, Matrix.conjTranspose_reindex,
+      Matrix.mul_assoc] using hback
+
 /--
 Proof hooks needed to turn the Schur strategy core into a
 `SquareStrategyProofData` instance.
@@ -241,6 +381,46 @@ noncomputable def schur_descent_hooks
     SchurDescentHooks K oracle where
   lift := schur_lift_hook K oracle
 
+/--
+Proof hooks needed to turn the unitary Schur strategy core into a
+`SquareStrategyProofData` instance.
+-/
+structure UnitarySchurDescentHooks
+    (oracle :
+      ∀ {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι] [Nonempty ι],
+        UnitarySchurStepOracle ι) where
+  lift :
+    SquareStrategyLiftType UnitarySchur_P (unitary_schur_strategy_core oracle)
+
+noncomputable def unitary_schur_lift_hook
+    (oracle :
+      ∀ {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι] [Nonempty ι],
+        UnitarySchurStepOracle ι) :
+    SquareStrategyLiftType UnitarySchur_P (unitary_schur_strategy_core oracle) := by
+  intro ι fι dι oι nι A hA hTail
+  exact unitarySchur_lift_from_ready A hA (by
+    simpa [unitary_schur_strategy_core, schurHeadTailReduction, SubmatrixMethod,
+      SchurTailIdx] using hTail)
+
+noncomputable def unitary_schur_descent_hooks
+    (oracle :
+      ∀ {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι] [Nonempty ι],
+        UnitarySchurStepOracle ι) :
+    UnitarySchurDescentHooks oracle where
+  lift := unitary_schur_lift_hook oracle
+
+noncomputable def unitary_schur_transport_hook
+    (oracle :
+      ∀ {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι] [Nonempty ι],
+        UnitarySchurStepOracle ι) :
+    SquareStrategyTransportType UnitarySchur_P (unitary_schur_strategy_core oracle) := by
+  intro ι fι dι oι nι A B hrel hPB
+  rcases hrel with hBA | hBA
+  · subst B
+    exact hPB
+  · rcases hBA with ⟨t, rfl⟩
+    exact unitarySchur_transport_unitarySimilarity t.2 rfl hPB
+
 noncomputable def schur_transport_hook
     (K : Type u) [Field K]
     (oracle :
@@ -262,6 +442,15 @@ noncomputable def schur_strategy_proof
     (hooks : SchurDescentHooks K oracle) :
     SquareStrategyProofData K Schur_P (schur_strategy_core K oracle) where
   transport := schur_transport_hook K oracle
+  lift := hooks.lift
+
+noncomputable def unitary_schur_strategy_proof
+    (oracle :
+      ∀ {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι] [Nonempty ι],
+        UnitarySchurStepOracle ι)
+    (hooks : UnitarySchurDescentHooks oracle) :
+    SquareStrategyProofData ℂ UnitarySchur_P (unitary_schur_strategy_core oracle) where
+  transport := unitary_schur_transport_hook oracle
   lift := hooks.lift
 
 end MatDecompFormal.Instances

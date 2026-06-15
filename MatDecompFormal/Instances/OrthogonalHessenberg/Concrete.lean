@@ -184,4 +184,28 @@ theorem exists_unitary_hessenberg_reduction_complex
     HasUnitaryHessenberg A :=
   exists_unitary_hessenberg_reduction unitaryHessenbergBoundaryStepOracle A
 
+/--
+Complex unitary Hessenberg reduction with a route-tagged final witness trace.
+
+This exposes the final Hessenberg witness and route tag, not a recursive
+boundary-step execution trace.
+-/
+theorem exists_unitary_hessenberg_reduction_complex_with_witness_trace
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι ℂ) :
+    UnitaryHessenbergTrace "orthonormal-basis-boundary" A :=
+  witnessData_of_hasUnitaryHessenberg
+    "orthonormal-basis-boundary"
+    (exists_unitary_hessenberg_reduction_complex A)
+
+/--
+Compatibility name for the route-tagged final witness trace.
+Prefer `exists_unitary_hessenberg_reduction_complex_with_witness_trace`.
+-/
+theorem exists_unitary_hessenberg_reduction_complex_with_trace
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι ℂ) :
+    UnitaryHessenbergTrace "orthonormal-basis-boundary" A :=
+  exists_unitary_hessenberg_reduction_complex_with_witness_trace A
+
 end MatDecompFormal.Instances

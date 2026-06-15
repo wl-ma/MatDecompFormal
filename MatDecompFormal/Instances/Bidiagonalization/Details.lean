@@ -1,6 +1,8 @@
 import MatDecompFormal.Instances.Hessenberg.Boundary
 import MatDecompFormal.Instances.Normal.Details
 import MatDecompFormal.Instances.QR.Details
+import MatDecompFormal.Instances.QR.Givens
+import MatDecompFormal.Instances.QR.Householder
 
 universe u
 
@@ -78,6 +80,153 @@ def HasOrthogonalBidiagonalization
     IsOrthogonalMatrix V ∧
     IsUpperBidiagonal B ∧
     A = U * B * Vᵀ
+
+/--
+Product-level real two-sided bidiagonalization witness.
+
+The proposition exposes finite left and right elementary-factor lists whose
+products are the final orthogonal factors. It records final-factor data only;
+it does not assert the intermediate Golub-Kahan boundary invariants unless a
+theorem supplies such a stronger trace separately.
+-/
+def HasLeftRightProductOrthogonalBidiagonalization
+    [Fintype m] [DecidableEq m] [LinearOrder m]
+    [Fintype n] [DecidableEq n] [LinearOrder n]
+    (LeftStepProp : Matrix m m ℝ → Prop)
+    (RightStepProp : Matrix n n ℝ → Prop)
+    (A : Matrix m n ℝ) : Prop :=
+  ∃ leftSteps : List (Matrix m m ℝ),
+  ∃ rightSteps : List (Matrix n n ℝ),
+  ∃ U : Matrix m m ℝ, ∃ V : Matrix n n ℝ, ∃ B : Matrix m n ℝ,
+    (∀ M ∈ leftSteps, LeftStepProp M) ∧
+    (∀ M ∈ rightSteps, RightStepProp M) ∧
+    matrixProduct leftSteps = U ∧
+    matrixProduct rightSteps = V ∧
+    IsOrthogonalMatrix U ∧
+    IsOrthogonalMatrix V ∧
+    IsUpperBidiagonal B ∧
+    A = U * B * Vᵀ
+
+def HasLeftRightHouseholderProductBidiagonalization
+    [Fintype m] [DecidableEq m] [LinearOrder m]
+    [Fintype n] [DecidableEq n] [LinearOrder n]
+    (A : Matrix m n ℝ) : Prop :=
+  HasLeftRightProductOrthogonalBidiagonalization
+    IsHouseholderMatrix IsHouseholderMatrix A
+
+def HasLeftRightGivensProductBidiagonalization
+    [Fintype m] [DecidableEq m] [LinearOrder m]
+    [Fintype n] [DecidableEq n] [LinearOrder n]
+    (A : Matrix m n ℝ) : Prop :=
+  HasLeftRightProductOrthogonalBidiagonalization
+    IsGivensMatrix IsGivensMatrix A
+
+/--
+Final-factor trace predicate for real bidiagonalization.
+
+The current trace level records elementary left/right factor lists and the
+final bidiagonal factor. It is deliberately a Prop-level witness layer, not an
+algorithmic step-by-step invariant for the classical bidiagonalization sweep.
+-/
+def BidiagonalizationTrace
+    [Fintype m] [DecidableEq m] [LinearOrder m]
+    [Fintype n] [DecidableEq n] [LinearOrder n]
+    (LeftStepProp : Matrix m m ℝ → Prop)
+    (RightStepProp : Matrix n n ℝ → Prop)
+    (A : Matrix m n ℝ) : Prop :=
+  HasLeftRightProductOrthogonalBidiagonalization LeftStepProp RightStepProp A
+
+abbrev HouseholderBidiagonalizationTrace
+    [Fintype m] [DecidableEq m] [LinearOrder m]
+    [Fintype n] [DecidableEq n] [LinearOrder n]
+    (A : Matrix m n ℝ) : Prop :=
+  BidiagonalizationTrace IsHouseholderMatrix IsHouseholderMatrix A
+
+abbrev GivensBidiagonalizationTrace
+    [Fintype m] [DecidableEq m] [LinearOrder m]
+    [Fintype n] [DecidableEq n] [LinearOrder n]
+    (A : Matrix m n ℝ) : Prop :=
+  BidiagonalizationTrace IsGivensMatrix IsGivensMatrix A
+
+theorem hasOrthogonalBidiagonalization_of_leftRightProduct
+    [Fintype m] [DecidableEq m] [LinearOrder m]
+    [Fintype n] [DecidableEq n] [LinearOrder n]
+    {LeftStepProp : Matrix m m ℝ → Prop}
+    {RightStepProp : Matrix n n ℝ → Prop}
+    {A : Matrix m n ℝ} :
+    HasLeftRightProductOrthogonalBidiagonalization LeftStepProp RightStepProp A →
+      HasOrthogonalBidiagonalization A := by
+  intro hA
+  rcases hA with
+    ⟨_leftSteps, _rightSteps, U, V, B, _hleft, _hright, _hUprod, _hVprod,
+      hU, hV, hB, hEq⟩
+  exact ⟨U, V, B, hU, hV, hB, hEq⟩
+
+theorem hasOrthogonalBidiagonalization_of_hasLeftRightHouseholderProduct
+    [Fintype m] [DecidableEq m] [LinearOrder m]
+    [Fintype n] [DecidableEq n] [LinearOrder n]
+    {A : Matrix m n ℝ} :
+    HasLeftRightHouseholderProductBidiagonalization A →
+      HasOrthogonalBidiagonalization A :=
+  hasOrthogonalBidiagonalization_of_leftRightProduct
+
+theorem hasOrthogonalBidiagonalization_of_hasLeftRightGivensProduct
+    [Fintype m] [DecidableEq m] [LinearOrder m]
+    [Fintype n] [DecidableEq n] [LinearOrder n]
+    {A : Matrix m n ℝ} :
+    HasLeftRightGivensProductBidiagonalization A →
+      HasOrthogonalBidiagonalization A :=
+  hasOrthogonalBidiagonalization_of_leftRightProduct
+
+theorem hasLeftRightProduct_of_bidiagonalizationTrace
+    [Fintype m] [DecidableEq m] [LinearOrder m]
+    [Fintype n] [DecidableEq n] [LinearOrder n]
+    {LeftStepProp : Matrix m m ℝ → Prop}
+    {RightStepProp : Matrix n n ℝ → Prop}
+    {A : Matrix m n ℝ} :
+    BidiagonalizationTrace LeftStepProp RightStepProp A →
+      HasLeftRightProductOrthogonalBidiagonalization LeftStepProp RightStepProp A :=
+  id
+
+theorem hasLeftRightHouseholderProduct_of_trace
+    [Fintype m] [DecidableEq m] [LinearOrder m]
+    [Fintype n] [DecidableEq n] [LinearOrder n]
+    {A : Matrix m n ℝ} :
+    HouseholderBidiagonalizationTrace A →
+      HasLeftRightHouseholderProductBidiagonalization A :=
+  id
+
+theorem hasLeftRightGivensProduct_of_trace
+    [Fintype m] [DecidableEq m] [LinearOrder m]
+    [Fintype n] [DecidableEq n] [LinearOrder n]
+    {A : Matrix m n ℝ} :
+    GivensBidiagonalizationTrace A →
+      HasLeftRightGivensProductBidiagonalization A :=
+  id
+
+theorem hasLeftRightHouseholderProduct_of_hasOrthogonalBidiagonalization
+    [Fintype m] [DecidableEq m] [LinearOrder m]
+    [Fintype n] [DecidableEq n] [LinearOrder n]
+    {A : Matrix m n ℝ} :
+    HasOrthogonalBidiagonalization A →
+      HasLeftRightHouseholderProductBidiagonalization A := by
+  intro hA
+  rcases hA with ⟨U, V, B, hU, hV, hB, hEq⟩
+  rcases isHouseholderProduct_of_isOrthogonalMatrix U hU with
+    ⟨leftSteps, hleftSteps, hleftProduct⟩
+  rcases isHouseholderProduct_of_isOrthogonalMatrix V hV with
+    ⟨rightSteps, hrightSteps, hrightProduct⟩
+  exact
+    ⟨leftSteps, rightSteps, U, V, B, hleftSteps, hrightSteps,
+      hleftProduct, hrightProduct, hU, hV, hB, hEq⟩
+
+theorem householderBidiagonalizationTrace_of_hasOrthogonalBidiagonalization
+    [Fintype m] [DecidableEq m] [LinearOrder m]
+    [Fintype n] [DecidableEq n] [LinearOrder n]
+    {A : Matrix m n ℝ} :
+    HasOrthogonalBidiagonalization A →
+      HouseholderBidiagonalizationTrace A :=
+  hasLeftRightHouseholderProduct_of_hasOrthogonalBidiagonalization
 
 theorem hasOrthogonalBidiagonalization_of_hasUnitary
     [Fintype m] [DecidableEq m] [LinearOrder m]
@@ -305,6 +454,7 @@ variable [Fintype n] [DecidableEq n] [LinearOrder n]
 variable [Fintype m'] [DecidableEq m'] [LinearOrder m']
 variable [Fintype n'] [DecidableEq n'] [LinearOrder n']
 
+omit [DecidableEq m] [DecidableEq n] [DecidableEq m'] [DecidableEq n'] in
 theorem isUpperBidiagonal_reindex_strictMono
     (em : m ≃ m') (en : n ≃ n') (hem : StrictMono em) (hen : StrictMono en)
     {B : Matrix m n 𝕜} (hB : IsUpperBidiagonal B) :
@@ -340,7 +490,7 @@ theorem bidiagonalizationFixedRightHead_reindex_strictMono
     have hhead := headElem_map_strictMono en hen
     have hhead_symm : en.symm (headElem (α := n')) = headElem (α := n) := by
       apply en.injective
-      simpa [hhead]
+      simp [hhead]
     have hiff : en.symm j = headElem (α := n) ↔ j = headElem (α := n') := by
       constructor
       · intro h
@@ -348,7 +498,7 @@ theorem bidiagonalizationFixedRightHead_reindex_strictMono
           j = en (en.symm j) := by simp
           _ = headElem (α := n') := by simpa [hhead] using congrArg en h
       · intro h
-        simpa [h, hhead_symm]
+        simp [h, hhead_symm]
     simpa [Matrix.reindex_apply, hhead_symm, hiff] using hVhead (en.symm j)
   · exact isUpperBidiagonal_reindex_strictMono em en hem hen hB
   · have hEq' := congrArg (Matrix.reindex em en) hEq
@@ -362,6 +512,7 @@ variable {m n : Type u}
 variable [Fintype m] [DecidableEq m] [LinearOrder m]
 variable [Fintype n] [DecidableEq n] [LinearOrder n]
 
+omit [DecidableEq m] [DecidableEq n] in
 /-- A one-head block matrix is upper bidiagonal from a ready boundary and tail shape. -/
 theorem isUpperBidiagonal_fromBlocks_ready
     (B₁₁ : Matrix Unit Unit 𝕜) (B₁₂ : Matrix Unit n 𝕜)
@@ -386,7 +537,7 @@ theorem isUpperBidiagonal_fromBlocks_ready
             rw [← toLex_ofLex j, hj]
           subst j
           have hbad : 0 < 0 ∨ 1 < 0 := by
-            simpa [finiteOrderRank_sumLex_inl_unit] using hij
+            simp [finiteOrderRank_sumLex_inl_unit] at hij
           rcases hbad with hbad | hbad
           · exact (Nat.lt_irrefl 0 hbad).elim
           · exact (Nat.not_lt_zero 1 hbad).elim
@@ -415,6 +566,7 @@ theorem isUpperBidiagonal_fromBlocks_ready
             omega
           simpa [Matrix.reindex_apply, sumToLexEquiv] using hTail ii jj hijTail
 
+omit [DecidableEq m] [DecidableEq n] in
 /--
 A one-head block matrix is upper bidiagonal when the lower-left block is zero,
 the tail is upper bidiagonal, and the head row is zero past the first tail
@@ -444,7 +596,7 @@ theorem isUpperBidiagonal_fromBlocks_boundary
             rw [← toLex_ofLex j, hj]
           subst j
           have hbad : 0 < 0 ∨ 1 < 0 := by
-            simpa [finiteOrderRank_sumLex_inl_unit] using hij
+            simp [finiteOrderRank_sumLex_inl_unit] at hij
           rcases hbad with hbad | hbad
           · exact (Nat.lt_irrefl 0 hbad).elim
           · exact (Nat.not_lt_zero 1 hbad).elim
@@ -504,7 +656,8 @@ theorem bidiagonalization_of_ready_blocks
           = Matrix.reindex (sumToLexEquiv Unit m) (sumToLexEquiv Unit n)
               (fromBlocks B₁₁ 0 0 B₂₂ : Matrix (Unit ⊕ m) (Unit ⊕ n) 𝕜) := by
             congr 1
-            ext i j <;> cases i <;> cases j <;> simp [hrow, hcol]
+            ext i j
+            all_goals cases i <;> cases j <;> simp [hrow, hcol]
       _ = Matrix.reindex (sumToLexEquiv Unit m) (sumToLexEquiv Unit n)
               (fromBlocks B₁₁ 0 0 (U * C * Vᴴ) :
                 Matrix (Unit ⊕ m) (Unit ⊕ n) 𝕜) := by
@@ -519,9 +672,11 @@ theorem bidiagonalization_of_ready_blocks
                         Matrix (Unit ⊕ m) (Unit ⊕ n) 𝕜) *
                       (fromBlocks (1 : Matrix Unit Unit 𝕜) 0 0 V :
                         Matrix (Unit ⊕ n) (Unit ⊕ n) 𝕜)ᴴ := by
-              ext i j <;> cases i <;> cases j <;>
-                simp [Matrix.fromBlocks_conjTranspose, fromBlocks_multiply,
-                  Matrix.mul_assoc]
+              ext i j
+              all_goals
+                cases i <;> cases j <;>
+                  simp [Matrix.fromBlocks_conjTranspose, fromBlocks_multiply,
+                    Matrix.mul_assoc]
             have hlex := congrArg
               (Matrix.reindex (sumToLexEquiv Unit m) (sumToLexEquiv Unit n)) hraw
             simpa [Ublk, Vblk, Cparent, Matrix.submatrix_mul_equiv,
@@ -633,7 +788,8 @@ theorem bidiagonalization_of_boundary_ready_blocks
           = Matrix.reindex (sumToLexEquiv Unit m) (sumToLexEquiv Unit n)
               (fromBlocks B₁₁ B₁₂ 0 B₂₂ : Matrix (Unit ⊕ m) (Unit ⊕ n) 𝕜) := by
             congr 1
-            ext i j <;> cases i <;> cases j <;> simp [hcol]
+            ext i j
+            all_goals cases i <;> cases j <;> simp [hcol]
       _ = Matrix.reindex (sumToLexEquiv Unit m) (sumToLexEquiv Unit n)
               (fromBlocks B₁₁ B₁₂ 0 (U * C * Vᴴ) :
                 Matrix (Unit ⊕ m) (Unit ⊕ n) 𝕜) := by
@@ -648,9 +804,11 @@ theorem bidiagonalization_of_boundary_ready_blocks
                         Matrix (Unit ⊕ m) (Unit ⊕ n) 𝕜) *
                       (fromBlocks (1 : Matrix Unit Unit 𝕜) 0 0 V :
                         Matrix (Unit ⊕ n) (Unit ⊕ n) 𝕜)ᴴ := by
-              ext i j <;> cases i <;> cases j <;>
-                simp [C₁₂, Matrix.fromBlocks_conjTranspose, fromBlocks_multiply,
-                  Matrix.mul_assoc, hV.2]
+              ext i j
+              all_goals
+                cases i <;> cases j <;>
+                  simp [C₁₂, Matrix.fromBlocks_conjTranspose, fromBlocks_multiply,
+                    Matrix.mul_assoc, hV.2]
             have hlex := congrArg
               (Matrix.reindex (sumToLexEquiv Unit m) (sumToLexEquiv Unit n)) hraw
             simpa [Ublk, Vblk, Cparent, Matrix.submatrix_mul_equiv,

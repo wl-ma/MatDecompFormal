@@ -284,6 +284,12 @@ variable {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
 abbrev HasGivensQR {R : Type v} [Semiring R] [Neg R] (A : Matrix ι ι R) : Prop :=
   HasStructuredQR IsGivensProduct A
 
+abbrev HasGivensProductQR {R : Type v} [Semiring R] [Neg R] (A : Matrix ι ι R) : Prop :=
+  HasGivensQR A
+
+abbrev GivensQRTrace {R : Type v} [Semiring R] [Neg R] (A : Matrix ι ι R) : Prop :=
+  QRProductTrace IsGivensMatrix A
+
 variable [Nonempty ι]
 
 noncomputable def givens2x2 (a b : ℝ) : Matrix (Unit ⊕ Unit) (Unit ⊕ Unit) ℝ :=
@@ -977,6 +983,27 @@ lemma hasQR_of_hasGivensQR
     HasQR A := by
   exact hasQR_of_hasStructuredQR hA
 
+lemma givensQRTrace_of_hasGivensQR
+    {R : Type v} [Semiring R] [Neg R]
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {A : Matrix ι ι R} (hA : HasGivensQR A) :
+    GivensQRTrace A := by
+  exact qrProductTrace_of_hasStructuredQR hA
+
+lemma hasGivensQR_of_givensQRTrace
+    {R : Type v} [Semiring R] [Neg R]
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {A : Matrix ι ι R} (hA : GivensQRTrace A) :
+    HasGivensQR A := by
+  exact hasStructuredQR_of_qrProductTrace hA
+
+lemma hasQR_of_givensQRTrace
+    {R : Type v} [Semiring R] [Neg R]
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {A : Matrix ι ι R} (hA : GivensQRTrace A) :
+    HasQR A := by
+  exact hasQR_of_qrProductTrace hA
+
 lemma isGivensMatrix_reindex
     {R : Type v} [Semiring R] [Neg R]
     {α β : Type u}
@@ -1401,6 +1428,32 @@ theorem exists_qr_decomposition_givens
   · letI : Nontrivial ι := not_subsingleton_iff_nontrivial.mp h_sub
     exact SquareSubtypeInductionInstance.prove_for_matrix
       (inst := qr_givens_framework_inst_strong) A
+
+theorem exists_givens_product_qr
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι ℝ) : HasGivensProductQR A :=
+  exists_qr_decomposition_givens A
+
+/--
+Givens QR with a final-factor product trace.
+
+This records a product representation of the final orthogonal factor; it is not
+a recursive step-by-step execution trace of the QR algorithm.
+-/
+theorem exists_givens_qr_with_product_trace
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι ℝ) : GivensQRTrace A :=
+  givensQRTrace_of_hasGivensQR
+    (exists_qr_decomposition_givens A)
+
+/--
+Compatibility name for the final-factor product trace.
+Prefer `exists_givens_qr_with_product_trace` in new code.
+-/
+theorem exists_givens_qr_with_trace
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι ℝ) : GivensQRTrace A :=
+  exists_givens_qr_with_product_trace A
 
 theorem exists_qr_decomposition_givens_hasQR
     {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]

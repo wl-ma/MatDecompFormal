@@ -65,6 +65,20 @@ theorem exists_unitary_bidiagonalization
         bidiagonalizationStepOracle (m := p) (n := q))
     A
 
+/--
+Complex spectral one-step route for unitary bidiagonalization.
+
+This is an explicit alias for `exists_unitary_bidiagonalization`: the concrete
+one-step oracle is obtained from SVD head singular-vector data, while the final
+assembly is still performed by the rectangular descent framework.
+-/
+theorem exists_unitary_bidiagonalization_spectral_framework
+    {m n : Type u} [Fintype m] [DecidableEq m] [LinearOrder m]
+    [Fintype n] [DecidableEq n] [LinearOrder n]
+    (A : Matrix m n ℂ) :
+    HasUnitaryBidiagonalization A :=
+  exists_unitary_bidiagonalization A
+
 section RealSpectral
 
 variable {m n : Type u} [Fintype m] [Fintype n]
@@ -603,6 +617,153 @@ theorem exists_orthogonal_bidiagonalization
       [Fintype q] [DecidableEq q] [LinearOrder q] [Nonempty q] =>
         realBidiagonalizationStepOracle (m := p) (n := q))
     A
+
+/--
+Real spectral one-step route for orthogonal bidiagonalization.
+
+The proof supplies a concrete real spectral head-basis oracle and then uses the
+ordinary rectangular descent theorem.
+-/
+theorem exists_orthogonal_bidiagonalization_spectral_framework
+    {m n : Type u} [Fintype m] [DecidableEq m] [LinearOrder m]
+    [Fintype n] [DecidableEq n] [LinearOrder n]
+    (A : Matrix m n ℝ) :
+    HasOrthogonalBidiagonalization A :=
+  exists_orthogonal_bidiagonalization A
+
+/--
+Boundary-step trace for the real spectral Householder-compatible
+bidiagonalization route.
+
+The `firstStep` field records the actual concrete one-step oracle applied to
+the input matrix on positive row/column problems. The final decomposition is
+still supplied by the rectangular descent framework; compatibility lemmas below
+project this stronger step trace back to the older final-factor trace layer.
+-/
+structure RealHouseholderBidiagonalizationStepTrace
+    {m n : Type u} [Fintype m] [DecidableEq m] [LinearOrder m]
+    [Fintype n] [DecidableEq n] [LinearOrder n]
+    (A : Matrix m n ℝ) : Prop where
+  decomposition : HasOrthogonalBidiagonalization A
+  firstStep :
+    ∀ [Nonempty m] [Nonempty n],
+      ∃ U : Matrix m m ℝ, ∃ V : Matrix n n ℝ,
+        U = (realBidiagonalizationStepOracle (m := m) (n := n)).U A ∧
+        V = (realBidiagonalizationStepOracle (m := m) (n := n)).V A ∧
+        IsHouseholderProduct U ∧
+        IsHouseholderProduct V ∧
+        IsOrthogonalMatrix U ∧
+        IsOrthogonalMatrix V ∧
+        BidiagonalizationReady m n (Uᵀ * A * V)
+
+theorem hasOrthogonalBidiagonalization_of_realHouseholderBidiagonalizationStepTrace
+    {m n : Type u} [Fintype m] [DecidableEq m] [LinearOrder m]
+    [Fintype n] [DecidableEq n] [LinearOrder n]
+    {A : Matrix m n ℝ} :
+    RealHouseholderBidiagonalizationStepTrace A →
+      HasOrthogonalBidiagonalization A :=
+  RealHouseholderBidiagonalizationStepTrace.decomposition
+
+theorem hasLeftRightHouseholderProduct_of_realHouseholderBidiagonalizationStepTrace
+    {m n : Type u} [Fintype m] [DecidableEq m] [LinearOrder m]
+    [Fintype n] [DecidableEq n] [LinearOrder n]
+    {A : Matrix m n ℝ} :
+    RealHouseholderBidiagonalizationStepTrace A →
+      HasLeftRightHouseholderProductBidiagonalization A :=
+  hasLeftRightHouseholderProduct_of_hasOrthogonalBidiagonalization ∘
+    RealHouseholderBidiagonalizationStepTrace.decomposition
+
+theorem householderBidiagonalizationTrace_of_realHouseholderBidiagonalizationStepTrace
+    {m n : Type u} [Fintype m] [DecidableEq m] [LinearOrder m]
+    [Fintype n] [DecidableEq n] [LinearOrder n]
+    {A : Matrix m n ℝ} :
+    RealHouseholderBidiagonalizationStepTrace A →
+      HouseholderBidiagonalizationTrace A :=
+  hasLeftRightHouseholderProduct_of_realHouseholderBidiagonalizationStepTrace
+
+/--
+Real Householder-compatible bidiagonalization with a boundary-step trace.
+
+The trace records the concrete first/boundary oracle layer plus the final
+framework decomposition; it is not a complete recursive execution trace.
+-/
+theorem exists_householder_bidiagonalization_with_boundary_step_trace
+    {m n : Type u} [Fintype m] [DecidableEq m] [LinearOrder m]
+    [Fintype n] [DecidableEq n] [LinearOrder n]
+    (A : Matrix m n ℝ) :
+    RealHouseholderBidiagonalizationStepTrace A where
+  decomposition := exists_orthogonal_bidiagonalization A
+  firstStep := by
+    intro hm hn
+    letI : Nonempty m := hm
+    letI : Nonempty n := hn
+    let U : Matrix m m ℝ := (realBidiagonalizationStepOracle (m := m) (n := n)).U A
+    let V : Matrix n n ℝ := (realBidiagonalizationStepOracle (m := m) (n := n)).V A
+    have hUunit : IsUnitaryMatrix U :=
+      (realBidiagonalizationStepOracle (m := m) (n := n)).unitary_U A
+    have hVunit : IsUnitaryMatrix V :=
+      (realBidiagonalizationStepOracle (m := m) (n := n)).unitary_V A
+    have hUorth : IsOrthogonalMatrix U := by
+      simpa [U, IsUnitaryMatrix, IsOrthogonalMatrix] using hUunit.1
+    have hVorth : IsOrthogonalMatrix V := by
+      simpa [V, IsUnitaryMatrix, IsOrthogonalMatrix] using hVunit.1
+    have hready : BidiagonalizationReady m n (Uᵀ * A * V) := by
+      simpa [U, V] using
+        (realBidiagonalizationStepOracle (m := m) (n := n)).ready A
+    exact
+      ⟨U, V, rfl, rfl,
+        isHouseholderProduct_of_isOrthogonalMatrix U hUorth,
+        isHouseholderProduct_of_isOrthogonalMatrix V hVorth,
+        hUorth, hVorth, hready⟩
+
+/--
+Compatibility name for the boundary-step trace.
+Prefer `exists_householder_bidiagonalization_with_boundary_step_trace` in new
+code when referring to this non-recursive trace layer.
+-/
+theorem exists_householder_bidiagonalization_with_step_trace
+    {m n : Type u} [Fintype m] [DecidableEq m] [LinearOrder m]
+    [Fintype n] [DecidableEq n] [LinearOrder n]
+    (A : Matrix m n ℝ) :
+    RealHouseholderBidiagonalizationStepTrace A :=
+  exists_householder_bidiagonalization_with_boundary_step_trace A
+
+/--
+Real orthogonal bidiagonalization with exposed Householder product data for
+the final left and right orthogonal factors. This is the compatibility
+projection of the spectral boundary-step trace to the older final-factor layer.
+-/
+theorem exists_leftRight_householder_product_bidiagonalization
+    {m n : Type u} [Fintype m] [DecidableEq m] [LinearOrder m]
+    [Fintype n] [DecidableEq n] [LinearOrder n]
+    (A : Matrix m n ℝ) :
+    HasLeftRightHouseholderProductBidiagonalization A :=
+  hasLeftRightHouseholderProduct_of_realHouseholderBidiagonalizationStepTrace
+    (exists_householder_bidiagonalization_with_boundary_step_trace A)
+
+/--
+Compatibility trace for real bidiagonalization. It records final left/right
+Householder factor lists obtained by projecting the spectral boundary-step
+trace back to the older product-witness API.
+-/
+theorem exists_householder_bidiagonalization_with_product_trace
+    {m n : Type u} [Fintype m] [DecidableEq m] [LinearOrder m]
+    [Fintype n] [DecidableEq n] [LinearOrder n]
+    (A : Matrix m n ℝ) :
+    HouseholderBidiagonalizationTrace A :=
+  householderBidiagonalizationTrace_of_realHouseholderBidiagonalizationStepTrace
+    (exists_householder_bidiagonalization_with_boundary_step_trace A)
+
+/--
+Compatibility name for the final-factor product trace.
+Prefer `exists_householder_bidiagonalization_with_product_trace` in new code.
+-/
+theorem exists_householder_bidiagonalization_with_trace
+    {m n : Type u} [Fintype m] [DecidableEq m] [LinearOrder m]
+    [Fintype n] [DecidableEq n] [LinearOrder n]
+    (A : Matrix m n ℝ) :
+    HouseholderBidiagonalizationTrace A :=
+  exists_householder_bidiagonalization_with_product_trace A
 
 end RealSpectral
 

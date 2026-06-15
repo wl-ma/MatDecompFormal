@@ -17,8 +17,8 @@ itself is intentionally isolated in `SmithStepOracle` in `Strategy.lean`.
 
 variable {R : Type v} {m n : Type u}
 
-/-- Data-oriented Smith normal-form payload. -/
-structure SmithNormalFormData
+/-- Data-oriented rectangular diagonal payload, without invariant-factor order. -/
+structure SmithDiagonalData
     [Semiring R] [Fintype m] [DecidableEq m] [Fintype n] [DecidableEq n]
     (D : Matrix m n R) where
   r : Type u
@@ -28,12 +28,77 @@ structure SmithNormalFormData
   diag : r → R
   row_injective : Function.Injective row
   col_injective : Function.Injective col
-  successor : r → r → Prop
   entry_diag : ∀ k, D (row k) (col k) = diag k
   entry_zero : ∀ i j, (∀ k, row k ≠ i ∨ col k ≠ j) → D i j = 0
-  divides_next : ∀ k l, successor k l → diag k ∣ diag l
+
+attribute [instance] SmithDiagonalData.fintype_r
+
+/-- Predicate saying a matrix has the old data-oriented rectangular diagonal shape. -/
+def IsSmithDiagonalForm
+    [Semiring R] [Fintype m] [DecidableEq m] [Fintype n] [DecidableEq n]
+    (D : Matrix m n R) : Prop :=
+  Nonempty (SmithDiagonalData D)
+
+/-- Two-sided equivalence to a data-oriented rectangular diagonal matrix. -/
+def HasSmithDiagonalForm
+    [Semiring R] [Fintype m] [DecidableEq m] [Fintype n] [DecidableEq n]
+    (A : Matrix m n R) : Prop :=
+  ∃ P : Matrix m m R, ∃ Q : Matrix n n R, ∃ D : Matrix m n R,
+    GaussInvertibleMatrix P ∧
+    GaussInvertibleMatrix Q ∧
+    IsSmithDiagonalForm D ∧
+    D = P * A * Q
+
+/-- Data-oriented Smith normal-form payload with an ordered invariant-factor chain. -/
+structure SmithNormalFormData
+    [Semiring R] [Fintype m] [DecidableEq m] [Fintype n] [DecidableEq n]
+    (D : Matrix m n R) where
+  r : Type u
+  fintype_r : Fintype r
+  order : Fin (Fintype.card r) ≃ r
+  row : r → m
+  col : r → n
+  diag : r → R
+  row_injective : Function.Injective row
+  col_injective : Function.Injective col
+  entry_diag : ∀ k, D (row k) (col k) = diag k
+  entry_zero : ∀ i j, (∀ k, row k ≠ i ∨ col k ≠ j) → D i j = 0
+  divides_chain : ∀ k : Fin (Fintype.card r),
+    (hnext : (k : Nat) + 1 < Fintype.card r) →
+      diag (order k) ∣ diag (order ⟨(k : Nat) + 1, hnext⟩)
 
 attribute [instance] SmithNormalFormData.fintype_r
+
+namespace SmithNormalFormData
+
+noncomputable def defaultOrder (r : Type u) [Fintype r] :
+    Fin (Fintype.card r) ≃ r :=
+  (Fintype.equivFin r).symm
+
+noncomputable def consOrder {r : Type u} [Fintype r]
+    (order : Fin (Fintype.card r) ≃ r) :
+    Fin (Fintype.card (Option r)) ≃ Option r :=
+  (finCongr (Fintype.card_option (α := r))).trans
+    ((finSuccEquiv (Fintype.card r)).trans (Equiv.optionCongr order))
+
+@[simp] lemma consOrder_zero {r : Type u} [Fintype r]
+    (order : Fin (Fintype.card r) ≃ r)
+    (h : 0 < Fintype.card (Option r)) :
+    consOrder order ⟨0, h⟩ = none := by
+  simp [consOrder]
+
+lemma consOrder_succ {r : Type u} [Fintype r]
+    (order : Fin (Fintype.card r) ≃ r)
+    (k : Fin (Fintype.card r))
+    (h : (k : Nat) + 1 < Fintype.card (Option r)) :
+    consOrder order ⟨(k : Nat) + 1, h⟩ = some (order k) := by
+  have hcast :
+      (finCongr (Fintype.card_option (α := r)) ⟨(k : Nat) + 1, h⟩) = k.succ := by
+    ext
+    simp [finCongr]
+  simp [consOrder, hcast]
+
+end SmithNormalFormData
 
 /-- Predicate saying a matrix is in data-oriented Smith normal form. -/
 def IsSmithNormalForm
@@ -41,7 +106,32 @@ def IsSmithNormalForm
     (D : Matrix m n R) : Prop :=
   Nonempty (SmithNormalFormData D)
 
-/-- Two-sided equivalence to a Smith normal-form matrix. -/
+/-- Strong Smith data forgets to the old rectangular diagonal-shape payload. -/
+noncomputable def SmithNormalFormData.toDiagonalData
+    [Semiring R] [Fintype m] [DecidableEq m] [Fintype n] [DecidableEq n]
+    {D : Matrix m n R} (data : SmithNormalFormData D) :
+    SmithDiagonalData D where
+  r := data.r
+  fintype_r := data.fintype_r
+  row := data.row
+  col := data.col
+  diag := data.diag
+  row_injective := data.row_injective
+  col_injective := data.col_injective
+  entry_diag := data.entry_diag
+  entry_zero := data.entry_zero
+
+/-- Strong Smith normal form implies the old rectangular diagonal-shape predicate. -/
+theorem isSmithDiagonalForm_of_smith
+    [Semiring R] [Fintype m] [DecidableEq m] [Fintype n] [DecidableEq n]
+    {D : Matrix m n R} (hD : IsSmithNormalForm D) :
+    IsSmithDiagonalForm D := by
+  rcases hD with ⟨data⟩
+  exact ⟨data.toDiagonalData⟩
+
+/-- Two-sided equivalence to a Smith normal-form matrix.
+The equation direction is `D = P * A * Q` (structured matrix on left),
+not the alternative `A = P⁻¹ * D * Q⁻¹`. -/
 def HasSmithNormalForm
     [Semiring R] [Fintype m] [DecidableEq m] [Fintype n] [DecidableEq n]
     (A : Matrix m n R) : Prop :=
@@ -50,6 +140,14 @@ def HasSmithNormalForm
     GaussInvertibleMatrix Q ∧
     IsSmithNormalForm D ∧
     D = P * A * Q
+
+/-- Strong Smith witnesses forget to rectangular diagonal-form witnesses. -/
+theorem hasSmithDiagonalForm_of_smith
+    [Semiring R] [Fintype m] [DecidableEq m] [Fintype n] [DecidableEq n]
+    {A : Matrix m n R} (hA : HasSmithNormalForm A) :
+    HasSmithDiagonalForm A := by
+  rcases hA with ⟨P, Q, D, hP, hQ, hD, hEq⟩
+  exact ⟨P, Q, D, hP, hQ, isSmithDiagonalForm_of_smith hD, hEq⟩
 
 /-- Universe-level predicate used by the rectangular driver. -/
 def Smith_P [Semiring R] (x : RectUniverse R) : Prop :=
@@ -69,17 +167,19 @@ noncomputable def smithNormalFormData_zero
     SmithNormalFormData D where
   r := ULift Empty
   fintype_r := inferInstance
+  order := SmithNormalFormData.defaultOrder (ULift Empty)
   row := fun k => Empty.elim k.down
   col := fun k => Empty.elim k.down
   diag := fun k => Empty.elim k.down
   row_injective := by intro k; cases k.down
   col_injective := by intro k; cases k.down
-  successor := fun k _ => Empty.elim k.down
   entry_diag := by intro k; cases k.down
   entry_zero := by
     intro i j _h
     simp [hD]
-  divides_next := by intro k; cases k.down
+  divides_chain := by
+    intro k
+    cases (SmithNormalFormData.defaultOrder (ULift Empty) k).down
 
 lemma isSmithNormalForm_zero
     [Semiring R] [Fintype m] [DecidableEq m] [Fintype n] [DecidableEq n] :
@@ -122,15 +222,15 @@ theorem isSmithNormalForm_reindex
   refine ⟨{
     r := data.r
     fintype_r := data.fintype_r
+    order := data.order
     row := fun k => em (data.row k)
     col := fun k => en (data.col k)
     diag := data.diag
     row_injective := ?_
     col_injective := ?_
-    successor := data.successor
     entry_diag := ?_
     entry_zero := ?_
-    divides_next := data.divides_next
+    divides_chain := data.divides_chain
   }⟩
   · intro a b h
     exact data.row_injective (em.injective h)
@@ -170,17 +270,21 @@ noncomputable def smithNormalFormData_of_gaussRankBlockData
     SmithNormalFormData G where
   r := data.r
   fintype_r := data.fintype_r
+  order := SmithNormalFormData.defaultOrder data.r
   row := data.row
   col := data.col
   diag := fun _ => 1
   row_injective := data.row_injective
   col_injective := data.col_injective
-  successor := fun _ _ => False
-  entry_diag := data.entry_one
-  entry_zero := data.entry_zero
-  divides_next := by
-    intro k l h
-    cases h
+  entry_diag := by
+    intro k
+    simpa using data.entry_one k
+  entry_zero := by
+    intro i j h
+    exact data.entry_zero i j h
+  divides_chain := by
+    intro k hnext
+    exact one_dvd _
 
 /-- Rank normal form is a special case of the Smith predicate. -/
 theorem isSmithNormalForm_of_gauss
@@ -266,47 +370,42 @@ noncomputable def smithNormalFormData_blockDiag
     SmithNormalFormData
       (fromBlocks (fun _ _ : Unit => d) 0 0 D :
         Matrix (Unit ⊕ m) (Unit ⊕ n) R) where
-  r := Unit ⊕ data.r
+  r := Option data.r
   fintype_r := inferInstance
-  row := Sum.elim (fun _ => Sum.inl ()) (fun k => Sum.inr (data.row k))
-  col := Sum.elim (fun _ => Sum.inl ()) (fun k => Sum.inr (data.col k))
-  diag := Sum.elim (fun _ => d) data.diag
+  order := SmithNormalFormData.consOrder data.order
+  row := fun k =>
+    match k with
+    | none => Sum.inl ()
+    | some k => Sum.inr (data.row k)
+  col := fun k =>
+    match k with
+    | none => Sum.inl ()
+    | some k => Sum.inr (data.col k)
+  diag := fun k =>
+    match k with
+    | none => d
+    | some k => data.diag k
   row_injective := by
     intro a b h
-    cases a with
-    | inl au =>
-        cases b with
-        | inl bu => simp
-        | inr bk => cases h
-    | inr ak =>
-        cases b with
-        | inl bu => cases h
-        | inr bk =>
-            simp only [Sum.elim_inr, Sum.inr.injEq] at h
-            exact congrArg Sum.inr (data.row_injective h)
+    cases a <;> cases b
+    · rfl
+    · cases h
+    · cases h
+    · simp only at h
+      exact congrArg some (data.row_injective (Sum.inr.inj h))
   col_injective := by
     intro a b h
-    cases a with
-    | inl au =>
-        cases b with
-        | inl bu => simp
-        | inr bk => cases h
-    | inr ak =>
-        cases b with
-        | inl bu => cases h
-        | inr bk =>
-            simp only [Sum.elim_inr, Sum.inr.injEq] at h
-            exact congrArg Sum.inr (data.col_injective h)
-  successor := fun k l =>
-    match k, l with
-    | Sum.inl _, Sum.inr _ => True
-    | Sum.inr k', Sum.inr l' => data.successor k' l'
-    | _, _ => False
+    cases a <;> cases b
+    · rfl
+    · cases h
+    · cases h
+    · simp only at h
+      exact congrArg some (data.col_injective (Sum.inr.inj h))
   entry_diag := by
     intro k
     cases k with
-    | inl u => simp
-    | inr k => simpa using data.entry_diag k
+    | none => simp
+    | some k => simpa using data.entry_diag k
   entry_zero := by
     intro i j h
     cases i with
@@ -314,7 +413,7 @@ noncomputable def smithNormalFormData_blockDiag
         cases j with
         | inl ju =>
             exfalso
-            exact (h (Sum.inl ())).elim (by simp) (by simp)
+            exact (h none).elim (by simp) (by simp)
         | inr jn => simp
     | inr im =>
         cases j with
@@ -322,23 +421,61 @@ noncomputable def smithNormalFormData_blockDiag
         | inr jn =>
             apply data.entry_zero
             intro k
-            specialize h (Sum.inr k)
+            specialize h (some k)
             rcases h with hrow | hcol
             · exact Or.inl (fun hk => hrow (by simp [hk]))
             · exact Or.inr (fun hk => hcol (by simp [hk]))
-  divides_next := by
-    intro k l hsucc
-    cases k with
-    | inl ku =>
-        cases l with
-        | inl lu => cases hsucc
-        | inr ltail =>
-            simpa [SmithNormalFormData.entry_diag] using hdiv (data.row ltail) (data.col ltail)
-    | inr ktail =>
-        cases l with
-        | inl lu => cases hsucc
-        | inr ltail =>
-            exact data.divides_next ktail ltail hsucc
+  divides_chain := by
+    intro k hnext
+    let e : Fin (Fintype.card (Option data.r)) ≃
+        Fin (Fintype.card data.r + 1) :=
+      finCongr (Fintype.card_option (α := data.r))
+    have hkval : (e k : Nat) = (k : Nat) := by
+      simp [e, finCongr]
+    have hnext' : (e k : Nat) + 1 < Fintype.card data.r + 1 := by
+      simpa [e, finCongr] using hnext
+    cases hcase : e k using Fin.cases with
+    | zero =>
+        have hkval0 : (k : Nat) = 0 := by
+          rw [← hkval, hcase]
+          rfl
+        have hk : k = e.symm 0 := by
+          apply e.injective
+          simp [hcase]
+        have htail0 : 0 < Fintype.card data.r := by
+          have hnext0 : 0 + 1 < Fintype.card data.r + 1 := by
+            simpa [hcase] using hnext'
+          exact Nat.succ_lt_succ_iff.mp hnext0
+        have hnext_eq :
+            (⟨(k : Nat) + 1, hnext⟩ : Fin (Fintype.card (Option data.r))) =
+              e.symm (Fin.succ ⟨0, htail0⟩) := by
+          apply e.injective
+          ext
+          simp [e, finCongr, hkval0]
+        have hdvd := hdiv (data.row (data.order ⟨0, htail0⟩))
+          (data.col (data.order ⟨0, htail0⟩))
+        simpa [hk, hnext_eq, e, SmithNormalFormData.consOrder,
+          data.entry_diag (data.order ⟨0, htail0⟩)] using hdvd
+    | succ ktail =>
+        have hkvalSucc : (k : Nat) = (ktail : Nat) + 1 := by
+          rw [← hkval, hcase]
+          simp [Fin.val_succ]
+        have hk : k = e.symm (Fin.succ ktail) := by
+          apply e.injective
+          simp [hcase]
+        have htail : (ktail : Nat) + 1 < Fintype.card data.r := by
+          have hnextSucc : (ktail : Nat) + 1 + 1 < Fintype.card data.r + 1 := by
+            simpa [hcase, Fin.val_succ, Nat.add_assoc] using hnext'
+          exact Nat.succ_lt_succ_iff.mp (by
+            simpa [Nat.succ_eq_add_one, Nat.add_assoc] using hnextSucc)
+        have hnext_eq :
+            (⟨(k : Nat) + 1, hnext⟩ : Fin (Fintype.card (Option data.r))) =
+              e.symm (Fin.succ ⟨(ktail : Nat) + 1, htail⟩) := by
+          apply e.injective
+          ext
+          simp [e, finCongr, hkvalSucc, Nat.add_assoc]
+        simpa [hk, hnext_eq, e, SmithNormalFormData.consOrder] using
+          data.divides_chain ktail htail
 
 lemma isSmithNormalForm_blockDiag
     (d : R) {D : Matrix m n R} (hdiv : ∀ i j, d ∣ D i j)
@@ -419,10 +556,14 @@ def smithLeftProjection : Matrix n (n ⊕ κ) R :=
     | Sum.inl j' => if i = j' then 1 else 0
     | Sum.inr _ => 0
 
+omit [Fintype m] [DecidableEq m] [Fintype n] [DecidableEq n]
+  [Fintype κ] [DecidableEq κ] in
 @[simp] lemma smithAppendZeroCols_inl (A : Matrix m n R) (i : m) (j : n) :
     smithAppendZeroCols (κ := κ) A i (Sum.inl j) = A i j :=
   rfl
 
+omit [Fintype m] [DecidableEq m] [Fintype n] [DecidableEq n]
+  [Fintype κ] [DecidableEq κ] in
 @[simp] lemma smithAppendZeroCols_inr (A : Matrix m n R) (i : m) (j : κ) :
     smithAppendZeroCols (κ := κ) A i (Sum.inr j) = 0 :=
   rfl
@@ -433,6 +574,7 @@ noncomputable def smithNormalFormData_appendZeroCols
     SmithNormalFormData (smithAppendZeroCols (κ := κ) D) where
   r := data.r
   fintype_r := data.fintype_r
+  order := data.order
   row := data.row
   col := fun k => Sum.inl (data.col k)
   diag := data.diag
@@ -440,7 +582,6 @@ noncomputable def smithNormalFormData_appendZeroCols
   col_injective := by
     intro a b h
     exact data.col_injective (Sum.inl.inj h)
-  successor := data.successor
   entry_diag := by
     intro k
     exact data.entry_diag k
@@ -456,7 +597,7 @@ noncomputable def smithNormalFormData_appendZeroCols
         · exact Or.inr (fun hk => hcol (by simp [hk]))
     | inr jk =>
         rfl
-  divides_next := data.divides_next
+  divides_chain := data.divides_chain
 
 lemma isSmithNormalForm_appendZeroCols
     {D : Matrix m n R} (hD : IsSmithNormalForm D) :
@@ -490,6 +631,7 @@ lemma gaussInvertibleMatrix_blockDiag_right_one
         rw [hright]
         exact Matrix.fromBlocks_one
 
+omit [DecidableEq m] [Fintype n] [DecidableEq n] [Fintype κ] [DecidableEq κ] in
 lemma matrix_mul_appendZeroCols
     {ℓ : Type u} [Fintype ℓ]
     (P : Matrix ℓ m R) (A : Matrix m n R) :
@@ -498,6 +640,7 @@ lemma matrix_mul_appendZeroCols
   ext i j
   cases j <;> simp [smithAppendZeroCols, Matrix.mul_apply]
 
+omit [Fintype m] [DecidableEq m] [DecidableEq n] in
 lemma appendZeroCols_mul_blockDiag_right
     (A : Matrix m n R) (Q : Matrix n n R) :
     smithAppendZeroCols (κ := κ) A *
@@ -511,6 +654,7 @@ lemma appendZeroCols_mul_blockDiag_right
   | inr jk =>
       simp [smithAppendZeroCols, Matrix.mul_apply, Matrix.fromBlocks]
 
+omit [Fintype m] [DecidableEq m] [Fintype κ] [DecidableEq κ] in
 lemma matrix_mul_smithLeftProjection (A : Matrix m n R) :
     A * smithLeftProjection (κ := κ) =
       smithAppendZeroCols (κ := κ) A := by

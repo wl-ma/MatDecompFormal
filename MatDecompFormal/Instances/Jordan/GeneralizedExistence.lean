@@ -235,6 +235,19 @@ theorem exists_generalized_jordan_matrix_framework_bridge
   exact hP
 
 /--
+Framework-routed generalized Jordan theorem with explicit final block witness
+data, conditional on the generalized block-driver bridge.
+-/
+theorem generalizedJordanBlockData_framework_bridge
+    {K : Type u} [Field K]
+    (bridge : GeneralizedJordanBlockDriverBridge K)
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι K) :
+    GeneralizedJordanBlockWitnessData A :=
+  generalizedJordanBlockData_of_hasGeneralizedJordanMatrix
+    (exists_generalized_jordan_matrix_framework_bridge bridge A)
+
+/--
 Generalized-Jordan slice witness selected by the concrete RCF prime-power
 cyclic block step.
 -/
@@ -360,6 +373,18 @@ theorem exists_generalized_jordan_matrix
     (A : Matrix ι ι K) :
     HasGeneralizedJordanMatrix A :=
   exists_generalized_jordan_matrix_framework_bridge
+    (generalizedJordanRCFBlockDriverBridge K) A
+
+/--
+Public generalized Jordan theorem with explicit final block witness data.  This
+is a data-level wrapper around the concrete RCF prime-power block driver.
+-/
+theorem generalizedJordanBlockData
+    {K : Type u} [Field K]
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι K) :
+    GeneralizedJordanBlockWitnessData A :=
+  generalizedJordanBlockData_framework_bridge
     (generalizedJordanRCFBlockDriverBridge K) A
 
 end MatDecompFormal.Instances

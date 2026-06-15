@@ -1,6 +1,7 @@
 import Mathlib.LinearAlgebra.Eigenspace.Matrix
 import Mathlib.LinearAlgebra.Eigenspace.Triangularizable
 import Mathlib.LinearAlgebra.Matrix.Basis
+import MatDecompFormal.Instances.Normal.Strategy
 import MatDecompFormal.Instances.Schur.Strategy
 
 universe u
@@ -8,15 +9,16 @@ universe u
 namespace MatDecompFormal.Instances
 
 open Matrix
+open InnerProductSpace
 open MatDecompFormal.Framework
 
 /-!
-# Schur Spectral Step
+# Algebraic Schur Spectral Step
 
-This file starts discharging the one-step Schur oracle. The first layer is the
-field-theoretic eigenvector existence statement over an algebraically closed
-field. The remaining layer is basis completion with the eigenvector placed at
-the distinguished head index.
+This file discharges the algebraic one-step Schur oracle.  The first layer is
+the field-theoretic eigenvector existence statement over an algebraically closed
+field. The remaining layer is arbitrary basis completion with the eigenvector
+placed at the distinguished head index, not orthonormal basis completion.
 -/
 
 /--
@@ -235,5 +237,195 @@ noncomputable def schur_step_oracle_of_isAlgClosed
       SchurStepOracle K ι :=
   fun {ι} _ _ _ _ =>
     schurStepOracleOfHeadColumnData (schurHeadColumnData K ι)
+
+/-!
+## Concrete unitary Schur step
+
+For the complex unitary Schur theorem, the same head-column argument is driven
+by an orthonormal basis: choose a nonzero complex eigenvector, normalize it,
+extend it to an orthonormal basis with the normalized eigenvector at the head
+index, and use the basis matrix as the unitary one-step similarity.
+-/
+
+/-- A Schur eigenvector as a vector in complex Euclidean space. -/
+noncomputable def unitarySchurEigenvectorVec
+    {ι : Type u} [Fintype ι] {A : Matrix ι ι ℂ}
+    (data : SchurEigenvectorData ℂ ι A) :
+    EuclideanSpace ℂ ι :=
+  WithLp.toLp 2 data.vector
+
+lemma unitarySchurEigenvectorVec_ne_zero
+    {ι : Type u} [Fintype ι] {A : Matrix ι ι ℂ}
+    (data : SchurEigenvectorData ℂ ι A) :
+    unitarySchurEigenvectorVec data ≠ 0 := by
+  intro hvec
+  apply data.vector_ne_zero
+  exact (WithLp.toLp_eq_zero 2).mp hvec
+
+/-- Normalized eigenvector used as the head column of the unitary Schur step. -/
+noncomputable def normalizedUnitarySchurEigenvector
+    {ι : Type u} [Fintype ι] {A : Matrix ι ι ℂ}
+    (data : SchurEigenvectorData ℂ ι A) :
+    EuclideanSpace ℂ ι :=
+  ((‖unitarySchurEigenvectorVec data‖ : ℂ)⁻¹) •
+    unitarySchurEigenvectorVec data
+
+lemma normalizedUnitarySchurEigenvector_norm
+    {ι : Type u} [Fintype ι] {A : Matrix ι ι ℂ}
+    (data : SchurEigenvectorData ℂ ι A) :
+    ‖normalizedUnitarySchurEigenvector data‖ = 1 := by
+  simpa [normalizedUnitarySchurEigenvector] using
+    (norm_smul_inv_norm (unitarySchurEigenvectorVec_ne_zero data))
+
+lemma normalizedUnitarySchurEigenvector_eigen
+    {ι : Type u} [Fintype ι] [DecidableEq ι] {A : Matrix ι ι ℂ}
+    (data : SchurEigenvectorData ℂ ι A) :
+    A *ᵥ ⇑(normalizedUnitarySchurEigenvector data) =
+      data.eigenvalue • ⇑(normalizedUnitarySchurEigenvector data) := by
+  classical
+  let c : ℂ := ((‖unitarySchurEigenvectorVec data‖ : ℂ)⁻¹)
+  have hcoe :
+      ⇑(normalizedUnitarySchurEigenvector data) = c • data.vector := by
+    ext i
+    simp [normalizedUnitarySchurEigenvector, unitarySchurEigenvectorVec, c]
+  calc
+    A *ᵥ ⇑(normalizedUnitarySchurEigenvector data) =
+        A *ᵥ (c • data.vector) := by
+          rw [hcoe]
+    _ = c • (A *ᵥ data.vector) := by
+          rw [Matrix.mulVec_smul]
+    _ = c • (data.eigenvalue • data.vector) := by
+          rw [data.eigen_eq]
+    _ = data.eigenvalue • (c • data.vector) := by
+          ext i
+          simp [mul_comm, mul_assoc]
+    _ = data.eigenvalue • ⇑(normalizedUnitarySchurEigenvector data) := by
+          rw [hcoe]
+
+lemma schur_orthonormal_singleton_head_const
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι] [Nonempty ι]
+    (v : EuclideanSpace ℂ ι) (hv : ‖v‖ = 1) :
+    Orthonormal ℂ
+      (({headElem (α := ι)} : Set ι).restrict (fun _ : ι => v)) := by
+  rw [orthonormal_iff_ite]
+  intro i j
+  have hi : i.1 = headElem (α := ι) := Set.mem_singleton_iff.mp i.2
+  have hj : j.1 = headElem (α := ι) := Set.mem_singleton_iff.mp j.2
+  have hij : i = j := by
+    apply Subtype.ext
+    rw [hi, hj]
+  subst hij
+  simp [inner_self_eq_norm_sq_to_K, hv]
+
+/--
+Extend the normalized Schur eigenvector to an orthonormal basis indexed by the
+original matrix index type, with that vector placed at the distinguished head.
+-/
+noncomputable def unitarySchurBasisWithHeadEigenvector
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι] [Nonempty ι]
+    {A : Matrix ι ι ℂ} (data : SchurEigenvectorData ℂ ι A) :
+    OrthonormalBasis ι ℂ (EuclideanSpace ℂ ι) :=
+  Classical.choose
+    (Orthonormal.exists_orthonormalBasis_extension_of_card_eq
+      (𝕜 := ℂ) (E := EuclideanSpace ℂ ι) (ι := ι)
+      (card_ι := by simp)
+      (s := {headElem (α := ι)})
+      (v := fun _ : ι => normalizedUnitarySchurEigenvector data)
+      (schur_orthonormal_singleton_head_const
+        (normalizedUnitarySchurEigenvector data)
+        (normalizedUnitarySchurEigenvector_norm data)))
+
+lemma unitarySchurBasisWithHeadEigenvector_head
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι] [Nonempty ι]
+    {A : Matrix ι ι ℂ} (data : SchurEigenvectorData ℂ ι A) :
+    unitarySchurBasisWithHeadEigenvector data (headElem (α := ι)) =
+      normalizedUnitarySchurEigenvector data := by
+  classical
+  unfold unitarySchurBasisWithHeadEigenvector
+  simpa using
+    Classical.choose_spec
+      (Orthonormal.exists_orthonormalBasis_extension_of_card_eq
+        (𝕜 := ℂ) (E := EuclideanSpace ℂ ι) (ι := ι)
+        (card_ι := by simp)
+        (s := {headElem (α := ι)})
+        (v := fun _ : ι => normalizedUnitarySchurEigenvector data)
+        (schur_orthonormal_singleton_head_const
+          (normalizedUnitarySchurEigenvector data)
+          (normalizedUnitarySchurEigenvector_norm data)))
+      (headElem (α := ι)) (by simp)
+
+/-- Unitary matrix for the concrete one-step Schur similarity. -/
+noncomputable def unitarySchurStepQ
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι] [Nonempty ι]
+    (A : Matrix ι ι ℂ) :
+    Matrix ι ι ℂ :=
+  matrixOfOrthonormalBasis
+    (unitarySchurBasisWithHeadEigenvector
+      (schurEigenvectorData (K := ℂ) (ι := ι) A))
+
+lemma unitarySchurStepQ_unitary
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι] [Nonempty ι]
+    (A : Matrix ι ι ℂ) :
+    IsUnitaryMatrix (unitarySchurStepQ A) := by
+  exact
+    matrixOfOrthonormalBasis_unitary
+      (unitarySchurBasisWithHeadEigenvector
+        (schurEigenvectorData (K := ℂ) (ι := ι) A))
+
+lemma unitarySchurStepQ_head_col_eigen
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι] [Nonempty ι]
+    (A : Matrix ι ι ℂ) :
+    A *ᵥ
+        ((unitarySchurStepQ A) *ᵥ
+          (Pi.single (headElem (α := ι)) (1 : ℂ))) =
+      (schurEigenvectorData (K := ℂ) (ι := ι) A).eigenvalue •
+        ((unitarySchurStepQ A) *ᵥ
+          (Pi.single (headElem (α := ι)) (1 : ℂ))) := by
+  classical
+  let data := schurEigenvectorData (K := ℂ) (ι := ι) A
+  let b := unitarySchurBasisWithHeadEigenvector data
+  have hhead :
+      (matrixOfOrthonormalBasis b) *ᵥ
+          (Pi.single (headElem (α := ι)) (1 : ℂ)) =
+        ⇑(normalizedUnitarySchurEigenvector data) := by
+    rw [matrixOfOrthonormalBasis_mulVec_single]
+    exact congrArg (fun v : EuclideanSpace ℂ ι => ⇑v)
+      (unitarySchurBasisWithHeadEigenvector_head data)
+  change
+    A *ᵥ
+        ((matrixOfOrthonormalBasis b) *ᵥ
+          (Pi.single (headElem (α := ι)) (1 : ℂ))) =
+      data.eigenvalue •
+        ((matrixOfOrthonormalBasis b) *ᵥ
+          (Pi.single (headElem (α := ι)) (1 : ℂ)))
+  rw [hhead]
+  exact normalizedUnitarySchurEigenvector_eigen data
+
+lemma unitarySchurStepQ_ready
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι] [Nonempty ι]
+    (A : Matrix ι ι ℂ) :
+    SchurDescentReady ℂ ι ((unitarySchurStepQ A)ᴴ * A * (unitarySchurStepQ A)) := by
+  classical
+  let Q := unitarySchurStepQ A
+  have hQ : IsUnitaryMatrix Q := unitarySchurStepQ_unitary A
+  have hready :
+      SchurDescentReady ℂ ι (Q⁻¹ * A * Q) :=
+    schurDescentReady_of_head_col_eigen
+      (invertibleMatrix_of_isUnitaryMatrix hQ)
+      (by
+        simpa [Q] using unitarySchurStepQ_head_col_eigen A)
+  have hQinv : Q⁻¹ = Qᴴ := by
+    apply Matrix.inv_eq_right_inv
+    exact hQ.2
+  simpa [Q, hQinv] using hready
+
+/-- Concrete one-step unitary Schur oracle over complex matrices. -/
+noncomputable def unitarySchurStepOracle :
+    ∀ {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι] [Nonempty ι],
+      UnitarySchurStepOracle ι :=
+  fun {_ι} _ _ _ _ =>
+    { Q := fun A => unitarySchurStepQ A
+      unitary_Q := fun A => unitarySchurStepQ_unitary A
+      ready := fun A => unitarySchurStepQ_ready A }
 
 end MatDecompFormal.Instances

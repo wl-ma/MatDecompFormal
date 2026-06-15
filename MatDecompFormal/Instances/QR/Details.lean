@@ -103,6 +103,31 @@ lemma isProductOf_map
           exact ih (A * M)
     simpa [matrixProduct, h_one] using hfold l 1
 
+lemma isProductOf_map_to_product
+    {κ : Type*} [Fintype κ] [DecidableEq κ]
+    (P : Matrix ι ι R → Prop) (P' : Matrix κ κ R → Prop)
+    (f : Matrix ι ι R → Matrix κ κ R)
+    (h_one : f 1 = 1)
+    (h_mul : ∀ A B, f (A * B) = f A * f B)
+    (h_mem : ∀ M, P M → IsProductOf P' (f M))
+    {Q : Matrix ι ι R}
+    (hQ : IsProductOf P Q) :
+    IsProductOf P' (f Q) := by
+  rcases hQ with ⟨l, hl, hEq⟩
+  subst Q
+  induction l with
+  | nil =>
+      simpa [matrixProduct, h_one] using isProductOf_one P'
+  | cons M l ih =>
+      have hM : IsProductOf P' (f M) := h_mem M (hl M (by simp))
+      have hl_tail : ∀ N ∈ l, P N := by
+        intro N hN
+        exact hl N (by simp [hN])
+      have htail : IsProductOf P' (f (matrixProduct l)) := ih hl_tail
+      have hprod : IsProductOf P' (f M * f (matrixProduct l)) :=
+        isProductOf_mul P' hM htail
+      simpa [matrixProduct_eq_prod, h_mul] using hprod
+
 lemma isOrthogonalMatrix_one :
     IsOrthogonalMatrix (1 : Matrix ι ι R) := by
   simp [IsOrthogonalMatrix]
@@ -129,6 +154,47 @@ lemma hasQR_of_hasStructuredQR
     HasQR A := by
   rcases hA with ⟨Q, R', _hQprop, hQorth, hR, hEq⟩
   exact ⟨(Q, R'), ⟨hQorth, hR⟩, hEq⟩
+
+/--
+Product-level QR trace predicate.
+
+This records a finite list of elementary factors whose product is the final
+orthogonal factor. It is stronger than the structural `HasQR` target because
+the factorization of `Q` is exposed in the proposition, but it does not by
+itself claim step-by-step numerical pivot or stability properties.
+-/
+def QRProductTrace [LinearOrder ι]
+    (StepProp : Matrix ι ι R → Prop) (A : Matrix ι ι R) : Prop :=
+  ∃ steps : List (Matrix ι ι R), ∃ Q R' : Matrix ι ι R,
+    (∀ M ∈ steps, StepProp M) ∧
+    matrixProduct steps = Q ∧
+    IsOrthogonalMatrix Q ∧
+    IsUpperTriangular R' ∧
+    A = Q * R'
+
+lemma qrProductTrace_of_hasStructuredQR
+    [LinearOrder ι]
+    {StepProp : Matrix ι ι R → Prop} {A : Matrix ι ι R}
+    (hA : HasStructuredQR (IsProductOf StepProp) A) :
+    QRProductTrace StepProp A := by
+  rcases hA with ⟨Q, R', hQprod, hQorth, hR, hEq⟩
+  rcases hQprod with ⟨steps, hsteps, hprod⟩
+  exact ⟨steps, Q, R', hsteps, hprod, hQorth, hR, hEq⟩
+
+lemma hasStructuredQR_of_qrProductTrace
+    [LinearOrder ι]
+    {StepProp : Matrix ι ι R → Prop} {A : Matrix ι ι R}
+    (hA : QRProductTrace StepProp A) :
+    HasStructuredQR (IsProductOf StepProp) A := by
+  rcases hA with ⟨steps, Q, R', hsteps, hprod, hQorth, hR, hEq⟩
+  exact ⟨Q, R', ⟨steps, hsteps, hprod⟩, hQorth, hR, hEq⟩
+
+lemma hasQR_of_qrProductTrace
+    [LinearOrder ι]
+    {StepProp : Matrix ι ι R → Prop} {A : Matrix ι ι R}
+    (hA : QRProductTrace StepProp A) :
+    HasQR A :=
+  hasQR_of_hasStructuredQR (hasStructuredQR_of_qrProductTrace hA)
 
 lemma base_qr_zero_dim_sq
     {x : SquareUniverse R} (h_zero : Fintype.card x.ι = 0) :

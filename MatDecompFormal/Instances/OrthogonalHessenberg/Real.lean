@@ -1,4 +1,6 @@
 import MatDecompFormal.Instances.OrthogonalHessenberg.Concrete
+import MatDecompFormal.Instances.QR.Givens
+import MatDecompFormal.Instances.QR.Householder
 import MatDecompFormal.Instances.QR.Recursive
 
 universe u
@@ -24,6 +26,99 @@ def HasOrthogonalHessenberg
     IsOrthogonalMatrix Q ∧
     IsUpperHessenberg H ∧
     A = Q * H * Qᵀ
+
+/-- Real Hessenberg reduction whose final orthogonal factor is a Householder product. -/
+def HasHouseholderProductHessenberg
+    {ι : Type*} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι ℝ) : Prop :=
+  ∃ Q : Matrix ι ι ℝ, ∃ H : Matrix ι ι ℝ,
+    IsHouseholderProduct Q ∧
+    IsOrthogonalMatrix Q ∧
+    IsUpperHessenberg H ∧
+    A = Q * H * Qᵀ
+
+/-- Real Hessenberg reduction whose final orthogonal factor is a Givens product. -/
+def HasGivensProductHessenberg
+    {ι : Type*} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι ℝ) : Prop :=
+  ∃ Q : Matrix ι ι ℝ, ∃ H : Matrix ι ι ℝ,
+    IsGivensProduct Q ∧
+    IsOrthogonalMatrix Q ∧
+    IsUpperHessenberg H ∧
+    A = Q * H * Qᵀ
+
+/--
+Product-level Hessenberg trace predicate.
+
+This records a finite list of elementary factors whose product is the final
+orthogonal similarity factor. It is a witness-level strengthening of ordinary
+Hessenberg reduction, but does not by itself assert an executable pivot policy.
+-/
+def OrthogonalHessenbergTrace
+    {ι : Type*} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (StepProp : Matrix ι ι ℝ → Prop) (A : Matrix ι ι ℝ) : Prop :=
+  ∃ steps : List (Matrix ι ι ℝ), ∃ Q H : Matrix ι ι ℝ,
+    (∀ M ∈ steps, StepProp M) ∧
+    matrixProduct steps = Q ∧
+    IsOrthogonalMatrix Q ∧
+    IsUpperHessenberg H ∧
+    A = Q * H * Qᵀ
+
+abbrev HouseholderHessenbergTrace
+    {ι : Type*} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι ℝ) : Prop :=
+  OrthogonalHessenbergTrace IsHouseholderMatrix A
+
+abbrev GivensHessenbergTrace
+    {ι : Type*} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι ℝ) : Prop :=
+  OrthogonalHessenbergTrace IsGivensMatrix A
+
+theorem hasOrthogonalHessenberg_of_hasHouseholderProductHessenberg
+    {ι : Type*} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {A : Matrix ι ι ℝ} :
+    HasHouseholderProductHessenberg A → HasOrthogonalHessenberg A := by
+  intro hA
+  rcases hA with ⟨Q, H, _hQprod, hQ, hH, hEq⟩
+  exact ⟨Q, H, hQ, hH, hEq⟩
+
+theorem hasOrthogonalHessenberg_of_hasGivensProductHessenberg
+    {ι : Type*} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {A : Matrix ι ι ℝ} :
+    HasGivensProductHessenberg A → HasOrthogonalHessenberg A := by
+  intro hA
+  rcases hA with ⟨Q, H, _hQprod, hQ, hH, hEq⟩
+  exact ⟨Q, H, hQ, hH, hEq⟩
+
+theorem hasHouseholderProductHessenberg_of_trace
+    {ι : Type*} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {A : Matrix ι ι ℝ} :
+    HouseholderHessenbergTrace A → HasHouseholderProductHessenberg A := by
+  intro hA
+  rcases hA with ⟨steps, Q, H, hsteps, hprod, hQ, hH, hEq⟩
+  exact ⟨Q, H, ⟨steps, hsteps, hprod⟩, hQ, hH, hEq⟩
+
+theorem hasGivensProductHessenberg_of_trace
+    {ι : Type*} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {A : Matrix ι ι ℝ} :
+    GivensHessenbergTrace A → HasGivensProductHessenberg A := by
+  intro hA
+  rcases hA with ⟨steps, Q, H, hsteps, hprod, hQ, hH, hEq⟩
+  exact ⟨Q, H, ⟨steps, hsteps, hprod⟩, hQ, hH, hEq⟩
+
+theorem hasOrthogonalHessenberg_of_householderTrace
+    {ι : Type*} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {A : Matrix ι ι ℝ} :
+    HouseholderHessenbergTrace A → HasOrthogonalHessenberg A :=
+  hasOrthogonalHessenberg_of_hasHouseholderProductHessenberg ∘
+    hasHouseholderProductHessenberg_of_trace
+
+theorem hasOrthogonalHessenberg_of_givensTrace
+    {ι : Type*} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {A : Matrix ι ι ℝ} :
+    GivensHessenbergTrace A → HasOrthogonalHessenberg A :=
+  hasOrthogonalHessenberg_of_hasGivensProductHessenberg ∘
+    hasGivensProductHessenberg_of_trace
 
 /--
 Boundary-aware real orthogonal Hessenberg target.
@@ -640,5 +735,44 @@ theorem exists_orthogonal_hessenberg_reduction
     HasOrthogonalHessenberg A :=
   exists_orthogonal_hessenberg_reduction_of_oracle
     orthogonalHessenbergBoundaryStepOracle A
+
+/--
+Product-representable real orthogonal Hessenberg reduction.
+
+This theorem records a Householder-product representation of the final
+orthogonal factor. The product representation is recovered from final
+orthogonality; it is not an exact boundary-step trace.
+-/
+theorem exists_householder_product_hessenberg_reduction
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι ℝ) :
+    HasHouseholderProductHessenberg A := by
+  rcases exists_orthogonal_hessenberg_reduction A with ⟨Q, H, hQ, hH, hEq⟩
+  exact ⟨Q, H, isHouseholderProduct_of_isOrthogonalMatrix Q hQ, hQ, hH, hEq⟩
+
+/--
+Householder Hessenberg reduction with a final-factor product trace.
+
+The product representation is recovered from final orthogonality; this theorem
+does not expose the recursive boundary-step execution trace.
+-/
+theorem exists_householder_hessenberg_with_product_trace
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι ℝ) :
+    HouseholderHessenbergTrace A := by
+  rcases exists_householder_product_hessenberg_reduction A with
+    ⟨Q, H, hQprod, hQ, hH, hEq⟩
+  rcases hQprod with ⟨steps, hsteps, hprod⟩
+  exact ⟨steps, Q, H, hsteps, hprod, hQ, hH, hEq⟩
+
+/--
+Compatibility name for the final-factor product trace.
+Prefer `exists_householder_hessenberg_with_product_trace` in new code.
+-/
+theorem exists_householder_hessenberg_with_trace
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι ℝ) :
+    HouseholderHessenbergTrace A :=
+  exists_householder_hessenberg_with_product_trace A
 
 end MatDecompFormal.Instances

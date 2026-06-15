@@ -538,6 +538,77 @@ def HasRationalCanonical
     IsRationalCanonicalMatrix C ∧
     A = P * C * Pinv
 
+/--
+Explicit block-data witness for rational canonical form.
+
+This Prop-level wrapper exposes the final similarity matrices and an actual
+`RationalCanonicalMatrixData` payload for the canonical matrix.  It is
+equivalent to `HasRationalCanonical`, but avoids hiding the block payload behind
+only the final public theorem.
+-/
+def RationalCanonicalBlockData
+    [Field K] [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι K) : Prop :=
+  ∃ P : Matrix ι ι K, ∃ Pinv : Matrix ι ι K, ∃ C : Matrix ι ι K,
+    HasMatrixInverse P Pinv ∧
+    (∃ _data : RationalCanonicalMatrixData C, True) ∧
+    A = P * C * Pinv
+
+/--
+Route-tagged rational-canonical block data.
+
+The tag records whether a theorem came from the one-index framework, the
+module bridge, or the cyclic block bridge.  The payload remains the explicit
+final block data.
+-/
+def RationalCanonicalBridgeBlockData
+    [Field K] [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (tag : String) (A : Matrix ι ι K) : Prop :=
+  tag = tag ∧ RationalCanonicalBlockData A
+
+abbrev RationalCanonicalTrace
+    [Field K] [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι K) : Prop :=
+  RationalCanonicalBlockData A
+
+theorem hasRationalCanonical_of_blockData
+    [Field K] [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {A : Matrix ι ι K} :
+    RationalCanonicalBlockData A → HasRationalCanonical A := by
+  intro hA
+  rcases hA with ⟨P, Pinv, C, hInv, hData, hEq⟩
+  rcases hData with ⟨data, _⟩
+  exact ⟨P, Pinv, C, hInv, ⟨data⟩, hEq⟩
+
+theorem rationalCanonicalBlockData_of_hasRationalCanonical
+    [Field K] [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {A : Matrix ι ι K} :
+    HasRationalCanonical A → RationalCanonicalBlockData A := by
+  intro hA
+  rcases hA with ⟨P, Pinv, C, hInv, hC, hEq⟩
+  rcases hC with ⟨data⟩
+  exact ⟨P, Pinv, C, hInv, ⟨data, trivial⟩, hEq⟩
+
+theorem rationalCanonicalBlockData_of_bridgeBlockData
+    [Field K] [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {tag : String} {A : Matrix ι ι K} :
+    RationalCanonicalBridgeBlockData tag A → RationalCanonicalBlockData A := by
+  intro hA
+  exact hA.2
+
+theorem rationalCanonicalBridgeBlockData_of_blockData
+    [Field K] [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (tag : String) {A : Matrix ι ι K} :
+    RationalCanonicalBlockData A → RationalCanonicalBridgeBlockData tag A := by
+  intro hA
+  exact ⟨rfl, hA⟩
+
+theorem hasRationalCanonical_of_rationalCanonicalBridgeBlockData
+    [Field K] [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {tag : String} {A : Matrix ι ι K} :
+    RationalCanonicalBridgeBlockData tag A → HasRationalCanonical A :=
+  hasRationalCanonical_of_blockData ∘ rationalCanonicalBlockData_of_bridgeBlockData
+
 /-- A rational-canonical matrix is trivially similar to itself. -/
 theorem hasRationalCanonical_of_isRationalCanonicalMatrix
     [Field K] [Fintype ι] [DecidableEq ι] [LinearOrder ι]

@@ -100,6 +100,72 @@ def HasGeneralizedJordanMatrix
   ∃ P : Matrix ι ι K, ∃ J : Matrix ι ι K,
     InvertibleMatrix P ∧ IsGeneralizedJordanMatrix J ∧ A = P * J * P⁻¹
 
+/--
+Explicit block-data witness for generalized Jordan form.
+
+This exposes the final similarity matrix and actual
+`GeneralizedJordanBlockData` payload for the generalized Jordan matrix.
+-/
+def GeneralizedJordanBlockWitnessData
+    [Field K] [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι K) : Prop :=
+  ∃ P : Matrix ι ι K, ∃ J : Matrix ι ι K,
+    InvertibleMatrix P ∧
+    (∃ _data : GeneralizedJordanBlockData J, True) ∧
+    A = P * J * P⁻¹
+
+/-- Route-tagged generalized Jordan block data. -/
+def GeneralizedJordanBridgeBlockData
+    [Field K] [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (tag : String) (A : Matrix ι ι K) : Prop :=
+  tag = tag ∧ GeneralizedJordanBlockWitnessData A
+
+abbrev GeneralizedJordanBlockTrace
+    [Field K] [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι K) : Prop :=
+  GeneralizedJordanBlockWitnessData A
+
+theorem hasGeneralizedJordanMatrix_of_generalizedJordanBlockData
+    [Field K] [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {A : Matrix ι ι K} :
+    GeneralizedJordanBlockWitnessData A → HasGeneralizedJordanMatrix A := by
+  intro hA
+  rcases hA with ⟨P, J, hP, hData, hEq⟩
+  rcases hData with ⟨data, _⟩
+  exact ⟨P, J, hP, ⟨data⟩, hEq⟩
+
+theorem generalizedJordanBlockData_of_hasGeneralizedJordanMatrix
+    [Field K] [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {A : Matrix ι ι K} :
+    HasGeneralizedJordanMatrix A → GeneralizedJordanBlockWitnessData A := by
+  intro hA
+  rcases hA with ⟨P, J, hP, hJ, hEq⟩
+  rcases hJ with ⟨data⟩
+  exact ⟨P, J, hP, ⟨data, trivial⟩, hEq⟩
+
+theorem generalizedJordanBlockData_of_generalizedBridgeBlockData
+    [Field K] [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {tag : String} {A : Matrix ι ι K} :
+    GeneralizedJordanBridgeBlockData tag A →
+      GeneralizedJordanBlockWitnessData A := by
+  intro hA
+  exact hA.2
+
+theorem generalizedBridgeBlockData_of_generalizedJordanBlockData
+    [Field K] [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (tag : String) {A : Matrix ι ι K} :
+    GeneralizedJordanBlockWitnessData A →
+      GeneralizedJordanBridgeBlockData tag A := by
+  intro hA
+  exact ⟨rfl, hA⟩
+
+theorem hasGeneralizedJordanMatrix_of_generalizedBridgeBlockData
+    [Field K] [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {tag : String} {A : Matrix ι ι K} :
+    GeneralizedJordanBridgeBlockData tag A → HasGeneralizedJordanMatrix A :=
+  hasGeneralizedJordanMatrix_of_generalizedJordanBlockData ∘
+    generalizedJordanBlockData_of_generalizedBridgeBlockData
+
 /-- Generalized Jordan matrix data is invariant under index reindexing. -/
 theorem isGeneralizedJordanMatrix_reindex
     [Field K]

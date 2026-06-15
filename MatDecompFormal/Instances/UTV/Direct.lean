@@ -47,15 +47,33 @@ noncomputable def utv_lift_hook
   let er := headTailEquiv (α := m)
   let ec := headTailEquiv (α := n)
   let A' := Matrix.reindex er ec A
+  let erLex := headTailLexEquiv (α := m)
+  let ecLex := headTailLexEquiv (α := n)
+  let Aₗ := Matrix.reindex erLex ecLex A
   rcases hA with ⟨σ, hσ, h11, h12, h21⟩
   have hTailUTV : HasUTV A'.toBlocks₂₂ := by
     simpa [utvHeadTailReduction, SubmatrixMethod, UTVTailRowIdx, UTVTailColIdx,
       SVDTailRowIdx, SVDTailColIdx, er, ec, A'] using hTail
-  have hA'UTV : HasUTV A' :=
-    utv_of_blockReady_reindex A' σ hσ h11 h12 h21 hTailUTV
-  have hBack : HasUTV (Matrix.reindex er.symm ec.symm A') :=
-    utv_reindex er.symm ec.symm hA'UTV
-  simpa [A', er, ec] using hBack
+  have h11Lex : Aₗ.toBlocks₁₁ = (fun _ _ : Unit => (σ : ℂ)) := by
+    simpa [Aₗ, A', erLex, ecLex, er, ec, headTailLexEquiv, Matrix.reindex_apply,
+      sumToLexEquiv] using h11
+  have h12Lex : Aₗ.toBlocks₁₂ = 0 := by
+    simpa [Aₗ, A', erLex, ecLex, er, ec, headTailLexEquiv, Matrix.reindex_apply,
+      sumToLexEquiv] using h12
+  have h21Lex : Aₗ.toBlocks₂₁ = 0 := by
+    simpa [Aₗ, A', erLex, ecLex, er, ec, headTailLexEquiv, Matrix.reindex_apply,
+      sumToLexEquiv] using h21
+  have hTailLex : HasUTV Aₗ.toBlocks₂₂ := by
+    simpa [Aₗ, A', erLex, ecLex, er, ec, headTailLexEquiv, Matrix.reindex_apply,
+      sumToLexEquiv] using hTailUTV
+  have hAₗUTV : HasUTV Aₗ :=
+    utv_of_blockReady_reindex Aₗ σ h11Lex h12Lex h21Lex hTailLex
+  have hBack : HasUTV (Matrix.reindex erLex.symm ecLex.symm Aₗ) :=
+    utv_reindex_strictMono erLex.symm ecLex.symm
+      (strictMono_symm_of_strictMono_equiv erLex headTailLexEquiv_strictMono)
+      (strictMono_symm_of_strictMono_equiv ecLex headTailLexEquiv_strictMono)
+      hAₗUTV
+  simpa [Aₗ, erLex, ecLex] using hBack
 
 noncomputable def utv_descent_hooks
     (oracle :

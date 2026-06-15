@@ -210,12 +210,84 @@ noncomputable def complexGivensPairMatrix
     (i : QRTailIdx ι) (c s : ℂ) : Matrix ι ι ℂ :=
   complexGivensEmbeddedMatrix (givensPairEquiv i) c s
 
+/--
+Concrete complex Givens matrix predicate.
+
+This records a single embedded two-coordinate complex Givens rotation with
+normalized coefficients.  Products and traces should use lists of matrices
+satisfying this predicate instead of a route tag on an arbitrary unitary factor.
+-/
+def IsComplexGivensMatrix
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι] [Nonempty ι]
+    (Q : Matrix ι ι ℂ) : Prop :=
+  ∃ i : QRTailIdx ι, ∃ c s : ℂ,
+    star c * c + star s * s = 1 ∧
+      Q = complexGivensPairMatrix i c s
+
 lemma isUnitaryMatrix_complexGivensPairMatrix
     {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι] [Nonempty ι]
     (i : QRTailIdx ι) (c s : ℂ)
     (hcs : star c * c + star s * s = 1) :
     IsUnitaryMatrix (complexGivensPairMatrix i c s) :=
   isUnitaryMatrix_complexGivensEmbeddedMatrix (givensPairEquiv i) c s hcs
+
+theorem complexGivensPairMatrix_isComplexGivensMatrix
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι] [Nonempty ι]
+    (i : QRTailIdx ι) (c s : ℂ)
+    (hcs : star c * c + star s * s = 1) :
+    IsComplexGivensMatrix (complexGivensPairMatrix i c s) :=
+  ⟨i, c, s, hcs, rfl⟩
+
+theorem isUnitaryMatrix_of_isComplexGivensMatrix
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι] [Nonempty ι]
+    {Q : Matrix ι ι ℂ} :
+    IsComplexGivensMatrix Q → IsUnitaryMatrix Q := by
+  intro hQ
+  rcases hQ with ⟨i, c, s, hcs, rfl⟩
+  exact isUnitaryMatrix_complexGivensPairMatrix i c s hcs
+
+lemma complexGivens2x2CS_conjTranspose (c s : ℂ) :
+    (complexGivens2x2CS c s)ᴴ =
+      complexGivens2x2CS (star c) (-s) := by
+  ext i j
+  all_goals rcases i with (_ | _)
+  all_goals rcases j with (_ | _)
+  all_goals simp [complexGivens2x2CS]
+
+lemma complexGivensEmbeddedBlockMatrix_conjTranspose
+    {γ : Type u} [Fintype γ] [DecidableEq γ] (c s : ℂ) :
+    (complexGivensEmbeddedBlockMatrix γ c s)ᴴ =
+      complexGivensEmbeddedBlockMatrix γ (star c) (-s) := by
+  change
+    (fromBlocks (complexGivens2x2CS c s) 0 0
+        (1 : Matrix γ γ ℂ))ᴴ =
+      fromBlocks (complexGivens2x2CS (star c) (-s)) 0 0
+        (1 : Matrix γ γ ℂ)
+  rw [Matrix.fromBlocks_conjTranspose, complexGivens2x2CS_conjTranspose]
+  simp
+
+lemma complexGivensPairMatrix_conjTranspose
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι] [Nonempty ι]
+    (i : QRTailIdx ι) (c s : ℂ) :
+    (complexGivensPairMatrix i c s)ᴴ =
+      complexGivensPairMatrix i (star c) (-s) := by
+  simp [complexGivensPairMatrix, complexGivensEmbeddedMatrix,
+    complexGivensEmbeddedBlockMatrix_conjTranspose]
+
+theorem isComplexGivensMatrix_conjTranspose
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι] [Nonempty ι]
+    {Q : Matrix ι ι ℂ} :
+    IsComplexGivensMatrix Q → IsComplexGivensMatrix Qᴴ := by
+  intro hQ
+  rcases hQ with ⟨i, c, s, hcs, rfl⟩
+  refine ⟨i, star c, -s, ?_, ?_⟩
+  · calc
+      star (star c) * star c + star (-s) * (-s)
+          = star c * c + star s * s := by
+            simp
+            ring_nf
+      _ = 1 := hcs
+  · exact complexGivensPairMatrix_conjTranspose i c s
 
 lemma complexGivensPairMatrix_mul_apply_target_head
     {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι] [Nonempty ι]
@@ -289,6 +361,14 @@ lemma complexGivensCoeff_zero
     (A (headElem (α := ι)) (headElem (α := ι)))
     (A i.1 (headElem (α := ι)))
 
+lemma complexGivensCoeff_pair_isComplexGivensMatrix
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι] [Nonempty ι]
+    (i : QRTailIdx ι) (A : Matrix ι ι ℂ) :
+    let cs := complexGivensCoeff i A
+    IsComplexGivensMatrix (complexGivensPairMatrix i cs.1 cs.2) := by
+  exact complexGivensPairMatrix_isComplexGivensMatrix i _ _
+    (by simpa using complexGivensCoeff_norm i A)
+
 noncomputable def complexGivensSweepMatrix
     {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι] [Nonempty ι] :
     List (QRTailIdx ι) → Matrix ι ι ℂ → Matrix ι ι ℂ
@@ -331,6 +411,101 @@ lemma complexGivensSweepQ_unitary
         (complexGivensSweepQ_unitary is A')
         (isUnitaryMatrix_complexGivensPairMatrix i cs.1 cs.2
           (by simpa [cs] using complexGivensCoeff_norm i A))
+
+noncomputable def complexGivensSweepSteps
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι] [Nonempty ι] :
+    List (QRTailIdx ι) → Matrix ι ι ℂ → List (Matrix ι ι ℂ)
+  | [], _ => []
+  | i :: is, A =>
+      let cs := complexGivensCoeff i A
+      let G := complexGivensPairMatrix i cs.1 cs.2
+      let A' := G * A
+      complexGivensSweepSteps is A' ++ [G]
+
+lemma complexGivensSweepSteps_all
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι] [Nonempty ι] :
+    ∀ (l : List (QRTailIdx ι)) (A : Matrix ι ι ℂ),
+      ∀ M ∈ complexGivensSweepSteps l A, IsComplexGivensMatrix M
+  | [], _A, M, hM => by
+      cases hM
+  | i :: is, A, M, hM => by
+      simp only [complexGivensSweepSteps, List.mem_append, List.mem_singleton]
+        at hM
+      let cs := complexGivensCoeff i A
+      let G := complexGivensPairMatrix i cs.1 cs.2
+      let A' := G * A
+      rcases hM with hM | hM
+      · exact complexGivensSweepSteps_all is A' M hM
+      · subst M
+        exact complexGivensCoeff_pair_isComplexGivensMatrix i A
+
+lemma matrixProduct_append_singleton
+    {ι : Type u} [Fintype ι] [DecidableEq ι]
+    (l : List (Matrix ι ι ℂ)) (G : Matrix ι ι ℂ) :
+    matrixProduct (l ++ [G]) = matrixProduct l * G := by
+  rw [matrixProduct_eq_prod, List.prod_append, List.prod_singleton,
+    ← matrixProduct_eq_prod]
+
+lemma complexGivensSweepSteps_product
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι] [Nonempty ι] :
+    ∀ (l : List (QRTailIdx ι)) (A : Matrix ι ι ℂ),
+      matrixProduct (complexGivensSweepSteps l A) =
+        complexGivensSweepQ l A
+  | [], A => by
+      simp [complexGivensSweepSteps, complexGivensSweepQ, matrixProduct]
+  | i :: is, A => by
+      let cs := complexGivensCoeff i A
+      let G := complexGivensPairMatrix i cs.1 cs.2
+      let A' := G * A
+      calc
+        matrixProduct (complexGivensSweepSteps (i :: is) A)
+            = matrixProduct (complexGivensSweepSteps is A' ++ [G]) := by
+              rfl
+        _ = matrixProduct (complexGivensSweepSteps is A') * G :=
+              matrixProduct_append_singleton _ _
+        _ = complexGivensSweepQ is A' * G := by
+              rw [complexGivensSweepSteps_product is A']
+        _ = complexGivensSweepQ (i :: is) A := by
+              simp [complexGivensSweepQ, cs, G, A']
+
+noncomputable def complexGivensSweepAdjointSteps
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι] [Nonempty ι]
+    (l : List (QRTailIdx ι)) (A : Matrix ι ι ℂ) :
+    List (Matrix ι ι ℂ) :=
+  (complexGivensSweepSteps l A).map Matrix.conjTranspose |>.reverse
+
+lemma complexGivensSweepAdjointSteps_all
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι] [Nonempty ι]
+    (l : List (QRTailIdx ι)) (A : Matrix ι ι ℂ) :
+    ∀ M ∈ complexGivensSweepAdjointSteps l A, IsComplexGivensMatrix M := by
+  intro M hM
+  rw [complexGivensSweepAdjointSteps] at hM
+  rcases List.mem_reverse.mp hM with hM
+  rcases List.mem_map.mp hM with ⟨N, hN, rfl⟩
+  exact isComplexGivensMatrix_conjTranspose
+    (complexGivensSweepSteps_all l A N hN)
+
+lemma matrixProduct_conjTranspose_reverse
+    {ι : Type u} [Fintype ι] [DecidableEq ι]
+    (l : List (Matrix ι ι ℂ)) :
+    matrixProduct ((l.map Matrix.conjTranspose).reverse) =
+      (matrixProduct l)ᴴ := by
+  calc
+    matrixProduct ((l.map Matrix.conjTranspose).reverse)
+        = ((l.map Matrix.conjTranspose).reverse).prod := matrixProduct_eq_prod _
+    _ = l.prodᴴ := by
+        rw [← Matrix.conjTranspose_list_prod l]
+    _ = (matrixProduct l)ᴴ := by
+        rw [matrixProduct_eq_prod]
+
+lemma complexGivensSweepAdjointSteps_product
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι] [Nonempty ι]
+    (l : List (QRTailIdx ι)) (A : Matrix ι ι ℂ) :
+    matrixProduct (complexGivensSweepAdjointSteps l A) =
+      (complexGivensSweepQ l A)ᴴ := by
+  rw [complexGivensSweepAdjointSteps,
+    matrixProduct_conjTranspose_reverse,
+    complexGivensSweepSteps_product l A]
 
 lemma complexGivensSweepMatrix_preserves_head_of_not_mem
     {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι] [Nonempty ι] :
@@ -471,6 +646,26 @@ theorem givens_boundary_step_ready
   simpa [unitaryHessenbergBoundarySimilarityObject, givensBoundaryStepQ] using
     givensBoundarySweep_mul_column_zero x_sub i hi
 
+theorem givensBoundaryStepQ_isProductOfComplexGivensMatrix
+    (x_sub : PosHessenbergBoundaryUniverse.{u} ℂ) :
+    IsProductOf
+      (@IsComplexGivensMatrix x_sub.1.ι x_sub.1.fintype_ι
+        x_sub.1.decEq_ι x_sub.1.linOrder_ι
+        (posHessenbergBoundaryUniverse_nonempty x_sub))
+      (givensBoundaryStepQ x_sub) := by
+  letI : Nonempty x_sub.1.ι := posHessenbergBoundaryUniverse_nonempty x_sub
+  refine
+    ⟨complexGivensSweepAdjointSteps
+      (qrGivensTailList x_sub.1.ι)
+      (givensBoundaryColumnMatrix x_sub), ?_, ?_⟩
+  · exact complexGivensSweepAdjointSteps_all
+      (qrGivensTailList x_sub.1.ι)
+      (givensBoundaryColumnMatrix x_sub)
+  · simpa [givensBoundaryStepQ, givensBoundarySweepH] using
+      complexGivensSweepAdjointSteps_product
+        (qrGivensTailList x_sub.1.ι)
+        (givensBoundaryColumnMatrix x_sub)
+
 noncomputable def givensUnitaryBoundaryStepOracle :
     UnitaryHessenbergBoundaryStepOracle.{u} where
   Q := givensBoundaryStepQ
@@ -482,5 +677,79 @@ theorem exists_unitary_hessenberg_reduction_givens
     (A : Matrix ι ι ℂ) :
     HasUnitaryHessenberg A :=
   exists_unitary_hessenberg_reduction givensUnitaryBoundaryStepOracle A
+
+/--
+Concrete step-trace data for the complex Givens Hessenberg route.
+
+The boundary sweep is expanded into the concrete list of embedded two-coordinate
+Givens rotations whose product is the boundary oracle matrix.
+-/
+structure ComplexGivensHessenbergStepTrace
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι ℂ) : Prop where
+  decomposition : HasUnitaryHessenberg A
+  boundaryStepProduct :
+    ∀ x_sub : PosHessenbergBoundaryUniverse.{u} ℂ,
+      IsProductOf
+        (@IsComplexGivensMatrix x_sub.1.ι x_sub.1.fintype_ι
+          x_sub.1.decEq_ι x_sub.1.linOrder_ι
+          (posHessenbergBoundaryUniverse_nonempty x_sub))
+        (givensBoundaryStepQ x_sub)
+
+theorem hasUnitaryHessenberg_of_complexGivensHessenbergStepTrace
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {A : Matrix ι ι ℂ} :
+    ComplexGivensHessenbergStepTrace A → HasUnitaryHessenberg A :=
+  ComplexGivensHessenbergStepTrace.decomposition
+
+/--
+Complex Givens Hessenberg route with boundary-step product data.
+
+This records the boundary oracle products used by the framework route; it is
+not a full recursive embedded-step execution trace.
+-/
+theorem exists_unitary_hessenberg_reduction_givens_with_boundary_step_trace
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι ℂ) :
+    ComplexGivensHessenbergStepTrace A := by
+  exact
+    { decomposition := exists_unitary_hessenberg_reduction_givens A
+      boundaryStepProduct := fun x_sub =>
+        givensBoundaryStepQ_isProductOfComplexGivensMatrix x_sub }
+
+/--
+Compatibility name for the boundary-step trace.
+Prefer `exists_unitary_hessenberg_reduction_givens_with_boundary_step_trace`.
+-/
+theorem exists_unitary_hessenberg_reduction_givens_with_step_trace
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι ℂ) :
+    ComplexGivensHessenbergStepTrace A :=
+  exists_unitary_hessenberg_reduction_givens_with_boundary_step_trace A
+
+/--
+Compatibility witness trace for the Givens boundary route.
+
+This route-tagged witness records the final unitary Hessenberg decomposition,
+not the recursive boundary-step execution sequence.
+-/
+theorem exists_unitary_hessenberg_reduction_givens_with_witness_trace
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι ℂ) :
+    UnitaryHessenbergTrace "complex-givens-boundary" A :=
+  witnessData_of_hasUnitaryHessenberg
+    "complex-givens-boundary"
+    (hasUnitaryHessenberg_of_complexGivensHessenbergStepTrace
+      (exists_unitary_hessenberg_reduction_givens_with_boundary_step_trace A))
+
+/--
+Compatibility name for the route-tagged final witness trace.
+Prefer `exists_unitary_hessenberg_reduction_givens_with_witness_trace`.
+-/
+theorem exists_unitary_hessenberg_reduction_givens_with_trace
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι ℂ) :
+    UnitaryHessenbergTrace "complex-givens-boundary" A :=
+  exists_unitary_hessenberg_reduction_givens_with_witness_trace A
 
 end MatDecompFormal.Instances

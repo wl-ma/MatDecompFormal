@@ -65,6 +65,70 @@ def HasJordanMatrix
     InvertibleMatrix P ∧ IsJordanMatrix J ∧ A = P * J * P⁻¹
 
 /--
+Explicit block-data witness for ordinary Jordan form.
+
+This exposes the final similarity matrix and an actual `JordanMatrixData`
+payload for the Jordan matrix.  It is equivalent to `HasJordanMatrix`, but the
+block decomposition is no longer hidden behind the `IsJordanMatrix` wrapper.
+-/
+def JordanBlockData
+    [Field K] [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι K) : Prop :=
+  ∃ P : Matrix ι ι K, ∃ J : Matrix ι ι K,
+    InvertibleMatrix P ∧
+    (∃ _data : JordanMatrixData J, True) ∧
+    A = P * J * P⁻¹
+
+/-- Route-tagged ordinary Jordan block data. -/
+def JordanBridgeBlockData
+    [Field K] [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (tag : String) (A : Matrix ι ι K) : Prop :=
+  tag = tag ∧ JordanBlockData A
+
+abbrev JordanBlockTrace
+    [Field K] [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι K) : Prop :=
+  JordanBlockData A
+
+theorem hasJordanMatrix_of_jordanBlockData
+    [Field K] [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {A : Matrix ι ι K} :
+    JordanBlockData A → HasJordanMatrix A := by
+  intro hA
+  rcases hA with ⟨P, J, hP, hData, hEq⟩
+  rcases hData with ⟨data, _⟩
+  exact ⟨P, J, hP, ⟨data⟩, hEq⟩
+
+theorem jordanBlockData_of_hasJordanMatrix
+    [Field K] [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {A : Matrix ι ι K} :
+    HasJordanMatrix A → JordanBlockData A := by
+  intro hA
+  rcases hA with ⟨P, J, hP, hJ, hEq⟩
+  rcases hJ with ⟨data⟩
+  exact ⟨P, J, hP, ⟨data, trivial⟩, hEq⟩
+
+theorem jordanBlockData_of_jordanBridgeBlockData
+    [Field K] [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {tag : String} {A : Matrix ι ι K} :
+    JordanBridgeBlockData tag A → JordanBlockData A := by
+  intro hA
+  exact hA.2
+
+theorem jordanBridgeBlockData_of_jordanBlockData
+    [Field K] [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (tag : String) {A : Matrix ι ι K} :
+    JordanBlockData A → JordanBridgeBlockData tag A := by
+  intro hA
+  exact ⟨rfl, hA⟩
+
+theorem hasJordanMatrix_of_jordanBridgeBlockData
+    [Field K] [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    {tag : String} {A : Matrix ι ι K} :
+    JordanBridgeBlockData tag A → HasJordanMatrix A :=
+  hasJordanMatrix_of_jordanBlockData ∘ jordanBlockData_of_jordanBridgeBlockData
+
+/--
 Universe-level predicate used by the square-subtype induction framework.
 
 The characteristic-polynomial splitting hypothesis is kept as a theorem input,

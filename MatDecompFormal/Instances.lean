@@ -1,4 +1,5 @@
 import MatDecompFormal.Instances.Cholesky
+import MatDecompFormal.Instances.LDL
 import MatDecompFormal.Instances.Bidiagonalization
 import MatDecompFormal.Instances.Gauss
 import MatDecompFormal.Instances.Hessenberg
@@ -15,5 +16,4 @@ import MatDecompFormal.Instances.SVD
 import MatDecompFormal.Instances.Schur
 import MatDecompFormal.Instances.UTV
 import MatDecompFormal.Instances.Smith
-import MatDecompFormal.Instances.ModuleStructure
 import MatDecompFormal.Instances.Tridiagonalization

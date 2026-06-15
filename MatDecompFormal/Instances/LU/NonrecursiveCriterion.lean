@@ -19,6 +19,142 @@ nontrivial descendant have a nonzero head pivot.
 
 variable {R : Type*}
 
+section OrderIsoReadiness
+
+variable {ι κ : Type*}
+
+lemma headElem_orderIso_apply
+    [Fintype ι] [LinearOrder ι] [Nonempty ι]
+    [Fintype κ] [LinearOrder κ] [Nonempty κ]
+    (e : ι ≃o κ) :
+    e (headElem (α := ι)) = headElem (α := κ) := by
+  apply le_antisymm
+  · have h := headElem_le (α := ι) (e.symm (headElem (α := κ)))
+    simpa using e.monotone h
+  · exact headElem_le (α := κ) (e (headElem (α := ι)))
+
+@[simp] lemma orderIso_symm_apply_headElem
+    [Fintype ι] [LinearOrder ι] [Nonempty ι]
+    [Fintype κ] [LinearOrder κ] [Nonempty κ]
+    (e : ι ≃o κ) :
+    e.symm (headElem (α := κ)) = headElem (α := ι) := by
+  apply e.injective
+  simp [headElem_orderIso_apply e]
+
+/-- The LU tail subtype is functorial under an order isomorphism. -/
+noncomputable def luTailOrderIsoOfOrderIso
+    [Fintype ι] [LinearOrder ι] [Nonempty ι]
+    [Fintype κ] [LinearOrder κ] [Nonempty κ]
+    (e : ι ≃o κ) :
+    LUTailIdx ι ≃o LUTailIdx κ where
+  toEquiv :=
+    { toFun := fun x =>
+        ⟨e x.1, by
+          intro hx
+          apply x.2
+          apply e.injective
+          simpa [headElem_orderIso_apply e] using hx⟩
+      invFun := fun x =>
+        ⟨e.symm x.1, by
+          intro hx
+          apply x.2
+          have hx' := congrArg e hx
+          simpa [headElem_orderIso_apply e] using hx'⟩
+      left_inv := by
+        intro x
+        ext
+        simp
+      right_inv := by
+        intro x
+        ext
+        simp }
+  map_rel_iff' := by
+    intro x y
+    change e x.1 ≤ e y.1 ↔ x.1 ≤ y.1
+    exact e.le_iff_le
+
+lemma luPivotReady_reindex_orderIso_iff
+    [Fintype ι] [LinearOrder ι] [Nonempty ι]
+    [Fintype κ] [LinearOrder κ] [Nonempty κ]
+    [Zero R]
+    (e : ι ≃o κ) (A : Matrix ι ι R) :
+    LUPivotReady κ (Matrix.reindex e.toEquiv e.toEquiv A) ↔
+      LUPivotReady ι A := by
+  simp [LUPivotReady, PLUPivotReady, Matrix.reindex_apply]
+
+lemma luSchurSlice_reindex_orderIso
+    [Fintype ι] [LinearOrder ι] [Nonempty ι]
+    [Fintype κ] [LinearOrder κ] [Nonempty κ]
+    [DivisionRing R]
+    (e : ι ≃o κ) (A : Matrix ι ι R) :
+    luSchurSlice κ (Matrix.reindex e.toEquiv e.toEquiv A) =
+      Matrix.reindex (luTailOrderIsoOfOrderIso e).toEquiv
+        (luTailOrderIsoOfOrderIso e).toEquiv (luSchurSlice ι A) := by
+  ext i j
+  simp [luSchurSlice, pluSchurSlice, pluHeadTailPlain,
+    pluPivotLowerFactor, pluHeadInv, luTailOrderIsoOfOrderIso,
+    Matrix.reindex_apply, Matrix.toBlocks₂₂, Matrix.toBlocks₂₁, Matrix.toBlocks₁₂,
+    Matrix.mul_apply]
+
+/-- Recursive LU pivot-readiness is invariant under order-preserving reindexing. -/
+theorem luRecursivePivotReady_reindex_orderIso
+    [DivisionRing R]
+    {α β : Type*}
+    [Fintype α] [DecidableEq α] [LinearOrder α]
+    [Fintype β] [DecidableEq β] [LinearOrder β]
+    (e : α ≃o β) {A : Matrix α α R}
+    (hA : LURecursivePivotReady A) :
+    LURecursivePivotReady (Matrix.reindex e.toEquiv e.toEquiv A) := by
+  classical
+  by_cases hbase : Fintype.card α ≤ 1
+  · have hcard_eq : Fintype.card α = Fintype.card β :=
+      Fintype.card_congr e.toEquiv
+    have hbase' : Fintype.card β ≤ 1 := by
+      rwa [← hcard_eq]
+    exact luRecursivePivotReady_of_card_le_one
+      (A := Matrix.reindex e.toEquiv e.toEquiv A) hbase'
+  · have hcard : 1 < Fintype.card α := Nat.lt_of_not_ge hbase
+    have hcard_eq : Fintype.card α = Fintype.card β :=
+      Fintype.card_congr e.toEquiv
+    have hbase' : ¬ Fintype.card β ≤ 1 := by
+      intro hκ
+      exact hbase (by rwa [hcard_eq])
+    have hcard' : 1 < Fintype.card β := by
+      rwa [hcard_eq] at hcard
+    letI : Nonempty α := Fintype.card_pos_iff.mp (Nat.zero_lt_of_lt hcard)
+    letI : Nontrivial α := Fintype.one_lt_card_iff_nontrivial.mp hcard
+    letI : Nonempty β := Fintype.card_pos_iff.mp (Nat.zero_lt_of_lt hcard')
+    letI : Nontrivial β := Fintype.one_lt_card_iff_nontrivial.mp hcard'
+    rcases (luRecursivePivotReady_step_iff (A := A) hbase).1 hA with
+      ⟨hPivot, hTail⟩
+    refine
+      (luRecursivePivotReady_step_iff
+        (A := Matrix.reindex e.toEquiv e.toEquiv A) hbase').2 ?_
+    constructor
+    · exact (luPivotReady_reindex_orderIso_iff (e := e) (A := A)).2 hPivot
+    · have hTail' :
+          LURecursivePivotReady
+            (Matrix.reindex (luTailOrderIsoOfOrderIso e).toEquiv
+              (luTailOrderIsoOfOrderIso e).toEquiv (luSchurSlice α A)) := by
+        exact luRecursivePivotReady_reindex_orderIso
+          (e := luTailOrderIsoOfOrderIso e) (A := luSchurSlice α A) hTail
+      rw [luSchurSlice_reindex_orderIso (e := e) (A := A)]
+      exact hTail'
+termination_by Fintype.card α
+decreasing_by
+  classical
+  have hcard : 1 < Fintype.card α := Nat.lt_of_not_ge hbase
+  letI : Nonempty α := Fintype.card_pos_iff.mp (Nat.zero_lt_of_lt hcard)
+  have hlt : Fintype.card (LUTailIdx α) < Fintype.card α := by
+    simpa [LUTailIdx, PLUTailIdx] using
+      (Fintype.card_subtype_lt
+        (p := fun a : α => a ≠ headElem (α := α))
+        (x := headElem (α := α))
+        (by simp))
+  exact hlt
+
+end OrderIsoReadiness
+
 section ReindexLU
 
 variable {ι κ : Type*} [Semiring R]
@@ -386,6 +522,76 @@ theorem reindex_luSchurSlice_fin_eq_headTailSchurComplement
     headTailSchurComplement, pluPivotLowerFactor, pluHeadInv,
     Matrix.toBlocks₂₂, Matrix.toBlocks₂₁, Matrix.toBlocks₁₂, Matrix.toBlocks₁₁,
     Matrix.reindex_apply, Matrix.mul_apply, finSuccAboveOrderIso_apply]
+
+/--
+The leading-principal-minor criterion implies the recursive readiness consumed
+by the LU descent framework.  The proof only builds readiness data; LU factors
+are constructed later by the framework theorem.
+-/
+theorem luRecursivePivotReady_of_nonzeroProperLeadingPrincipalMinors
+    {n : Nat} (A : Matrix (Fin n) (Fin n) R)
+    (hA : HasNonzeroProperLeadingPrincipalMinors A) :
+    LURecursivePivotReady A := by
+  classical
+  induction n with
+  | zero =>
+      exact luRecursivePivotReady_of_card_le_one
+        (A := A) (by simp)
+  | succ n ih =>
+      by_cases hn : n = 0
+      · subst n
+        exact luRecursivePivotReady_of_card_le_one
+          (A := A) (by simp)
+      · have hnpos : 0 < n := Nat.pos_of_ne_zero hn
+        have hbase : ¬ Fintype.card (Fin (n + 1)) ≤ 1 := by
+          simpa using hn
+        haveI : Nontrivial (Fin (n + 1)) :=
+          Fintype.one_lt_card_iff_nontrivial.mp (by simpa using hnpos)
+        refine (luRecursivePivotReady_step_iff (A := A) hbase).2 ?_
+        let Aht : Matrix (Unit ⊕ Fin n) (Unit ⊕ Fin n) R :=
+          Matrix.reindex (finHeadTailEquiv n) (finHeadTailEquiv n) A
+        have hHeadDet : Aht.toBlocks₁₁.det ≠ 0 := by
+          simpa [Aht] using
+            head_det_ne_zero_of_nonzeroProperLeadingPrincipalMinors (A := A) hA hnpos
+        haveI : Invertible Aht.toBlocks₁₁ :=
+          Matrix.invertibleOfIsUnitDet Aht.toBlocks₁₁
+            (isUnit_iff_ne_zero.mpr hHeadDet)
+        have hSchurMinors :
+            HasNonzeroProperLeadingPrincipalMinors (headTailSchurComplement Aht) := by
+          simpa [Aht] using
+            schur_nonzeroProperLeadingPrincipalMinors_of_nonzeroProperLeadingPrincipalMinors
+              (A := A) hA
+        have hSchurReady : LURecursivePivotReady (headTailSchurComplement Aht) :=
+          ih (headTailSchurComplement Aht) hSchurMinors
+        have hTailReady :
+            LURecursivePivotReady (luSchurSlice (Fin (n + 1)) A) := by
+          have hReindexedReady :
+              LURecursivePivotReady
+                (Matrix.reindex (luFinTailOrderIso n).symm.toEquiv
+                  (luFinTailOrderIso n).symm.toEquiv
+                  (headTailSchurComplement Aht)) :=
+            luRecursivePivotReady_reindex_orderIso
+              (e := (luFinTailOrderIso n).symm)
+              (A := headTailSchurComplement Aht) hSchurReady
+          have hSchurEqOrder :
+              Matrix.reindex (luFinTailOrderIso n).toEquiv
+                  (luFinTailOrderIso n).toEquiv
+                  (luSchurSlice (Fin (n + 1)) A) =
+                headTailSchurComplement Aht := by
+            simpa [Aht, luFinTailOrderIso, luFinTailEquiv] using
+              reindex_luSchurSlice_fin_eq_headTailSchurComplement (A := A)
+          have hTailMatrix :
+              Matrix.reindex (luFinTailOrderIso n).symm.toEquiv
+                (luFinTailOrderIso n).symm.toEquiv
+                  (headTailSchurComplement Aht) =
+                luSchurSlice (Fin (n + 1)) A := by
+            exact reindex_symm_eq_of_reindex_eq
+              (e := (luFinTailOrderIso n).toEquiv) hSchurEqOrder
+          rwa [hTailMatrix] at hReindexedReady
+        constructor
+        · exact (luPivotReady_iff_leadingPrincipalMinor_one_ne_zero (n := n) A).2
+            (hA 1 Nat.succ_pos' (Nat.succ_lt_succ hnpos))
+        · exact hTailReady
 
 end FinLUSchurSlice
 

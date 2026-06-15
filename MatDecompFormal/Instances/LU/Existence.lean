@@ -76,55 +76,9 @@ variable {R : Type*} [Field R]
 theorem exists_lu_of_nonzeroProperLeadingPrincipalMinors
     {n : Nat} (A : Matrix (Fin n) (Fin n) R)
     (hA : HasNonzeroProperLeadingPrincipalMinors A) :
-    HasLU A := by
-  classical
-  induction n with
-  | zero =>
-      exact base_lu_subsingleton A
-  | succ n ih =>
-      by_cases hn : n = 0
-      · subst n
-        haveI : Subsingleton (Fin 1) := by
-          exact Fintype.card_le_one_iff_subsingleton.mp (by simp)
-        exact base_lu_subsingleton A
-      · have hnpos : 0 < n := Nat.pos_of_ne_zero hn
-        have hPivot : LUPivotReady (Fin (n + 1)) A := by
-          exact (luPivotReady_iff_leadingPrincipalMinor_one_ne_zero (n := n) A).2
-            (hA 1 Nat.succ_pos' (Nat.succ_lt_succ hnpos))
-        let Aht : Matrix (Unit ⊕ Fin n) (Unit ⊕ Fin n) R :=
-          Matrix.reindex (finHeadTailEquiv n) (finHeadTailEquiv n) A
-        have hHeadDet : Aht.toBlocks₁₁.det ≠ 0 := by
-          simpa [Aht] using
-            head_det_ne_zero_of_nonzeroProperLeadingPrincipalMinors (A := A) hA hnpos
-        haveI : Invertible Aht.toBlocks₁₁ :=
-          Matrix.invertibleOfIsUnitDet Aht.toBlocks₁₁ (isUnit_iff_ne_zero.mpr hHeadDet)
-        have hSchurMinors :
-            HasNonzeroProperLeadingPrincipalMinors (headTailSchurComplement Aht) := by
-          simpa [Aht] using
-            schur_nonzeroProperLeadingPrincipalMinors_of_nonzeroProperLeadingPrincipalMinors
-              (A := A) hA
-        have hSchurLU : HasLU (headTailSchurComplement Aht) :=
-          ih (headTailSchurComplement Aht) hSchurMinors
-        have hTailIso :
-            HasLU (Matrix.reindex (luFinTailOrderIso n).symm.toEquiv
-              (luFinTailOrderIso n).symm.toEquiv (headTailSchurComplement Aht)) :=
-          hasLU_reindex_orderIso (e := (luFinTailOrderIso n).symm) hSchurLU
-        have hSchurEqOrder :
-            Matrix.reindex (luFinTailOrderIso n).toEquiv (luFinTailOrderIso n).toEquiv
-                (luSchurSlice (Fin (n + 1)) A) =
-              headTailSchurComplement Aht := by
-          simpa [Aht, luFinTailOrderIso, luFinTailEquiv] using
-            reindex_luSchurSlice_fin_eq_headTailSchurComplement (A := A)
-        have hTailMatrix :
-            Matrix.reindex (luFinTailOrderIso n).symm.toEquiv
-              (luFinTailOrderIso n).symm.toEquiv (headTailSchurComplement Aht) =
-              luSchurSlice (Fin (n + 1)) A := by
-          exact reindex_symm_eq_of_reindex_eq
-            (e := (luFinTailOrderIso n).toEquiv) hSchurEqOrder
-        have hTailLU : HasLU (luSchurSlice (Fin (n + 1)) A) := by
-          rw [hTailMatrix] at hTailIso
-          exact hTailIso
-        exact luHeadTailSchurLift A hPivot hTailLU
+    HasLU A :=
+  exists_lu_of_noPivotReady A
+    (luRecursivePivotReady_of_nonzeroProperLeadingPrincipalMinors A hA)
 
 /-- Framework-routed LU decomposition theorem under the non-recursive no-pivot criterion. -/
 theorem exists_lu_of_nonzeroLUSchurPivots

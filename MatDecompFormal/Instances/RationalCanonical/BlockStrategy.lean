@@ -337,6 +337,24 @@ theorem exists_rational_canonical_matrix_block_framework
   exact hP
 
 /--
+Block-framework theorem with explicit final canonical block data.
+
+Route:
+`RationalCanonicalBlockStepOracle` →
+cyclic block-size subtype descent →
+`RationalCanonicalBlockData`.
+-/
+theorem rationalCanonicalBlockData_block_framework
+    {K : Type v} [Field K]
+    (oracle : RationalCanonicalBlockStepOracle.{u, v} K)
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι K) :
+    RationalCanonicalBridgeBlockData "cyclic-block-framework" A :=
+  rationalCanonicalBridgeBlockData_of_blockData "cyclic-block-framework"
+    (rationalCanonicalBlockData_of_hasRationalCanonical
+      (exists_rational_canonical_matrix_block_framework oracle A))
+
+/--
 Matrix rational-canonical theorem from the polynomial-module block bridge.
 
 This is the intended bridge shape for the general `[Field K]` theorem: the PID
@@ -354,19 +372,71 @@ theorem exists_rational_canonical_matrix_polynomial_block_bridge
     (rationalCanonicalBlockStepOracleOfPolynomialBlockBridge selectionBridge bridge) A
 
 /--
-Matrix rational-canonical theorem over an arbitrary field, routed through the
-cyclic block-size subtype-descent template.
+Polynomial block bridge theorem with explicit final canonical block data.
+
+This is the framework-facing data theorem for the module-bridge route: selected
+cyclic summands are converted to companion-block steps, then the block-size
+descent theorem supplies the final similarity and canonical block matrix.
+-/
+theorem rationalCanonicalBlockData_polynomial_block_bridge
+    {K : Type v} [Field K]
+    (selectionBridge : RationalCanonicalSelectedCyclicSummandBridge.{u, v} K)
+    (bridge : RationalCanonicalPolynomialBlockBridge.{u, v} K)
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι K) :
+    RationalCanonicalBridgeBlockData "polynomial-block-bridge" A :=
+  rationalCanonicalBridgeBlockData_of_blockData "polynomial-block-bridge"
+    (rationalCanonicalBlockData_of_hasRationalCanonical
+      (exists_rational_canonical_matrix_polynomial_block_bridge
+        selectionBridge bridge A))
+
+/--
+Public rational-canonical theorem with explicit final canonical block data,
+routed through the cyclic block-size subtype-descent template.
+
+Route:
+1. `rationalCanonicalEffectiveSummandIndexBridge K` selects a nontrivial PID
+   cyclic summand from the canonical finite torsion `K[X]`-module.
+2. `rationalCanonicalPolynomialBlockBridge K` converts that selected summand
+   into companion-block step data.
+3. `rationalCanonicalBlockData_polynomial_block_bridge` runs the project cyclic
+   block-size descent template and returns explicit final canonical block data.
+-/
+theorem rationalCanonicalBlockData
+    {K : Type v} [Field K]
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι K) :
+    RationalCanonicalBlockData A :=
+  rationalCanonicalBlockData_of_bridgeBlockData
+    (rationalCanonicalBlockData_polynomial_block_bridge
+      (rationalCanonicalSelectedCyclicSummandBridgeOfEffectiveIndexBridge
+        (rationalCanonicalEffectiveSummandIndexBridge K))
+      (rationalCanonicalPolynomialBlockBridge K)
+      A)
+
+/--
+Matrix rational-canonical theorem over an arbitrary field.  This public
+existence theorem is the forgetful wrapper around `rationalCanonicalBlockData`.
 -/
 theorem exists_rational_canonical_matrix
     {K : Type v} [Field K]
     {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
     (A : Matrix ι ι K) :
     HasRationalCanonical A :=
-  exists_rational_canonical_matrix_polynomial_block_bridge
-    (rationalCanonicalSelectedCyclicSummandBridgeOfEffectiveIndexBridge
-      (rationalCanonicalEffectiveSummandIndexBridge K))
-    (rationalCanonicalPolynomialBlockBridge K)
-    A
+  hasRationalCanonical_of_blockData (rationalCanonicalBlockData A)
+
+/--
+Route-tagged public rational-canonical block data.  The tag records that the
+proof used the public polynomial block bridge; the untagged payload is
+available as `rationalCanonicalBlockData`.
+-/
+theorem rationalCanonicalBridgeBlockData
+    {K : Type v} [Field K]
+    {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι]
+    (A : Matrix ι ι K) :
+    RationalCanonicalBridgeBlockData "public-polynomial-block-bridge" A :=
+  rationalCanonicalBridgeBlockData_of_blockData "public-polynomial-block-bridge"
+    (rationalCanonicalBlockData A)
 
 /--
 Finite-dimensional linear-operator entry point through the polynomial-module
