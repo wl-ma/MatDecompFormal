@@ -1,3 +1,8 @@
+/-
+Copyright (c) 2026 Wanli Ma, Zichen Wang. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Wanli Ma, Zichen Wang
+-/
 import Mathlib.Logic.Equiv.Sum
 import Mathlib.Data.Finset.Max
 import Mathlib.Data.Sum.Order
@@ -7,18 +12,46 @@ namespace MatDecompFormal.Framework
 open Equiv
 open Sum.Lex
 
+/-!
+# Head-Tail Decomposition
+
+This file constructs the canonical head-tail splitting of a nonempty finite
+linear order `α`.  The *head* element is the minimum of `α`; the *tail* is the
+subtype of strictly-positive elements.  The main output is an order-strict
+equivalence
+
+  `headTailLexEquiv : α ≃ Unit ⊕ₗ { a : α // a ≠ headElem }`
+
+used throughout the descent drivers to peel off the leading index at each
+induction step.
+
+## Main definitions
+
+* `headElem`: the minimum element of `α`.
+* `headTailEquiv`: equivalence `α ≃ Unit ⊕ { a // a ≠ headElem }`.
+* `headTailLexEquiv`: order-preserving variant using the lexicographic sum `⊕ₗ`.
+* `sumToLexEquiv`: canonical equivalence `β ⊕ γ ≃ β ⊕ₗ γ`.
+
+## Main statements
+
+* `headTailLexEquiv_strictMono`: `headTailLexEquiv` is strictly monotone.
+-/
+
 section HeadTail
 
 variable {α : Type*} [Fintype α] [LinearOrder α] [Nonempty α]
 
+/-- The minimum element of `α`, taken over the full `Finset.univ`. -/
 noncomputable def headElem : α := by
   classical
   exact Finset.min' Finset.univ ⟨Classical.choice ‹Nonempty α›, by simp⟩
 
+/-- Every element of `α` is at least `headElem`. -/
 lemma headElem_le (a : α) : headElem (α := α) ≤ a := by
   classical
   exact Finset.min'_le _ a (by simp)
 
+/-- The singleton subtype `{ a : α // a = headElem }` is equivalent to `Unit`. -/
 noncomputable def headSubtypeEquivUnit :
     { a : α // a = headElem (α := α) } ≃ Unit where
   toFun _ := ()
@@ -39,6 +72,7 @@ noncomputable def headSubtypeEquivUnit :
 @[simp] theorem headSubtypeEquivUnit_symm_apply :
     (headSubtypeEquivUnit (α := α)).symm () = ⟨headElem (α := α), rfl⟩ := rfl
 
+/-- The singleton subtype `{ a : α // a = headElem }` is order-isomorphic to `Unit`. -/
 noncomputable def headSubtypeOrderIsoUnit :
     { a : α // a = headElem (α := α) } ≃o Unit where
   toEquiv := headSubtypeEquivUnit (α := α)
@@ -46,6 +80,8 @@ noncomputable def headSubtypeOrderIsoUnit :
     intro x y
     simp
 
+/-- Split `α` into its head element and the remaining tail:
+`α ≃ Unit ⊕ { a : α // a ≠ headElem }`. -/
 noncomputable def headTailEquiv :
     α ≃ Unit ⊕ { a : α // a ≠ headElem (α := α) } :=
   (Equiv.sumCompl fun a : α => a = headElem (α := α)).symm.trans
@@ -70,6 +106,8 @@ noncomputable def headTailEquiv :
     (headTailEquiv (α := α)).symm (Sum.inr x) = x := by
   simp [headTailEquiv]
 
+/-- The canonical equivalence between the plain sum `β ⊕ γ` and the
+lexicographic sum `β ⊕ₗ γ`, sending `inl`/`inr` to `inlₗ`/`inrₗ`. -/
 noncomputable def sumToLexEquiv (β γ : Type*) : β ⊕ γ ≃ β ⊕ₗ γ where
   toFun := toLex
   invFun := ofLex
@@ -94,6 +132,7 @@ noncomputable def sumToLexEquiv (β γ : Type*) : β ⊕ γ ≃ β ⊕ₗ γ whe
 @[simp] theorem sumToLexEquiv_symm_apply_inr_raw {β γ : Type*} (x : γ) :
     (sumToLexEquiv β γ).symm (Sum.inr x : β ⊕ₗ γ) = Sum.inr x := rfl
 
+/-- `sumToLexEquiv` is strictly monotone with respect to the lexicographic order. -/
 lemma sumToLexEquiv_strictMono {β γ : Type*} [Preorder β] [Preorder γ] :
     StrictMono (sumToLexEquiv β γ) := by
   intro x y hxy
@@ -103,6 +142,10 @@ lemma sumToLexEquiv_strictMono {β γ : Type*} [Preorder β] [Preorder γ] :
   · exact (Sum.not_inr_lt_inl hxy).elim
   · exact Sum.Lex.inr (Sum.inr_lt_inr_iff.mp hxy)
 
+/-- The order-strict head-tail splitting:
+`α ≃ Unit ⊕ₗ { a : α // a ≠ headElem }`,
+where `Unit` carries the head (minimum) element and the right summand carries
+the tail, ordered lexicographically. -/
 noncomputable def headTailLexEquiv :
     α ≃ Unit ⊕ₗ { a : α // a ≠ headElem (α := α) } :=
   (headTailEquiv (α := α)).trans (sumToLexEquiv Unit { a : α // a ≠ headElem (α := α) })
@@ -125,6 +168,8 @@ noncomputable def headTailLexEquiv :
     (headTailLexEquiv (α := α)).symm (Sum.inrₗ x) = x := by
   rfl
 
+/-- `headTailLexEquiv` is strictly monotone: it respects the linear order of `α`
+and the lexicographic order of `Unit ⊕ₗ { a // a ≠ headElem }`. -/
 lemma headTailLexEquiv_strictMono : StrictMono (headTailLexEquiv (α := α)) := by
   intro a b hab
   by_cases ha : a = headElem (α := α)

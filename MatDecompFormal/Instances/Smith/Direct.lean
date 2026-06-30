@@ -1,3 +1,8 @@
+/-
+Copyright (c) 2026 Zichen Wang, Wanli Ma. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Zichen Wang, Wanli Ma
+-/
 import MatDecompFormal.Instances.Smith.Strategy
 
 universe u v
@@ -15,6 +20,8 @@ This file packages the transport and lift hooks required by the rectangular
 descent template for Smith normal form.
 -/
 
+/-- Bundles the `RectStrategyProofData` for the Smith descent, holding the transport and lift
+hooks together for convenient downstream use. -/
 structure SmithDescentHooks
     (R : Type v) [CommSemiring R]
     (oracle :
@@ -24,6 +31,8 @@ structure SmithDescentHooks
   proofData :
     RectStrategyProofData R Smith_P (smith_strategy_core R oracle)
 
+/-- Transport hook for the Smith descent: lifts `Smith_P` along two-sided unit transformations
+using `smith_transport_twoSidedUnits`. -/
 noncomputable def smith_transport_hook
     (R : Type v) [CommSemiring R]
     (oracle :
@@ -39,6 +48,8 @@ noncomputable def smith_transport_hook
     exact smith_transport_twoSidedUnits t.1.1 t.1.2 A
       (t.1.1 * A * t.1.2) t.2.1 t.2.2 rfl hPB
 
+/-- Lift hook for the Smith descent: reassembles the Smith form from the ready block and the
+tail induction hypothesis. -/
 noncomputable def smith_lift_hook
     (R : Type v) [CommSemiring R]
     (oracle :
@@ -60,6 +71,7 @@ noncomputable def smith_lift_hook
     smith_reindex er.symm ec.symm hA'Smith
   simpa [A', er, ec] using hBack
 
+/-- Packages the transport and lift hooks into a `SmithDescentHooks` record. -/
 noncomputable def smith_descent_hooks
     (R : Type v) [CommSemiring R]
     (oracle :
@@ -71,6 +83,7 @@ noncomputable def smith_descent_hooks
     { transport := smith_transport_hook R oracle
       lift := smith_lift_hook R oracle }
 
+/-- Extracts the `RectStrategyProofData` from a `SmithDescentHooks` record. -/
 noncomputable def smith_strategy_proof
     (R : Type v) [CommSemiring R]
     (oracle :

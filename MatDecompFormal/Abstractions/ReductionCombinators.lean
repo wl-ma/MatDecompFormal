@@ -1,3 +1,8 @@
+/-
+Copyright (c) 2026 Wanli Ma, Zichen Wang. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Wanli Ma, Zichen Wang
+-/
 import MatDecompFormal.Abstractions.ReductionMethod
 
 namespace MatDecompFormal.Abstractions
@@ -6,9 +11,9 @@ namespace MatDecompFormal.Abstractions
 # Reduction Method Combinators
 -/
 
-/--
-`ReductionMethod.try_else`
--/
+/-- Combine two `ReductionMethod`s by trying the first; if it is not sliceable,
+fall back to the second.  The resulting method is sliceable whenever at least
+one of `M₁` or `M₂` is sliceable, and it uses whichever one applies. -/
 noncomputable def ReductionMethod.try_else {ι κ ιs κs : Type*} {R : Type*}
     (M₁ M₂ : ReductionMethod ι κ ιs κs R) :
     ReductionMethod ι κ ιs κs R where

@@ -1,5 +1,10 @@
+/-
+Copyright (c) 2026 Wanli Ma, Zichen Wang. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Wanli Ma, Zichen Wang
+-/
 import Mathlib.LinearAlgebra.Matrix.Basis
-import Mathlib.Tactic.SplitIfs -- Explicitly import `split_ifs`
+import Mathlib.Tactic.SplitIfs
 
 namespace MatDecompFormal.Abstractions
 
@@ -68,7 +73,6 @@ structure Transformation (X : Type*) where
   /-- Correctness proof for `find`, ensuring that `find` found the correct transformation. -/
   find_spec : ∀ (x : X) (h : ¬ Goal x), Goal (apply (find x h) x)
 
--- Register `decGoal` as a typeclass instance for `if T.Goal x then ...`.
 attribute [instance] Transformation.decGoal
 
 
@@ -97,25 +101,18 @@ def Transformation.compose {X} (T₁ T₂ : Transformation X)
   decGoal := T₂.decGoal
   apply := fun (t₁, t₂) x ↦ T₂.apply t₂ (T₁.apply t₁ x)
   find := fun x h_goal_not_met ↦
-    -- Use h_precond to derive that the first-step goal is unmet from the final goal being unmet
     let h₁ := h_precond x h_goal_not_met
     let t₁_inst := T₁.find x h₁
     let x' := T₁.apply t₁_inst x
-    -- Use h_preserves to prove that after applying T₁, the T₂ goal is still unmet
     let h₂ := h_preserves x h₁ h_goal_not_met
     let t₂_inst := T₂.find x' h₂
     (t₁_inst, t₂_inst)
   find_spec := by
     intro x h_goal_not_met
-    -- Unfold `find` and `apply` enough to make the goal clearer.
-    -- However, because `find` uses `let` internally, plain `simp` may not work well.
-    -- A more robust proof manually simulates the logic of `find`.
     let h₁ := h_precond x h_goal_not_met
     let t₁_inst := T₁.find x h₁
     let x' := T₁.apply t₁_inst x
     let h₂ := h_preserves x h₁ h_goal_not_met
-    let t₂_inst := T₂.find x' h₂
-    -- This is exactly the conclusion of `T₂.find_spec`.
     exact T₂.find_spec x' h₂
 
 /--
@@ -141,37 +138,22 @@ def Transformation.compose_sequential {X} (T₁ T₂ : Transformation X) :
     | (none,    none)    => fun x ↦ x
   find := fun x h_t2_goal_not_met ↦
     if h₁ : T₁.Goal x then
-      -- Step 1 goal is already achieved; only execute step 2.
       (none, some (T₂.find x h_t2_goal_not_met))
     else
-      -- Step 1 goal is not achieved; step 1 must be executed first.
       let t₁_inst := T₁.find x h₁
       let x' := T₁.apply t₁_inst x
       if h₂ : T₂.Goal x' then
-        -- After applying T₁, the step 2 goal is unexpectedly achieved; no need to execute step 2.
         (some t₁_inst, none)
       else
-        -- After applying T₁, the step 2 goal is still not achieved; continue with step 2.
         (some t₁_inst, some (T₂.find x' h₂))
   find_spec := by
     intro x h_t2_goal_not_met
-    -- Expose the `if` expressions in `find` to `split_ifs`.
     simp only
-    -- Prove by cases on the `if` conditions in the `find` function.
     split_ifs with h₁ h₂
-    · -- Branch 1: T₁.Goal x (h₁) is true.
-      -- `find` returns (none, some ...), and `apply` applies T₂.
-      -- The goal `T₂.Goal (T₂.apply ...)` is guaranteed by `T₂.find_spec`.
-      simp only
+    · simp only
       exact T₂.find_spec x h_t2_goal_not_met
-    · -- Branch 2: ¬ T₁.Goal x (h₁), and T₂.Goal (T₁.apply ... x) (h₂) is true.
-      -- `find` returns (some ..., none), and `apply` applies T₁.
-      -- The goal `T₂.Goal (T₁.apply ... x)` is exactly assumption `h₂`.
-      exact h₂
-    · -- Branch 3: ¬ T₁.Goal x (h₁), and ¬ T₂.Goal (T₁.apply ... x) (h₂).
-      -- `find` returns (some ..., some ...), and `apply` applies T₁ and then T₂.
-      -- The goal `T₂.Goal (T₂.apply ... (T₁.apply ... x))` is guaranteed by `T₂.find_spec`.
-      simp only
+    · exact h₂
+    · simp only
       let x' := T₁.apply (T₁.find x h₁) x
       exact T₂.find_spec x' h₂
 

@@ -1,3 +1,8 @@
+/-
+Copyright (c) 2026 Zichen Wang, Wanli Ma. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Zichen Wang, Wanli Ma
+-/
 import MatDecompFormal.Instances.ModuleStructure.Strategy
 
 universe u v
@@ -16,6 +21,8 @@ transport and lift operations mirror Smith normal form because the current
 target is the Smith decomposition of a presentation matrix.
 -/
 
+/-- Bundles the `RectStrategyProofData` for the module-structure descent, holding the transport
+and lift hooks together for convenient downstream use. -/
 structure ModuleStructureDescentHooks
     (R : Type v) [CommSemiring R]
     (oracle :
@@ -27,6 +34,8 @@ structure ModuleStructureDescentHooks
     RectStrategyProofData R ModuleStructure_P
       (moduleStructure_strategy_core R oracle)
 
+/-- Transport hook for the module-structure descent: lifts `ModuleStructure_P` along two-sided
+unit transformations mirroring the Smith transport. -/
 noncomputable def moduleStructure_transport_hook
     (R : Type v) [CommSemiring R]
     (oracle :
@@ -44,6 +53,8 @@ noncomputable def moduleStructure_transport_hook
     exact moduleStructure_transport_twoSidedUnits t.1.1 t.1.2 A
       (t.1.1 * A * t.1.2) t.2.1 t.2.2 rfl hPB
 
+/-- Lift hook for the module-structure descent: routes through the Smith decomposition to
+reassemble the module-structure decomposition from the ready block and the tail hypothesis. -/
 noncomputable def moduleStructure_lift_hook
     (R : Type v) [CommSemiring R]
     (oracle :
@@ -71,6 +82,7 @@ noncomputable def moduleStructure_lift_hook
     hasPIDModuleStructure_of_smith hBackSmith
   simpa [A', er, ec] using hBackModule
 
+/-- Packages the transport and lift hooks into a `ModuleStructureDescentHooks` record. -/
 noncomputable def moduleStructure_descent_hooks
     (R : Type v) [CommSemiring R]
     (oracle :
@@ -83,6 +95,7 @@ noncomputable def moduleStructure_descent_hooks
     { transport := moduleStructure_transport_hook R oracle
       lift := moduleStructure_lift_hook R oracle }
 
+/-- Extracts the `RectStrategyProofData` from a `ModuleStructureDescentHooks` record. -/
 noncomputable def moduleStructure_strategy_proof
     (R : Type v) [CommSemiring R]
     (oracle :

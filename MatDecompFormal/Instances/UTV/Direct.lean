@@ -1,3 +1,8 @@
+/-
+Copyright (c) 2026 Zichen Wang, Wanli Ma. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Zichen Wang, Wanli Ma
+-/
 import MatDecompFormal.Instances.UTV.Strategy
 
 universe u
@@ -15,6 +20,8 @@ This file packages the transport and lift hooks required by the rectangular
 descent template for UTV.
 -/
 
+/-- Bundles the `RectStrategyProofData` for the UTV descent, holding the transport and lift
+hooks together for convenient downstream use. -/
 structure UTVDescentHooks
     (oracle :
       ∀ {m n : Type u} [Fintype m] [DecidableEq m] [LinearOrder m] [Nonempty m]
@@ -23,6 +30,8 @@ structure UTVDescentHooks
   proofData :
     RectStrategyProofData ℂ UTV_P (utv_strategy_core oracle)
 
+/-- Transport hook for the UTV descent: lifts `UTV_P` along two-sided unitary transformations
+using `utv_transport_twoSidedUnitary`. -/
 noncomputable def utv_transport_hook
     (oracle :
       ∀ {m n : Type u} [Fintype m] [DecidableEq m] [LinearOrder m] [Nonempty m]
@@ -37,6 +46,8 @@ noncomputable def utv_transport_hook
     exact utv_transport_twoSidedUnitary t.1.1 t.1.2 A
       (t.1.1ᴴ * A * t.1.2) t.2.1 t.2.2 rfl hPB
 
+/-- Lift hook for the UTV descent: reassembles the UTV decomposition from the ready block and
+the tail induction hypothesis, threading through the lexicographic reindexing. -/
 noncomputable def utv_lift_hook
     (oracle :
       ∀ {m n : Type u} [Fintype m] [DecidableEq m] [LinearOrder m] [Nonempty m]
@@ -75,6 +86,7 @@ noncomputable def utv_lift_hook
       hAₗUTV
   simpa [Aₗ, erLex, ecLex] using hBack
 
+/-- Packages the transport and lift hooks into a `UTVDescentHooks` record. -/
 noncomputable def utv_descent_hooks
     (oracle :
       ∀ {m n : Type u} [Fintype m] [DecidableEq m] [LinearOrder m] [Nonempty m]
@@ -85,6 +97,7 @@ noncomputable def utv_descent_hooks
     { transport := utv_transport_hook oracle
       lift := utv_lift_hook oracle }
 
+/-- Extracts the `RectStrategyProofData` from a `UTVDescentHooks` record. -/
 noncomputable def utv_strategy_proof
     (oracle :
       ∀ {m n : Type u} [Fintype m] [DecidableEq m] [LinearOrder m] [Nonempty m]

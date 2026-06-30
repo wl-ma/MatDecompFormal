@@ -1,3 +1,8 @@
+/-
+Copyright (c) 2026 Zichen Wang, Wanli Ma. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Zichen Wang, Wanli Ma
+-/
 import MatDecompFormal.Instances.LDL.Details
 import MatDecompFormal.Components.Properties.Reindex
 import MatDecompFormal.Framework.DecompositionDriver
@@ -28,21 +33,25 @@ section Presentation
 
 variable {ι R : Type*}
 
+/-- Tail index type for LDL descent: non-head indices of the index type `ι`. -/
 abbrev LDLTailIdx (ι : Type*) [Fintype ι] [LinearOrder ι] [Nonempty ι] :=
   { a : ι // a ≠ headElem (α := ι) }
 
+/-- Reindex `A` by `headTailEquiv` so the head index maps to `Sum.inl ()` and tail to `Sum.inr`. -/
 noncomputable def ldlHeadTailPlain
     (ι : Type*) [Fintype ι] [LinearOrder ι] [Nonempty ι]
     {R : Type*}
     (A : Matrix ι ι R) : Matrix (Unit ⊕ LDLTailIdx ι) (Unit ⊕ LDLTailIdx ι) R :=
   Matrix.reindex (headTailEquiv (α := ι)) (headTailEquiv (α := ι)) A
 
+/-- The `(1,1)` block inverse of `A`, i.e., `A[head,head]⁻¹` as a `Unit × Unit` matrix. -/
 noncomputable def ldlHeadInv
     (ι : Type*) [Fintype ι] [LinearOrder ι] [Nonempty ι]
     {R : Type*} [Inv R]
     (A : Matrix ι ι R) : Matrix Unit Unit R :=
   fun _ _ => (A (headElem (α := ι)) (headElem (α := ι)))⁻¹
 
+/-- The lower off-diagonal factor `L₂₁ = A₂₁ * A₁₁⁻¹` used in the LDL Schur step. -/
 noncomputable def ldlLowerFactor
     (ι : Type*) [Fintype ι] [LinearOrder ι] [Nonempty ι]
     {R : Type*} [Ring R] [Inv R]
@@ -50,6 +59,8 @@ noncomputable def ldlLowerFactor
   let A' := ldlHeadTailPlain ι A
   A'.toBlocks₂₁ * ldlHeadInv ι A
 
+/-- The Schur complement of the head block: `A₂₂ - L₂₁ * A₁₂`. This is the subproblem matrix
+passed to the recursive LDL descent. -/
 noncomputable def ldlSchurSlice
     (ι : Type*) [Fintype ι] [LinearOrder ι] [Nonempty ι]
     {R : Type*} [Ring R] [Inv R]
@@ -57,6 +68,7 @@ noncomputable def ldlSchurSlice
   let A' := ldlHeadTailPlain ι A
   A'.toBlocks₂₂ - ldlLowerFactor ι A * A'.toBlocks₁₂
 
+/-- The `ReductionMethod` extracting the Schur-complement tail submatrix from an LDL-ready matrix. -/
 noncomputable def ldlHeadTailReduction
     (ι : Type*) [Fintype ι] [LinearOrder ι] [Nonempty ι]
     {R : Type*} [Ring R] [Inv R] :
@@ -96,6 +108,8 @@ noncomputable def ldlHeadTailReduction
     ext i j
     simp [A']
 
+/-- The descent predicate for LDL: `LDL_P x` holds when `x.A` being positive definite implies
+it admits an LDL decomposition. -/
 def LDL_P {R : Type*} [Ring R] [PartialOrder R] [StarRing R]
     (x : SquareUniverse R) : Prop :=
   x.A.PosDef → HasLDLDecomposition x.A
@@ -350,6 +364,8 @@ lemma ldlSchur_restore
   abel
 
 
+/-- Given an LDL decomposition of the tail Schur complement, reconstruct an LDL decomposition
+of the full matrix `A` via the block factorization `A = L * D * Lᵀ`. -/
 theorem ldlHeadTailSchurLift
     {R : Type*} [RCLike R] [TrivialStar R]
     (A : Matrix ι ι R)
@@ -474,6 +490,8 @@ theorem ldlHeadTailSchurLift
 
 end RecursiveHelpers
 
+/-- The `SquareStrategyCore` for LDL: no transformation step (trivial), reduce via Schur
+complement, recurse on the smaller tail index type. -/
 noncomputable def ldl_strategy_core {R : Type*} [RCLike R] [TrivialStar R] :
     SquareStrategyCore R where
   SliceIdx := fun {ι} fι dι oι nι => @LDLTailIdx ι fι oι nι
@@ -513,6 +531,8 @@ noncomputable def ldl_strategy_core {R : Type*} [RCLike R] [TrivialStar R] :
     intro ι fι dι oι nι B
     rfl
 
+/-- Coercion of `LDL_P` to a sub-universe predicate so it can be used as the transport target
+in `SquareStrategyProofData`. -/
 def LDL_P_sub {R : Type*} [Ring R] [PartialOrder R] [StarRing R]
     (x_sub : PosSquareUniverse R) : Prop :=
   LDL_P (x_sub : SquareUniverse R)
@@ -523,6 +543,8 @@ def LDL_P_sub {R : Type*} [Ring R] [PartialOrder R] [StarRing R]
     LDL_P_sub x_sub ↔ LDL_P (x_sub : SquareUniverse R) :=
   Iff.rfl
 
+/-- Base case for the LDL induction: every matrix indexed by an empty type trivially
+satisfies `LDL_P` because `PosDef` is vacuous. -/
 theorem ldl_base_univ
     {R : Type*} [Ring R] [PartialOrder R] [StarRing R]
     (x : SquareUniverse R) :
@@ -542,6 +564,8 @@ theorem ldl_base_univ
   letI : IsEmpty x.ι := Fintype.card_eq_zero_iff.mp hzero
   exact base_ldl_empty x.A
 
+/-- The `SquareStrategyProofData` for LDL: transport (trivial, no real transformation) and
+lift (apply `ldlHeadTailSchurLift` once the tail IH is available). -/
 noncomputable def ldl_strategy_proof {R : Type*} [RCLike R] [TrivialStar R] :
     SquareStrategyProofData R LDL_P ldl_strategy_core where
   transport := by
@@ -558,6 +582,8 @@ noncomputable def ldl_strategy_proof {R : Type*} [RCLike R] [TrivialStar R] :
         refine hP ?_
         simpa [ldl_strategy_core, ldlHeadTailReduction] using hSlicePos)
 
+/-- Bundles the LDL strategy core and proof data into a `SquareStrategyData` record, ready for
+use by the descent driver. -/
 noncomputable def ldl_strategy_data {R : Type*} [RCLike R] [TrivialStar R] :
     SquareStrategyData R LDL_P :=
   mkSquareStrategyData ldl_strategy_core ldl_strategy_proof

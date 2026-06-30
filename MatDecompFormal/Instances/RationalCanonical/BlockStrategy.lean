@@ -1,3 +1,8 @@
+/-
+Copyright (c) 2026 Zichen Wang, Wanli Ma. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Zichen Wang, Wanli Ma
+-/
 import MatDecompFormal.Instances.RationalCanonical.ModuleBridge
 
 universe u v
@@ -48,7 +53,7 @@ structure RationalCanonicalPolynomialBlockStepData
   cyclic_blockSize_eq_selected_natDegree :
     step.cyclic_blockSize = selected.annihilator.natDegree
 
-/- See `RationalCanonicalPolynomialBlockStepData` for the consistency payload
+/-- See `RationalCanonicalPolynomialBlockStepData` for the consistency payload
 between the selected PID summand and the emitted matrix block step. -/
 structure RationalCanonicalPolynomialBlockBridge
     (K : Type v) [Field K] : Type (max (u + 1) (v + 1)) where

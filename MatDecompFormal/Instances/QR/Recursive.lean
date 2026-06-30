@@ -1,3 +1,8 @@
+/-
+Copyright (c) 2026 Zichen Wang, Wanli Ma. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Zichen Wang, Wanli Ma
+-/
 import MatDecompFormal.Framework.HeadTail
 import MatDecompFormal.Framework.Reindex
 import MatDecompFormal.Components.BlockAlgebra

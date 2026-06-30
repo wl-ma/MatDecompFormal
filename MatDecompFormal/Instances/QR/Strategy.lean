@@ -1,3 +1,8 @@
+/-
+Copyright (c) 2026 Zichen Wang, Wanli Ma. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Zichen Wang, Wanli Ma
+-/
 import MatDecompFormal.Framework.DecompositionDriver
 import MatDecompFormal.Framework.HeadTail
 import MatDecompFormal.Components.Reductions.Submatrix
@@ -21,9 +26,12 @@ This file contains the active strategy-side core used by the current QR
 framework driver.
 -/
 
+/-- The subtype of non-head indices of `ι`, used as the tail index type for QR descent. -/
 abbrev QRTailIdx (ι : Type*) [Fintype ι] [LinearOrder ι] [Nonempty ι] :=
   { a : ι // a ≠ headElem (α := ι) }
 
+/-- `QRReady ι A` holds when the lower-left block of `A` (reindexed by `headTailEquiv`) is zero,
+i.e., the head column of `A` is already in upper-triangular position. -/
 def QRReady
     (ι : Type*) [Fintype ι] [LinearOrder ι] [Nonempty ι]
     {R : Type*} [Zero R]

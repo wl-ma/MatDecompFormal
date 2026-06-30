@@ -1,3 +1,8 @@
+/-
+Copyright (c) 2026 Wanli Ma, Zichen Wang. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Wanli Ma, Zichen Wang
+-/
 import Mathlib.LinearAlgebra.Matrix.Block
 import Mathlib.Data.Matrix.Diagonal
 import Mathlib.Data.Sum.Order
@@ -46,9 +51,7 @@ that is, lower triangular with all diagonal entries equal to `1`.
 def IsUnitLowerTriangular [LT ι] [One R] (A : Matrix ι ι R) : Prop :=
   IsLowerTriangular A ∧ A.diag = 1
 
--- ==================================================================
--- Basic Properties
--- ==================================================================
+/-! ### Basic Properties -/
 
 variable [One R] [Preorder ι]
 

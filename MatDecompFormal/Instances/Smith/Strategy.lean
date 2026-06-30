@@ -1,3 +1,8 @@
+/-
+Copyright (c) 2026 Zichen Wang, Wanli Ma. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Zichen Wang, Wanli Ma
+-/
 import MatDecompFormal.Components.Reductions.Submatrix
 import MatDecompFormal.Framework.DecompositionDriver
 import MatDecompFormal.Framework.HeadTail
@@ -21,12 +26,17 @@ is represented by `SmithStepOracle`: after a two-sided invertible transform, the
 head row and head column are isolated and the pivot divides every tail entry.
 -/
 
+/-- Row tail index for Smith descent: non-head indices of the row type `m`. -/
 abbrev SmithTailRowIdx (m : Type*) [Fintype m] [LinearOrder m] [Nonempty m] :=
   { i : m // i ≠ headElem (α := m) }
 
+/-- Column tail index for Smith descent: non-head indices of the column type `n`. -/
 abbrev SmithTailColIdx (n : Type*) [Fintype n] [LinearOrder n] [Nonempty n] :=
   { j : n // j ≠ headElem (α := n) }
 
+/-- `SmithDescentReady R m n A` holds when, after reindexing by `headTailEquiv`, the
+matrix `A` has a scalar pivot `d` in the `(1,1)` block, zero off-diagonal blocks, and
+`d` divides every entry of the lower-right tail block. -/
 def SmithDescentReady
     (R : Type v) [CommSemiring R]
     (m n : Type u) [Fintype m] [LinearOrder m] [Nonempty m]
@@ -46,6 +56,8 @@ noncomputable instance smithDescentReadyDecidable
   intro A
   exact Classical.decPred (fun A : Matrix m n R => SmithDescentReady R m n A) A
 
+/-- An oracle providing, for every positive rectangular matrix, invertible matrices `P`, `Q`
+such that `P * A * Q` is in `SmithDescentReady` form. -/
 structure SmithStepOracle
     (R : Type v) [CommSemiring R]
     (m n : Type u) [Fintype m] [DecidableEq m] [LinearOrder m] [Nonempty m]
@@ -56,6 +68,7 @@ structure SmithStepOracle
   invertible_Q : ∀ A, GaussInvertibleMatrix (Q A)
   descentReady : ∀ A, SmithDescentReady R m n ((P A) * A * (Q A))
 
+/-- The zero matrix is in `SmithDescentReady` form with pivot `0`. -/
 theorem smithDescentReady_of_zero
     (R : Type v) [CommSemiring R]
     (m n : Type u) [Fintype m] [LinearOrder m] [Nonempty m]
@@ -71,6 +84,7 @@ theorem smithDescentReady_of_zero
   · intro i j
     simp [Matrix.toBlocks₂₂]
 
+/-- A Gauss block-ready matrix is Smith descent-ready with pivot `1`. -/
 theorem smithDescentReady_of_gaussBlockReady
     (R : Type v) [CommSemiring R]
     (m n : Type u) [Fintype m] [LinearOrder m] [Nonempty m]
@@ -83,6 +97,7 @@ theorem smithDescentReady_of_gaussBlockReady
   intro i j
   exact one_dvd _
 
+/-- A Gauss rank-descent-ready matrix is Smith descent-ready. -/
 theorem smithDescentReady_of_gaussReady
     (R : Type v) [CommSemiring R]
     (m n : Type u) [Fintype m] [LinearOrder m] [Nonempty m]
@@ -95,6 +110,8 @@ theorem smithDescentReady_of_gaussReady
     exact smithDescentReady_of_zero R m n
   · exact smithDescentReady_of_gaussBlockReady R m n hblock
 
+/-- Constructs a `SmithStepOracle` from a `GaussRankStepOracle` by using the Gauss pivot
+as a Smith pivot with divisibility guaranteed by `smithDescentReady_of_gaussReady`. -/
 noncomputable def smithStepOracleOfGauss
     (R : Type v) [CommSemiring R]
     (m n : Type u) [Fintype m] [DecidableEq m] [LinearOrder m] [Nonempty m]
@@ -109,6 +126,8 @@ noncomputable def smithStepOracleOfGauss
     intro A
     exact smithDescentReady_of_gaussReady R m n (oracle.ready A)
 
+/-- The `Transformation` that applies the oracle's two-sided invertible similarity to drive
+the matrix into `SmithDescentReady` form. -/
 noncomputable def smithTwoSidedInvertibleTransform
     (R : Type v) [CommSemiring R]
     (m n : Type u) [Fintype m] [DecidableEq m] [LinearOrder m] [Nonempty m]
@@ -127,6 +146,7 @@ noncomputable def smithTwoSidedInvertibleTransform
     intro A _h
     exact oracle.descentReady A
 
+/-- The `ReductionMethod` extracting the tail submatrix block from a Smith-ready matrix. -/
 noncomputable def smithHeadTailReduction
     (R : Type v) [CommSemiring R]
     (m n : Type u) [Fintype m] [LinearOrder m] [Nonempty m]
@@ -137,6 +157,8 @@ noncomputable def smithHeadTailReduction
     (headTailEquiv (α := n))
     (SmithDescentReady R m n)
 
+/-- The `RectStrategyCore` for Smith, wiring the oracle's two-sided invertible step into the
+rectangular descent driver. -/
 noncomputable def smith_strategy_core
     (R : Type v) [CommSemiring R]
     (oracle :

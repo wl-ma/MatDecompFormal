@@ -1,3 +1,8 @@
+/-
+Copyright (c) 2026 Zichen Wang, Wanli Ma. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Zichen Wang, Wanli Ma
+-/
 import MatDecompFormal.Instances.SVD.Strategy
 import MatDecompFormal.Instances.UTV.Details
 
@@ -18,15 +23,20 @@ after a two-sided unitary transform, the head row and head column decouple and
 the lower-right block is recursively decomposed.
 -/
 
+/-- Row tail index for UTV descent, aliased to `SVDTailRowIdx`. -/
 abbrev UTVTailRowIdx := SVDTailRowIdx
+/-- Column tail index for UTV descent, aliased to `SVDTailColIdx`. -/
 abbrev UTVTailColIdx := SVDTailColIdx
 
+/-- `UTVBlockReady m n A` holds when `A` is in SVD block-ready form, i.e., after a two-sided
+unitary transformation the head row and column decouple. -/
 def UTVBlockReady
     (m n : Type*) [Fintype m] [LinearOrder m] [Nonempty m]
     [Fintype n] [LinearOrder n] [Nonempty n]
     (A : Matrix m n ℂ) : Prop :=
   SVDBlockReady m n A
 
+/-- `UTVDescentReady` holds when the matrix is in UTV block-ready form (same as `UTVBlockReady`). -/
 def UTVDescentReady
     (m n : Type*) [Fintype m] [LinearOrder m] [Nonempty m]
     [Fintype n] [LinearOrder n] [Nonempty n]
@@ -41,6 +51,8 @@ noncomputable instance utvDescentReadyDecidable
   intro A
   exact inferInstance
 
+/-- An oracle providing, for every positive rectangular matrix, unitary matrices `U`, `V` such
+that `Uᴴ * A * V` is in `UTVDescentReady` form. -/
 structure UTVSimilarityOracle
     (m n : Type*) [Fintype m] [DecidableEq m] [LinearOrder m] [Nonempty m]
     [Fintype n] [DecidableEq n] [LinearOrder n] [Nonempty n] where
@@ -50,6 +62,7 @@ structure UTVSimilarityOracle
   unitary_V : ∀ A, IsUnitaryMatrix (V A)
   descentReady : ∀ A, UTVDescentReady m n ((U A)ᴴ * A * (V A))
 
+/-- Constructs a `UTVSimilarityOracle` from an `SVDBlockReadyOracle` by direct aliasing. -/
 noncomputable def utvSimilarityOracleOfSVDBlockReady
     (m n : Type*) [Fintype m] [DecidableEq m] [LinearOrder m] [Nonempty m]
     [Fintype n] [DecidableEq n] [LinearOrder n] [Nonempty n]
@@ -61,6 +74,8 @@ noncomputable def utvSimilarityOracleOfSVDBlockReady
   unitary_V := oracle.unitary_V
   descentReady := oracle.blockReady
 
+/-- The `Transformation` that applies the oracle's two-sided unitary similarity to drive
+the matrix into `UTVDescentReady` form. -/
 noncomputable def utvTwoSidedUnitaryTransform
     (m n : Type*) [Fintype m] [DecidableEq m] [LinearOrder m] [Nonempty m]
     [Fintype n] [DecidableEq n] [LinearOrder n] [Nonempty n]
@@ -77,6 +92,7 @@ noncomputable def utvTwoSidedUnitaryTransform
     intro A _h
     exact oracle.descentReady A
 
+/-- The `ReductionMethod` extracting the tail submatrix block from a UTV-ready matrix. -/
 noncomputable def utvHeadTailReduction
     (m n : Type*) [Fintype m] [LinearOrder m] [Nonempty m]
     [Fintype n] [LinearOrder n] [Nonempty n] :
@@ -86,6 +102,8 @@ noncomputable def utvHeadTailReduction
     (headTailEquiv (α := n))
     (UTVDescentReady m n)
 
+/-- The `RectStrategyCore` for UTV, wiring the oracle's two-sided unitary step into the
+rectangular descent driver. -/
 noncomputable def utv_strategy_core
     (oracle :
       ∀ {m n : Type u} [Fintype m] [DecidableEq m] [LinearOrder m] [Nonempty m]

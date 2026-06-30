@@ -1,3 +1,8 @@
+/-
+Copyright (c) 2026 Zichen Wang, Wanli Ma. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Zichen Wang, Wanli Ma
+-/
 import MatDecompFormal.Instances.Tridiagonalization.Strategy
 
 universe u
@@ -17,6 +22,8 @@ The lift hook is exactly the proof stored in
 construct the corresponding step oracle.
 -/
 
+/-- Transport hook for the tridiagonalization descent: lifts `Tridiagonalization_P` along
+unitary similarity steps using `tridiagonalization_transport_unitarySimilarity`. -/
 noncomputable def tridiagonalization_transport_hook
     (oracle :
       ∀ {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι] [Nonempty ι],
@@ -32,6 +39,8 @@ noncomputable def tridiagonalization_transport_hook
       t.1 A (t.1ᴴ * A * t.1) t.2 rfl
       (hPB (isHermitian_unitarySimilarity hHermA))
 
+/-- Lift hook for the tridiagonalization descent: promotes the tail induction hypothesis to the
+full matrix once `TridiagonalizationDescentReady` is satisfied. -/
 noncomputable def tridiagonalization_lift_hook
     (oracle :
       ∀ {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι] [Nonempty ι],
@@ -41,6 +50,8 @@ noncomputable def tridiagonalization_lift_hook
   intro ι fι dι oι nι A hReady hTailP
   exact hReady hTailP
 
+/-- Bundles the transport and lift hooks into the `SquareStrategyProofData` record consumed
+by the framework's square descent driver. -/
 noncomputable def tridiagonalization_strategy_proof
     (oracle :
       ∀ {ι : Type u} [Fintype ι] [DecidableEq ι] [LinearOrder ι] [Nonempty ι],

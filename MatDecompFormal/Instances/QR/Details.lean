@@ -1,3 +1,8 @@
+/-
+Copyright (c) 2026 Zichen Wang, Wanli Ma. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Zichen Wang, Wanli Ma
+-/
 import MatDecompFormal.Framework.Universe
 import MatDecompFormal.Abstractions.Schema
 import MatDecompFormal.Components.Properties.Triangular
@@ -15,9 +20,11 @@ section Presentation
 variable {ι : Type*} [Fintype ι] [DecidableEq ι]
 variable {R : Type*} [Semiring R]
 
+/-- A matrix `Q` is orthogonal if `Qᵀ * Q = 1`. -/
 def IsOrthogonalMatrix (Q : Matrix ι ι R) : Prop :=
   Qᵀ * Q = 1
 
+/-- The ordered matrix product of a list, computed left-to-right: `l[0] * l[1] * ⋯ * l[n-1]`. -/
 noncomputable def matrixProduct (l : List (Matrix ι ι R)) : Matrix ι ι R :=
   l.foldl (fun acc M => acc * M) 1
 
@@ -36,6 +43,8 @@ lemma matrixProduct_eq_prod (l : List (Matrix ι ι R)) :
         simp [ih, Matrix.mul_assoc]
   simpa [matrixProduct] using hfold l 1
 
+/-- `IsProductOf P Q` holds when `Q` is the left-to-right product of a finite list of matrices
+each satisfying `P`. -/
 def IsProductOf (P : Matrix ι ι R → Prop) (Q : Matrix ι ι R) : Prop :=
   ∃ l : List (Matrix ι ι R), (∀ M ∈ l, P M) ∧ matrixProduct l = Q
 
@@ -132,14 +141,20 @@ lemma isOrthogonalMatrix_one :
     IsOrthogonalMatrix (1 : Matrix ι ι R) := by
   simp [IsOrthogonalMatrix]
 
+/-- The QR decomposition schema: factors are `(Q, R')` where `Q` is orthogonal and `R'` is
+upper triangular, with `A = Q * R'`. -/
 def QR_Schema [LinearOrder ι] : DecompositionSchema ι ι R where
   Factors := Matrix ι ι R × Matrix ι ι R
   property := fun (Q, R') => IsOrthogonalMatrix Q ∧ IsUpperTriangular R'
   equation := fun A (Q, R') => A = Q * R'
 
+/-- `HasQR A` holds when `A` admits a QR decomposition, i.e., has a witness in `QR_Schema`. -/
 def HasQR [LinearOrder ι] (A : Matrix ι ι R) : Prop :=
   HasDecomposition QR_Schema A
 
+/-- `HasStructuredQR QProp A` holds when `A = Q * R'` with `Q` satisfying both `QProp` and the
+orthogonality condition, and `R'` upper triangular.  The additional predicate `QProp` carries
+structural information about the orthogonal factor (e.g., it is a product of Givens rotations). -/
 abbrev HasStructuredQR [LinearOrder ι]
     (QProp : Matrix ι ι R → Prop) (A : Matrix ι ι R) : Prop :=
   ∃ Q R', QProp Q ∧

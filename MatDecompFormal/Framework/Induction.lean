@@ -1,5 +1,10 @@
+/-
+Copyright (c) 2026 Wanli Ma, Zichen Wang. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Wanli Ma, Zichen Wang
+-/
 import Mathlib
-import MatDecompFormal.Framework.Universe -- Explicitly note that the universe types come from here
+import MatDecompFormal.Framework.Universe
 
 
 namespace MatDecompFormal.Framework
@@ -45,9 +50,7 @@ def Transport (r : X → X → Prop) (P : X → Prop) : Prop :=
   ∀ (x y : X), r x y → P x → P y
 
 
--- ==================================================================
--- L0: THE CORE ENGINE (on X)
--- ==================================================================
+/-! ### L0: The Core Engine (on X) -/
 
 /--
 `induction_by_reduction` is the core unified induction principle of this framework,
@@ -76,9 +79,7 @@ theorem induction_by_reduction
     have p_y : P y := reconstruct hy p_decompose
     exact h_trans y x h_r_yx p_y
 
--- ==================================================================
--- L1: CONVENIENCE APIS (Corollaries of the Core Engine)
--- ==================================================================
+/-! ### L1: Convenience APIs (Corollaries of the Core Engine) -/
 
 /--
 `wellFounded_induction_via_reduction` is an instance of `induction_by_reduction`
@@ -95,13 +96,11 @@ theorem wellFounded_induction_via_reduction
       ∃ y, ∃ (hy : IsReducible y), r y x ∧ rel (decompose hy) x)
     (base_case : ∀ {x : X}, (¬ ∃ y, rel y x) → P x)
     : ∀ (x : X), P x := by
-  -- Call the core engine with BaseSet defined as the set of minimal elements.
   apply induction_by_reduction hwf
     (BaseSet := fun x ↦ ¬ ∃ y, rel y x)
     h_trans IsReducible decompose reconstruct
     (prove_on_base := base_case)
     (reach_from_non_base := by
-      -- `¬ (¬ ∃ y, rel y x)` is equivalent to `∃ y, rel y x`
       intro x h_non_minimal
       push_neg at h_non_minimal
       exact reachability h_non_minimal)
@@ -123,7 +122,6 @@ theorem transformSliceInduction
       ∃ y, ∃ (hy : IsSliceable y), r y x ∧ μ (slice hy) < μ x)
     (base_metric : ∀ {x : X}, μ x = 0 → P x)
     : ∀ (x : X), P x := by
-  -- Call the core engine directly, explicitly defining the base-case set.
   apply induction_by_reduction (WellFounded.onFun wellFounded_lt)
     (BaseSet := fun x ↦ μ x = 0)
     (h_trans := h_trans)
@@ -132,12 +130,8 @@ theorem transformSliceInduction
     (reconstruct := lift_from_slice)
     (prove_on_base := base_metric)
     (reach_from_non_base := by
-      -- Prove that `¬ BaseSet x` implies the `reach` condition
-      -- `¬ (μ x = 0)` is equivalent to `μ x ≠ 0`.
       intro x h_non_base
-      -- For natural numbers, `μ x ≠ 0` is equivalent to `μ x > 0`.
       have h_mu_pos : μ x > 0 := Nat.pos_of_ne_zero h_non_base
-      -- Apply `reach_metric` directly
       exact reach_metric h_mu_pos)
 
 variable {X : Type*}
@@ -162,7 +156,6 @@ theorem transformSliceInductionGeneral
       ∃ y, ∃ (hy : IsSliceable y), r y x ∧ μ (slice hy) < μ x)
     (base_metric : ∀ {x : X}, μ x ≤ μ_base → P x)
     : ∀ (x : X), P x := by
-  -- Call the core engine directly with base-case set `μ x ≤ μ_base`.
   apply induction_by_reduction (WellFounded.onFun wellFounded_lt)
     (BaseSet := fun x ↦ μ x ≤ μ_base)
     (h_trans := h_trans)
@@ -172,9 +165,7 @@ theorem transformSliceInductionGeneral
     (prove_on_base := base_metric)
     (reach_from_non_base := by
       intro x h_non_base
-      -- `¬ (μ x ≤ μ_base)` is equivalent to `μ x > μ_base`.
       have h_mu_pos : μ x > μ_base := Nat.lt_of_not_ge h_non_base
-      -- Use the provided `reach_metric` directly
       exact reach_metric h_mu_pos)
 
 
