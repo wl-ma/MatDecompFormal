@@ -2,3 +2,4 @@
 /.lake
 paper/
 docs/
+MatDecompFormal/Instances/**/*.md
