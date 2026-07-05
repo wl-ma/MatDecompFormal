@@ -39,6 +39,11 @@ library built on top of Mathlib.
 
   The main aggregate import for the library.
 
+- `Audit`
+
+  Standalone Lean audit entry points used to check repository-wide claims
+  reported by the accompanying paper.
+
 ## Usage
 
 Build the project with Lake:
@@ -62,6 +67,30 @@ import MatDecompFormal.Instances
 
 The project assumes the Lean toolchain specified in `lean-toolchain` and the
 dependencies pinned by `lake-manifest.json`.
+
+## Paper Axiom Audit
+
+`Audit/MatDecompPaperAxiomAudit.lean` contains the manifest of 25 exported
+theorems used to support the paper's axiom-dependency claim. Run the audit from
+the repository root with:
+
+```bash
+lake env lean Audit/MatDecompPaperAxiomAudit.lean
+```
+
+Lean prints the axioms used by every theorem in the manifest. Review the full
+output and confirm that each reported dependency is contained in the expected
+set:
+
+```text
+Classical.choice
+propext
+Quot.sound
+```
+
+An entry reported as depending on no axioms is also acceptable. When the
+paper's exported-theorem surface changes, update this manifest and rerun the
+command before making repository-wide axiom claims.
 
 ## Contributors
 
