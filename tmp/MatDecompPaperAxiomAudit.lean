@@ -1,0 +1,27 @@
+import MatDecompFormal.Instances
+
+#print axioms MatDecompFormal.Instances.exists_unitary_bidiagonalization
+#print axioms MatDecompFormal.Instances.exists_householder_bidiagonalization_with_trace
+#print axioms MatDecompFormal.Instances.exists_cholesky_decomposition
+#print axioms MatDecompFormal.Instances.exists_gauss_rank_normal_form
+#print axioms MatDecompFormal.Instances.exists_hessenberg_reduction
+#print axioms MatDecompFormal.Instances.exists_jordan_matrix_complex
+#print axioms MatDecompFormal.Instances.exists_jordan_matrix_of_splits
+#print axioms MatDecompFormal.Instances.exists_ldl_decomposition
+#print axioms MatDecompFormal.Instances.exists_lu
+#print axioms MatDecompFormal.Instances.exists_normal_spectral_decomposition
+#print axioms MatDecompFormal.Instances.exists_orthogonal_hessenberg_reduction
+#print axioms MatDecompFormal.Instances.exists_householder_hessenberg_with_trace
+#print axioms MatDecompFormal.Instances.exists_plu_decomposition
+#print axioms MatDecompFormal.Instances.exists_qr_decomposition
+#print axioms MatDecompFormal.Instances.exists_qr_decomposition_householder
+#print axioms MatDecompFormal.Instances.exists_qr_decomposition_givens
+#print axioms MatDecompFormal.Instances.exists_householder_qr_with_trace
+#print axioms MatDecompFormal.Instances.exists_givens_qr_with_trace
+#print axioms MatDecompFormal.Instances.exists_rational_canonical_form
+#print axioms MatDecompFormal.Instances.exists_svd
+#print axioms MatDecompFormal.Instances.exists_unitary_schur
+#print axioms MatDecompFormal.Instances.exists_smith_normal_form
+#print axioms MatDecompFormal.Instances.exists_unitary_tridiagonalization
+#print axioms MatDecompFormal.Instances.exists_householder_tridiagonalization_with_trace
+#print axioms MatDecompFormal.Instances.exists_utv
