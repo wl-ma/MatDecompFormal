@@ -3,3 +3,6 @@
 paper/
 docs/
 MatDecompFormal/Instances/**/*.md
+/.agents/skills/write-matdecomp-paper/
+/scripts/
+SKILL.md
