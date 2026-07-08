@@ -172,10 +172,11 @@ If you use this repository or the accompanying paper, please cite:
 ## 👥 Contributors
 
 - Wanli Ma, Beijing International Center for Mathematical Research, Peking
-  University, China
+  University, China ([wlma@pku.edu.cn](mailto:wlma@pku.edu.cn))
 - Zichen Wang, School of Mathematical Sciences, Peking University, China
+  ([zichenwang25@stu.pku.edu.cn](mailto:zichenwang25@stu.pku.edu.cn))
 - Zaiwen Wen, Beijing International Center for Mathematical Research, Peking
-  University, China
+  University, China ([wenzw@pku.edu.cn](mailto:wenzw@pku.edu.cn))
 
 ## ⚖️ License
 
