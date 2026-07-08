@@ -73,20 +73,25 @@ MatDecompFormal/
   Framework/         Matrix universes, induction principles, driver assembly
   Components/        Reusable block, lifting, reindexing, property, and reduction lemmas
   Instances/         Concrete decomposition and normal-form developments
-Audit/               Paper-facing exported-theorem axiom audit
-paper/               Manuscript sources, figures, and compiled paper artifacts
+Audit/               Exported-theorem axiom audit
 MatDecompFormal.lean Main aggregate import
 ```
 
 Key entry points:
 
-- `MatDecompFormal.lean` imports the full library.
-- `MatDecompFormal/Instances.lean` imports the exposed instance layer.
-- `MatDecompFormal/Framework/DecompositionDriver.lean` contains the square and
-  rectangular driver constructors used by many instances.
-- `MatDecompFormal/Framework/UniverseDecomposition.lean` exposes
-  `prove_for_matrix`, the final step from a universe-level induction instance to
-  a concrete matrix theorem.
+- [`MatDecompFormal.lean`](MatDecompFormal.lean) imports the full library.
+- [`MatDecompFormal/Instances.lean`](MatDecompFormal/Instances.lean) imports
+  the exposed instance layer.
+- [`MatDecompFormal/Framework/Induction.lean`](MatDecompFormal/Framework/Induction.lean)
+  provides the reduction-based and subtype-driven induction theorems used to
+  recurse across matrix universes whose slice types may differ from the
+  original matrix type.
+- [`MatDecompFormal/Framework/DecompositionDriver.lean`](MatDecompFormal/Framework/DecompositionDriver.lean)
+  contains the square and rectangular driver constructors used by many
+  instances.
+- [`MatDecompFormal/Framework/UniverseDecomposition.lean`](MatDecompFormal/Framework/UniverseDecomposition.lean)
+  exposes `prove_for_matrix`, the final step from a universe-level induction
+  instance to a concrete matrix theorem.
 
 ## 🚀 Getting Started
 
