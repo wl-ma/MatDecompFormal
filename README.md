@@ -1,10 +1,5 @@
 # MatDecompFormal
 
-[![Lean 4](https://img.shields.io/badge/Lean-4.25.0-blue)](lean-toolchain)
-[![CI](https://github.com/wl-ma/MatDecompFormal/actions/workflows/lean_action_ci.yml/badge.svg)](https://github.com/wl-ma/MatDecompFormal/actions/workflows/lean_action_ci.yml)
-[![arXiv](https://img.shields.io/badge/arXiv-2607.05874-b31b1b)](https://arxiv.org/abs/2607.05874)
-[![License](https://img.shields.io/badge/License-Apache--2.0-green.svg)](LICENSE)
-
 `MatDecompFormal` is a Lean 4 library for formalizing existence proofs of
 matrix decompositions and normal forms. The project turns a recurring textbook
 proof pattern - prepare a matrix by a local transformation, reduce to a smaller
@@ -17,7 +12,7 @@ The development is described in the paper
 
 ![Subtype-induction framework](assets/figures/framework-overview.png)
 
-## Highlights
+## ✨ Highlights
 
 - **Unified proof architecture.** A common driver assembles universe data,
   target predicates, strategy data, local proof obligations, and lifting or
@@ -43,7 +38,7 @@ package. Many constructions are intentionally noncomputable and use classical
 choice, matching the theorem-proving setting and the corresponding Mathlib
 interfaces.
 
-## Instance Coverage
+## 📊 Instance Coverage
 
 The paper's 17-family audit scope reports 37,337 physical lines of Lean code:
 34,503 lines in decomposition instances and 2,834 lines in the shared
@@ -70,7 +65,7 @@ no `sorry` or `admit`.
 related algebraic development, but it is not one of the 17 counted matrix
 decomposition and normal-form families in the paper statistics.
 
-## Repository Layout
+## 🗂️ Repository Layout
 
 ```text
 MatDecompFormal/
@@ -93,7 +88,7 @@ Key entry points:
   `prove_for_matrix`, the final step from a universe-level induction instance to
   a concrete matrix theorem.
 
-## Getting Started
+## 🚀 Getting Started
 
 Install Lean using `elan`, then build with the pinned toolchain and Mathlib
 dependency versions:
@@ -129,7 +124,7 @@ Example theorem names exposed through the instance layer include:
 #check MatDecompFormal.Instances.exists_smith_normal_form
 ```
 
-## Axiom Audit
+## 🔎 Axiom Audit
 
 [`Audit/MatDecompPaperAxiomAudit.lean`](Audit/MatDecompPaperAxiomAudit.lean)
 contains the exported-theorem manifest used for the paper's axiom-dependency
@@ -152,11 +147,9 @@ An entry reported as depending on no axioms is also acceptable. If the exported
 theorem surface changes, update the manifest and rerun the command before making
 repository-wide axiom claims.
 
-## Paper
+## 📄 Paper
 
 - arXiv: <https://arxiv.org/abs/2607.05874>
-- PDF: <https://arxiv.org/pdf/2607.05874>
-- Local manuscript sources: [`paper/tex`](paper/tex)
 
 If you use this repository or the accompanying paper, please cite:
 
@@ -171,7 +164,7 @@ If you use this repository or the accompanying paper, please cite:
 }
 ```
 
-## Contributors
+## 👥 Contributors
 
 - Wanli Ma, Beijing International Center for Mathematical Research, Peking
   University, China
@@ -179,6 +172,6 @@ If you use this repository or the accompanying paper, please cite:
 - Zaiwen Wen, Beijing International Center for Mathematical Research, Peking
   University, China
 
-## License
+## ⚖️ License
 
 Released under the Apache 2.0 license. See [`LICENSE`](LICENSE) for details.
